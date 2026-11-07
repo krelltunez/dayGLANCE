@@ -2949,5 +2949,18 @@
       "tagRemoved": "Usunięto #{{from}}",
       "subtasksReordered": "Zmieniono kolejność podzadań w „{{title}}”"
     }
+  },
+  "calendarFilter": {
+    "title": "Filtruj kalendarz",
+    "hideProjects": "Ukryj projekty",
+    "showAll": "Pokaż wszystko",
+    "hidden_one": "{{count}} ukryte",
+    "hidden_few": "{{count}} ukryte",
+    "hidden_many": "{{count}} ukrytych",
+    "hidden_other": "{{count}} ukrytych",
+    "hiddenHint_one": "Filtruj kalendarz: {{count}} zadanie ukryte w pokazanych dniach",
+    "hiddenHint_few": "Filtruj kalendarz: {{count}} zadania ukryte w pokazanych dniach",
+    "hiddenHint_many": "Filtruj kalendarz: {{count}} zadań ukrytych w pokazanych dniach",
+    "hiddenHint_other": "Filtruj kalendarz: {{count}} zadania ukrytego w pokazanych dniach"
   }
 }

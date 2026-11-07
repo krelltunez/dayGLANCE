@@ -14,6 +14,7 @@ import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
 import { HabitRing } from './HabitRing.jsx';
 import GettingStartedChecklist from './GettingStartedChecklist.jsx';
 import FrameNudgeCard, { revealFrameNudgeCard } from './FrameNudgeCard.jsx';
+import CalendarFilterProjects, { useCalendarFilterSummary } from './CalendarFilterProjects.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getGlanceHGInstances, isHGSessionReachable } from '../hooks/useHyperGlance.js';
@@ -66,7 +67,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     pushUndo,
     scheduleTaskAtNextSlot,
     setShowSpotlight,
-    filterByTags,
+    filterByTags, filterForCalendar,
     getTodayStr, getOverdueTasks,
     getTaskCalendarStyle,
     timeToMinutes,
@@ -118,6 +119,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     isVisibleForUser,
   } = useFeaturesCtx();
   const { t, i18n } = useTranslation();
+  const calendarFilter = useCalendarFilterSummary();
 
   const isHealthSyncPaused = (habit) => {
     if (!habit.source) return false;
@@ -182,20 +184,27 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       <span className="text-sm truncate">{t('common.search')}</span>
       {isDesktop && <span className={`ml-auto text-xs ${textSecondary}`}>Ctrl+K</span>}
     </button>
-    {filterableTags.length > 0 && (
+    {calendarFilter.available && (
       <div className="flex-shrink-0 self-stretch flex items-center">
         <button
           ref={tagFilterBtnRef}
           onClick={() => setShowMobileTagFilter(v => !v)}
-          className={`px-2.5 h-full flex items-center rounded-lg transition-colors ${
-            !filterableTags.every(tag => selectedTags.includes(tag))
+          data-calendar-filter-button
+          title={calendarFilter.hiddenCount > 0 ? t('calendarFilter.hiddenHint', { count: calendarFilter.hiddenCount }) : t('calendarFilter.title')}
+          aria-label={calendarFilter.hiddenCount > 0 ? t('calendarFilter.hiddenHint', { count: calendarFilter.hiddenCount }) : t('calendarFilter.title')}
+          className={`px-2.5 h-full flex items-center gap-1 rounded-lg transition-colors ${
+            calendarFilter.active
               ? 'bg-blue-500 text-white'
               : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'
           } ${interactionClass}`}
         >
           <Filter size={16} />
+          {/* How many tasks the filter leaves off the days on screen (#2307). */}
+          {calendarFilter.hiddenCount > 0 && (
+            <span data-calendar-hidden-count className="text-xs font-semibold tabular-nums">{calendarFilter.hiddenCount}</span>
+          )}
         </button>
-        {/* Desktop tag filter popover */}
+        {/* Desktop calendar filter popover: tags, then Hide projects */}
         {showMobileTagFilter && (() => {
           const rect = tagFilterBtnRef.current?.getBoundingClientRect();
           return (
@@ -209,61 +218,76 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: 'inherit' }}>
                 <div className="flex items-center gap-1.5">
                   <Filter size={14} className={textSecondary} />
-                  <span className={`text-sm font-semibold ${textPrimary}`}>{t('common.filterByTag')}</span>
+                  <span className={`text-sm font-semibold ${textPrimary}`}>{t('calendarFilter.title')}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  {filterableTags.every(tag => selectedTags.includes(tag)) ? (
-                    <button onClick={clearTagFilter} className="text-xs text-blue-500 hover:text-blue-600 font-medium">{t('common.clear')}</button>
-                  ) : (
-                    <button onClick={selectAllTags} className="text-xs text-blue-500 hover:text-blue-600 font-medium">{t('common.selectAll')}</button>
-                  )}
-                </div>
+                {calendarFilter.hiddenCount > 0 && (
+                  <span data-calendar-hidden-label className={`text-xs ${textSecondary} tabular-nums`}>{t('calendarFilter.hidden', { count: calendarFilter.hiddenCount })}</span>
+                )}
               </div>
-              {/* Rename, merge or remove tags across tasks (#2136). At the top,
-                  above the list, with its key: at the foot of a long list it
-                  went unfound. */}
-              {setShowTagManager && (
-                <button
-                  type="button"
-                  data-manage-tags
-                  onClick={() => { setShowMobileTagFilter(false); setShowTagManager(true); }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 border-b text-sm text-blue-500 hover:text-blue-600 ${borderClass}`}
-                >
-                  <Hash size={12} />
-                  <span className="flex-1 text-left">{t('tagManager.manage')}</span>
-                  {isDesktop && <kbd className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'}`}>#</kbd>}
-                </button>
-              )}
-              <div className="py-1 max-h-[300px] overflow-y-auto">
-                {filterableTags.map(tag => {
-                  const highlightDates = effectiveViewMode === 'sched' && weekViewDates.length ? weekViewDates : visibleDates;
-                  const visibleDateStrs = new Set(highlightDates.map(d => dateToString(d)));
-                  const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
-                  const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
-                  const tagCount = regularCount + recurringCount;
-                  return (
+              <div className="max-h-[60vh] overflow-y-auto">
+              {filterableTags.length > 0 && (
+                <>
+                  {/* Rename, merge or remove tags across tasks (#2136). At the top,
+                      above the list, with its key: at the foot of a long list it
+                      went unfound. */}
+                  {setShowTagManager && (
                     <button
-                      key={tag}
-                      onClick={() => toggleTag(tag)}
-                      className={`w-full flex items-center gap-2 px-3 py-2 transition-colors ${
-                        tagCount === 0 ? 'opacity-40' : ''
-                      } ${
-                        selectedTags.includes(tag)
-                          ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
-                          : darkMode ? 'hover:bg-white/5' : 'hover:bg-stone-50'
-                      }`}
+                      type="button"
+                      data-manage-tags
+                      onClick={() => { setShowMobileTagFilter(false); setShowTagManager(true); }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 border-b text-sm text-blue-500 hover:text-blue-600 ${borderClass}`}
                     >
-                      <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
-                        selectedTags.includes(tag) ? 'bg-blue-500 border-blue-500' : darkMode ? 'border-gray-600' : 'border-stone-300'
-                      }`}>
-                        {selectedTags.includes(tag) && <Check size={12} className="text-white" />}
-                      </div>
-                      <Hash size={12} className={textSecondary} />
-                      <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
-                      {tagCount > 0 && <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>}
+                      <Hash size={12} />
+                      <span className="flex-1 text-left">{t('tagManager.manage')}</span>
+                      {isDesktop && <kbd className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'}`}>#</kbd>}
                     </button>
-                  );
-                })}
+                  )}
+                  <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                    <span className={`text-[10px] font-semibold uppercase tracking-wider ${textSecondary}`}>{t('sched.tags')}</span>
+                    {filterableTags.every(tag => selectedTags.includes(tag)) ? (
+                      <button onClick={clearTagFilter} className="text-xs text-blue-500 hover:text-blue-600 font-medium">{t('common.clear')}</button>
+                    ) : (
+                      <button onClick={selectAllTags} className="text-xs text-blue-500 hover:text-blue-600 font-medium">{t('common.selectAll')}</button>
+                    )}
+                  </div>
+                  <div className="pb-1">
+                    {filterableTags.map(tag => {
+                      const highlightDates = effectiveViewMode === 'sched' && weekViewDates.length ? weekViewDates : visibleDates;
+                      const visibleDateStrs = new Set(highlightDates.map(d => dateToString(d)));
+                      const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
+                      const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
+                      const tagCount = regularCount + recurringCount;
+                      return (
+                        <button
+                          key={tag}
+                          onClick={() => toggleTag(tag)}
+                          className={`w-full flex items-center gap-2 px-3 py-2 transition-colors ${
+                            tagCount === 0 ? 'opacity-40' : ''
+                          } ${
+                            selectedTags.includes(tag)
+                              ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
+                              : darkMode ? 'hover:bg-white/5' : 'hover:bg-stone-50'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
+                            selectedTags.includes(tag) ? 'bg-blue-500 border-blue-500' : darkMode ? 'border-gray-600' : 'border-stone-300'
+                          }`}>
+                            {selectedTags.includes(tag) && <Check size={12} className="text-white" />}
+                          </div>
+                          <Hash size={12} className={textSecondary} />
+                          <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
+                          {tagCount > 0 && <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+              {calendarFilter.hasProjects && (
+                <div className={filterableTags.length > 0 ? `border-t ${borderClass}` : ''}>
+                  <CalendarFilterProjects variant="popover" groups={calendarFilter.groups} />
+                </div>
+              )}
               </div>
             </div>
           </>
@@ -875,7 +899,8 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
 
   {/* Today's agenda — grouped by frames, matching tablet landscape */}
   {(() => {
-    const filteredAgenda = filterByTags(projectFilter ? todayAgenda.filter(t => t.projectId === projectFilter) : todayAgenda);
+    // The calendar filter: tags and hidden projects together (#2307).
+    const filteredAgenda = (filterForCalendar || filterByTags)(projectFilter ? todayAgenda.filter(t => t.projectId === projectFilter) : todayAgenda);
     const today = new Date(getTodayStr() + 'T12:00:00');
     const nowMinGlance = currentTime.getHours() * 60 + currentTime.getMinutes();
     const todayFrames = getFrameInstancesForDate(today).filter(f => timeToMinutes(f.end) > nowMinGlance);

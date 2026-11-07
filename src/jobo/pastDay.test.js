@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createDoRecord, tombstoneDoRecord } from './core.js';
 import { buildPastDayIndex, buildPastDaySlices, pastDayItems, pastDayDisplay } from './pastDay.js';
+import { liveHiddenProjectIds, makeCalendarFilter } from '../utils/calendarFilter.js';
 
 // Slice 6 (docs/jobo-past-days.md): what a date before today shows. Only the
 // rule is under test here; the views adopt it in a later step.
@@ -166,5 +167,13 @@ describe('pastDayDisplay', () => {
     expect(items.map((item) => item.id)).toEqual([`jobo-do:manual:1:${DAY}`]);
     const noWork = (items) => items.filter((item) => !/#work\b/.test(item.title));
     expect(pastDayDisplay({ dateStr: DAY, todayStr: '2026-09-30', dayTasks: noWork(dayTasks), index: index(), tagFilter: noWork }).map((item) => item.id)).toEqual(['t2']);
+  });
+
+  // #2307: App hands the calendar filter (tags and hidden projects) in as
+  // `tagFilter`; a Do carries its task's project, so it leaves with the task.
+  it('holds a Do to the hidden projects by its task\'s project', () => {
+    const calendar = makeCalendarFilter({ selectedTags: ['work'], liveHidden: liveHiddenProjectIds(['p1'], [{ id: 'p1' }]) });
+    const items = pastDayDisplay({ dateStr: DAY, todayStr: '2026-09-30', dayTasks: calendar(dayTasks), index: index(), tagFilter: calendar });
+    expect(items.map((item) => item.id)).toEqual(['t2']);
   });
 });

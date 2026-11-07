@@ -42,11 +42,13 @@ export default function DayKeyTasks({ dateStr, size = 14 }) {
     };
   }, [open]);
 
-  const { getTasksForDate, goToDate, scrollToHour, formatTime, darkMode, textSecondary, hoverBg } = ctx ?? {};
-  if (!getTasksForDate || !dateStr) return null;
+  const { getTasksForDate, getCalendarTasksForDate, goToDate, scrollToHour, formatTime, darkMode, textSecondary, hoverBg } = ctx ?? {};
+  // The day as the calendar filter leaves it (tags and hidden projects, #2307).
+  const readDay = getCalendarTasksForDate || getTasksForDate;
+  if (!readDay || !dateStr) return null;
 
   const date = new Date(`${dateStr}T12:00:00`);
-  const dayTasks = getTasksForDate(date);
+  const dayTasks = readDay(date);
   const starred = starredOn(dayTasks, dateStr);
   if (!starred.length) return null;
 

@@ -762,7 +762,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
     calendarRef, mobileDateHeaderRef, use24HourClock,
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
     formatTime, timeToMinutes, minutesToTime,
-    getTasksForDate, getTaskCalendarStyle,
+    getTasksForDate, getCalendarTasksForDate, getTaskCalendarStyle,
     toggleComplete, postponeTask, moveToInbox, openMobileEditTask,
     setExpandedNotesTaskId,
     pushUndo, playUISound,
@@ -802,10 +802,13 @@ const MobileListView = ({ hideInboxHandle = false }) => {
   const isToday = dateStr === dateToString(new Date());
   const nowMin  = currentTime.getHours() * 60 + currentTime.getMinutes();
 
+  // The day as the calendar filter leaves it (tags and hidden projects, #2307).
+  // The read is in the deps, so toggling the filter redraws the list.
+  const readDay = getCalendarTasksForDate || getTasksForDate;
   const allDayItems = useMemo(() =>
-    getTasksForDate(selectedDate).filter(t => t.isAllDay && !t.isExample),
+    readDay(selectedDate).filter(t => t.isAllDay && !t.isExample),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedDate, tasks, expandedRecurringTasks],
+    [selectedDate, tasks, expandedRecurringTasks, readDay],
   );
 
   const allDayRoutines = useMemo(() =>
@@ -829,9 +832,9 @@ const MobileListView = ({ hideInboxHandle = false }) => {
   ], [allDayItems, allDayRoutines, routineCompletions]);
 
   const scheduledTasks = useMemo(() =>
-    getTasksForDate(selectedDate).filter(t => !t.isAllDay && !t.isExample),
+    readDay(selectedDate).filter(t => !t.isAllDay && !t.isExample),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedDate, tasks, expandedRecurringTasks],
+    [selectedDate, tasks, expandedRecurringTasks, readDay],
   );
 
   const scheduledRoutines = useMemo(() =>

@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import { dateToString, extractTags } from '../utils/taskUtils.js';
 import { notBucketed } from '../utils/bucketList.js';
+import { liveHiddenProjectIds, makeCalendarFilter, passesTagFilter } from '../utils/calendarFilter.js';
 import { liveInboxProjectFilter as liveProjectFilterOf, liveInboxTagFilter as liveTagFilterOf, filterInboxTasks } from '../utils/inboxFilter.js';
 
 export default function useComputedViews({
@@ -9,6 +10,7 @@ export default function useComputedViews({
   recurringTasks,
   selectedDate,
   selectedTags,
+  hiddenProjects = [],
   inboxPriorityFilter,
   hideCompletedInbox,
   hideProjectTasksInbox,
@@ -54,17 +56,29 @@ export default function useComputedViews({
 
   // Filter tasks by selected tags (OR logic - show tasks matching ANY selected tag)
   // Untagged tasks are always shown — the filter only scopes tagged tasks
-  const filterByTags = useCallback((taskList) => {
-    return taskList.filter(task => {
-      const taskTags = extractTags(task.title);
-      // Imported events and untagged tasks always shown
-      if (task.imported || taskTags.length === 0) return true;
-      // If no tags are selected, hide tagged tasks
-      if (selectedTags.length === 0) return false;
-      // Show tagged tasks only if they match a selected tag
-      return selectedTags.some(tag => taskTags.includes(tag));
-    });
-  }, [selectedTags]);
+  // (utils/calendarFilter.js passesTagFilter).
+  const filterByTags = useCallback(
+    (taskList) => taskList.filter(task => passesTagFilter(task, selectedTags)),
+    [selectedTags],
+  );
+
+  // Hide projects (#2307): the saved ids that still name an active project,
+  // with Goals & Projects on. Keyed on the ids so an unrelated project edit
+  // keeps the same Set, and the calendar filter, from render to render.
+  const liveHiddenKey = useMemo(
+    () => [...liveHiddenProjectIds(hiddenProjects, projects, { enabled: goalsProjectsEnabled })].sort().join('\u0000'),
+    [hiddenProjects, projects, goalsProjectsEnabled],
+  );
+  const liveHiddenProjects = useMemo(
+    () => (liveHiddenKey ? new Set(liveHiddenKey.split('\u0000')) : new Set()),
+    [liveHiddenKey],
+  );
+  // The calendar views' filter: tags and hidden projects together. A VIEW
+  // filter only; App.jsx hands it to the display reads and nothing else.
+  const filterForCalendar = useMemo(
+    () => makeCalendarFilter({ selectedTags, liveHidden: liveHiddenProjects }),
+    [selectedTags, liveHiddenProjects],
+  );
 
   // Saved Inbox filters minus stale selections, and the Inbox itself: one
   // filter in utils/inboxFilter.js, shared with the launcher snapshot and the
@@ -102,6 +116,8 @@ export default function useComputedViews({
     filterableTags,
     incompleteTodayTasks,
     filterByTags,
+    filterForCalendar,
+    liveHiddenProjects,
     filteredUnscheduledTasks,
     filteredTodayTasks,
     // What an "a filter is active" indicator should use: a saved selection whose

@@ -2827,5 +2827,12 @@
       "tagRemoved": "已移除 #{{from}}",
       "subtasksReordered": "已调整“{{title}}”的子任务顺序"
     }
+  },
+  "calendarFilter": {
+    "title": "筛选日历",
+    "hideProjects": "隐藏项目",
+    "showAll": "全部显示",
+    "hidden_other": "已隐藏 {{count}} 项",
+    "hiddenHint_other": "筛选日历：所显示的日期中有 {{count}} 个任务已隐藏"
   }
 }

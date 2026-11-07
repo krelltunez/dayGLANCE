@@ -62,7 +62,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
     toggleComplete,
     postponeTask,
     formatTime, timeToMinutes,
-    getTasksForDate, getDayDisplayForDate, getContinuationsForDate,
+    getTasksForDate, getCalendarTasksForDate, getDayDisplayForDate, getContinuationsForDate,
     getTaskCalendarStyle,
     minutesToPosition, positionToMinutes,
     calculateTaskPosition, calculateConflictPosition,
@@ -165,7 +165,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
           </div>
         );
       }
-      const readDay = !planOnly && typeof getDayDisplayForDate === 'function' ? getDayDisplayForDate : getTasksForDate;
+      const readDay = !planOnly && typeof getDayDisplayForDate === 'function' ? getDayDisplayForDate : (getCalendarTasksForDate || getTasksForDate);
       const dayTasks = readDay(date).filter(t => !t.isAllDay && !t.isExample && (!projectFilter || t.projectId === projectFilter));
       // The previous date's tasks running past midnight (#2278): drawn here
       // from 00:00, packed with this date's cards, not among its tasks.

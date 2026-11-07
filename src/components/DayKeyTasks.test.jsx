@@ -72,6 +72,14 @@ describe('DayKeyTasks', () => {
     expect(await render([task({ date: '2026-01-01', starredDate: '2026-01-01' })])).toBe('');
   });
 
+  // #2307: it reads the day as the calendar shows it, so a starred task of a
+  // hidden project is not counted in the header beside the hidden card.
+  it('reads the day through the calendar filter', async () => {
+    const starred = [task({ starredDate: TODAY }), task({ id: 't2', starredDate: TODAY })];
+    const html = await render(starred, { getCalendarTasksForDate: () => starred.slice(0, 1) });
+    expect(html).toContain('>1<');
+  });
+
   it('keeps the list closed until asked', async () => {
     const html = await render([task({ starredDate: TODAY })]);
     expect(html).toContain('aria-expanded="false"');

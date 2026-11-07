@@ -13,6 +13,7 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 import DaySummaryCallouts from './DaySummaryCallouts.jsx';
+import CalendarFilterProjects, { useCalendarFilterSummary } from './CalendarFilterProjects.jsx';
 
 const MobileBottomSheets = () => {
   const {
@@ -54,6 +55,7 @@ const MobileBottomSheets = () => {
     getTasksForDate,
   } = useDayPlannerCtx();
   const { t } = useTranslation();
+  const calendarFilter = useCalendarFilterSummary();
   const { showMobileRecycleBin, setShowMobileRecycleBin } = useSyncCtx();
   const {
     activeHabits, habitStreaks, habitLogs, habitsEnabled,
@@ -159,91 +161,106 @@ const MobileBottomSheets = () => {
       </div>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <Filter size={18} className={textSecondary} />
-          <span className={`font-semibold ${textPrimary}`}>{t('common.filterByTag')}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          {filterableTags.every(tag => selectedTags.includes(tag)) ? (
-            <button
-              onClick={clearTagFilter}
-              className="text-sm text-blue-500 hover:text-blue-600 active:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 dark:active:text-blue-200 font-medium transition-colors"
-            >
-              {t('common.clear')}
-            </button>
-          ) : (
-            <button
-              onClick={selectAllTags}
-              className="text-sm text-blue-500 hover:text-blue-600 active:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 dark:active:text-blue-200 font-medium transition-colors"
-            >
-              {t('common.selectAll')}
-            </button>
+          <span className={`font-semibold ${textPrimary}`}>{t('calendarFilter.title')}</span>
+          {calendarFilter.hiddenCount > 0 && (
+            <span data-calendar-hidden-label className={`text-xs ${textSecondary} tabular-nums truncate`}>{t('calendarFilter.hidden', { count: calendarFilter.hiddenCount })}</span>
           )}
-          <button
-            onClick={() => setShowMobileTagFilter(false)}
-            className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
-            aria-label={t('app.closeTagFilter', { defaultValue: 'Close tag filter' })}
-          >
-            <X size={16} className={textSecondary} />
-          </button>
         </div>
+        <button
+          onClick={() => setShowMobileTagFilter(false)}
+          className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
+          aria-label={t('app.closeTagFilter', { defaultValue: 'Close tag filter' })}
+        >
+          <X size={16} className={textSecondary} />
+        </button>
       </div>
-      {/* Rename, merge or remove tags across tasks (#2136): above the list,
-          where it is seen, not below a list that scrolls. */}
-      {setShowTagManager && (
-        <div className="px-4 pb-3">
-          <button
-            type="button"
-            data-manage-tags
-            onClick={() => { setShowMobileTagFilter(false); setShowTagManager(true); }}
-            className={`w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-medium text-blue-500 ${darkMode ? 'bg-white/5' : 'bg-stone-50'}`}
-          >
-            <Hash size={14} />
-            {t('tagManager.manage')}
-          </button>
+      <div className="max-h-[60vh] overflow-y-auto pb-2">
+      {filterableTags.length > 0 && (
+        <>
+          {/* Rename, merge or remove tags across tasks (#2136): above the list,
+              where it is seen, not below a list that scrolls. */}
+          {setShowTagManager && (
+            <div className="px-4 pb-3">
+              <button
+                type="button"
+                data-manage-tags
+                onClick={() => { setShowMobileTagFilter(false); setShowTagManager(true); }}
+                className={`w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-medium text-blue-500 ${darkMode ? 'bg-white/5' : 'bg-stone-50'}`}
+              >
+                <Hash size={14} />
+                {t('tagManager.manage')}
+              </button>
+            </div>
+          )}
+          <div className="flex items-center justify-between px-4 pt-1 pb-1">
+            <span className={`text-[10px] font-semibold uppercase tracking-wider ${textSecondary}`}>{t('sched.tags')}</span>
+            {filterableTags.every(tag => selectedTags.includes(tag)) ? (
+              <button
+                onClick={clearTagFilter}
+                className="text-sm text-blue-500 hover:text-blue-600 active:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 dark:active:text-blue-200 font-medium transition-colors"
+              >
+                {t('common.clear')}
+              </button>
+            ) : (
+              <button
+                onClick={selectAllTags}
+                className="text-sm text-blue-500 hover:text-blue-600 active:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 dark:active:text-blue-200 font-medium transition-colors"
+              >
+                {t('common.selectAll')}
+              </button>
+            )}
+          </div>
+          {/* Tag list */}
+          <div className="px-4 pb-2 space-y-1">
+            {(() => {
+              const visibleDateStrs = new Set(visibleDates.map(d => dateToString(d)));
+              const tagCounts = {};
+              for (const t of tasks) {
+                if (t.imported || !visibleDateStrs.has(t.date)) continue;
+                for (const tag of extractTags(t.title)) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+              }
+              for (const t of expandedRecurringTasks) {
+                if (!visibleDateStrs.has(t.date)) continue;
+                for (const tag of extractTags(t.title)) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+              }
+              return filterableTags.map(tag => {
+              const tagCount = tagCounts[tag] || 0;
+              return (
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors ${
+                    tagCount === 0 ? 'opacity-40' : ''
+                  } ${
+                    selectedTags.includes(tag)
+                      ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
+                      : darkMode ? 'active:bg-white/5' : 'active:bg-stone-50'
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
+                    selectedTags.includes(tag)
+                      ? 'bg-blue-500 border-blue-500'
+                      : darkMode ? 'border-gray-600' : 'border-stone-300'
+                  }`}>
+                    {selectedTags.includes(tag) && <Check size={14} className="text-white" />}
+                  </div>
+                  <Hash size={14} className={textSecondary} />
+                  <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
+                  {tagCount > 0 && <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>}
+                </button>
+              );
+            });
+            })()}
+          </div>
+        </>
+      )}
+      {calendarFilter.hasProjects && (
+        <div className={filterableTags.length > 0 ? `mt-1 border-t ${borderClass}` : ''}>
+          <CalendarFilterProjects variant="sheet" groups={calendarFilter.groups} />
         </div>
       )}
-      {/* Tag list */}
-      <div className="px-4 pb-4 space-y-1 max-h-[50vh] overflow-y-auto">
-        {(() => {
-          const visibleDateStrs = new Set(visibleDates.map(d => dateToString(d)));
-          const tagCounts = {};
-          for (const t of tasks) {
-            if (t.imported || !visibleDateStrs.has(t.date)) continue;
-            for (const tag of extractTags(t.title)) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-          }
-          for (const t of expandedRecurringTasks) {
-            if (!visibleDateStrs.has(t.date)) continue;
-            for (const tag of extractTags(t.title)) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-          }
-          return filterableTags.map(tag => {
-          const tagCount = tagCounts[tag] || 0;
-          return (
-            <button
-              key={tag}
-              onClick={() => toggleTag(tag)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors ${
-                tagCount === 0 ? 'opacity-40' : ''
-              } ${
-                selectedTags.includes(tag)
-                  ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
-                  : darkMode ? 'active:bg-white/5' : 'active:bg-stone-50'
-              }`}
-            >
-              <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
-                selectedTags.includes(tag)
-                  ? 'bg-blue-500 border-blue-500'
-                  : darkMode ? 'border-gray-600' : 'border-stone-300'
-              }`}>
-                {selectedTags.includes(tag) && <Check size={14} className="text-white" />}
-              </div>
-              <Hash size={14} className={textSecondary} />
-              <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
-              {tagCount > 0 && <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>}
-            </button>
-          );
-        });
-        })()}
       </div>
     </div>
   </div>
