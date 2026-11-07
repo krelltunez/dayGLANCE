@@ -1,6 +1,6 @@
 {
   "name": "@glance-apps/dayglance-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "dayGLANCE's MCP read surface: the read tools and resources, the read model that answers them, and the state it answers over, shared by the dayGLANCE desktop app and a GLANCEvault-client host.",
   "license": "MIT",
   "type": "module",
@@ -24,7 +24,7 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@glance-apps/agenda-core": "^0.1.0",
+    "@glance-apps/agenda-core": "^0.2.0",
     "@glance-apps/mcp-host": "^0.1.0",
     "@modelcontextprotocol/server": "^2.3.1",
     "zod": "^4.6.7"

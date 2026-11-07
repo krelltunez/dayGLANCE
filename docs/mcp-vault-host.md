@@ -278,8 +278,8 @@ options are host configuration:
 - **Time zone and clock.** `todayDate` and `nowMinutes` are read in `timeZone`
   when it is given; the app gives none, since its clock is the user's. A
   server is often on UTC, so the host must configure the user's IANA zone. The
-  zone also rides the state, so `created_at` and `completed_at` are reported in
-  it. The tools' own "today" (`deps.timeZone()`) must be the same zone.
+  zone also rides the state, so `created_at`, `completed_at` and each
+  `plan_trail` stop's `moved_at` are reported in it. The tools' own "today" (`deps.timeZone()`) must be the same zone.
 - **`weekStartDay`** is a per-device setting (`day-planner-week-start-day`), not synced. Host config.
 - **Settings the vault never hands over.** The adapter keeps the receiving
   device's value for `multiUserEnabled` always, and, while it is on, for the

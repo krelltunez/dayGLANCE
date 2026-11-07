@@ -1,6 +1,6 @@
 {
   "name": "@glance-apps/dayglance-vault",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "dayGLANCE's GLANCEvault data adapter: how dayGLANCE's synced data maps to vault rows and how pulled rows merge into it, with the merge and retention rules both sync tiers share, and the client for the vault's /events change nudges. Used by the dayGLANCE app and by a GLANCEvault-client host.",
   "license": "MIT",
   "type": "module",
@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "peerDependencies": {
+    "@glance-apps/agenda-core": "^0.2.0",
     "@glance-apps/obsidian-format": "^0.1.0",
     "@glance-apps/sync": "^2.4.0"
   },

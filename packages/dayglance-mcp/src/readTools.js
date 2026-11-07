@@ -96,6 +96,18 @@ const CONTINUATION_NOTE =
   'occupies that time, so treat it as busy, but it is not another task on this date: its own block, ' +
   'with its full duration, is on the date it started, and a write targets it by its id there.';
 
+// A task's plan history (planHistory.js): the fields answer "what keeps
+// slipping?", and a model that does not know they exist, or reads deferrals
+// as every move, answers it wrong. Omitted when empty, so their absence is
+// stated too.
+const PLAN_HISTORY_NOTE =
+  ' Tasks that were rescheduled carry their plan history, each field omitted when there is nothing ' +
+  'to tell: original_plan (date, start_time, duration_minutes as first planned, only when the plan ' +
+  'has changed since), deferrals (how many times the task slipped, meaning it was moved after it had ' +
+  'come due; moves made while planning ahead are not counted), and plan_trail (the most recent slips, ' +
+  'oldest first, at most 6, each with moved_at and where it moved the task to), with ' +
+  'plan_trail_omitted counting the earlier slips the trail no longer lists.';
+
 /**
  * @param {import('@modelcontextprotocol/server').McpServer} server
  * @param {import('../types/index.js').ReadToolDeps} deps
@@ -116,7 +128,7 @@ export function registerReadTools(server, deps) {
       description:
         "Today's schedule from dayGLANCE. Resolves the current LOCAL calendar date on the " +
         'user\'s machine. Use this instead of guessing the date. Response echoes the resolved ' +
-        'date and IANA timezone; times are local wall-clock HH:MM.' + NATIVE_NOTE + ROUTINE_NOTE + FRAME_NOTE + CONTINUATION_NOTE,
+        'date and IANA timezone; times are local wall-clock HH:MM.' + NATIVE_NOTE + ROUTINE_NOTE + FRAME_NOTE + CONTINUATION_NOTE + PLAN_HISTORY_NOTE,
     },
     async () => getDay(localDateOf(deps.now(), deps.timeZone())),
   );
@@ -127,7 +139,7 @@ export function registerReadTools(server, deps) {
       description:
         'The dayGLANCE schedule for one LOCAL calendar date (YYYY-MM-DD, no time component, ' +
         'no UTC, no offsets). Response echoes the resolved date and IANA timezone; times are ' +
-        'local wall-clock HH:MM. For the current date, prefer dayglance_get_today.' + NATIVE_NOTE + ROUTINE_NOTE + FRAME_NOTE + CONTINUATION_NOTE,
+        'local wall-clock HH:MM. For the current date, prefer dayglance_get_today.' + NATIVE_NOTE + ROUTINE_NOTE + FRAME_NOTE + CONTINUATION_NOTE + PLAN_HISTORY_NOTE,
       inputSchema: z.object({
         date: z.string().describe('Local calendar date, strict YYYY-MM-DD. Not a timestamp.'),
       }),
@@ -157,7 +169,8 @@ export function registerReadTools(server, deps) {
         'tool; see dayglance_list_bucket_list. Items carry duration_minutes and, when assigned, ' +
         'assignee_id. A cursor is bound to the filters it was issued under: changing scope or ' +
         'include_completed mid-pagination is a validation error, so to change filters, restart ' +
-        'with a fresh call and no cursor.',
+        'with a fresh call and no cursor.' + PLAN_HISTORY_NOTE + ' An inbox task keeps the history ' +
+        'it gathered while it was scheduled.',
       inputSchema: z.object({
         limit: z.number().int().optional().describe(`Page size, 1-${MAX_LIST_LIMIT}. Default ${DEFAULT_LIST_LIMIT}.`),
         cursor: z.string().optional().describe('Opaque cursor from a previous response\'s next_cursor.'),
@@ -220,7 +233,8 @@ export function registerReadTools(server, deps) {
       description:
         'The dayGLANCE Bucket List: someday/maybe items kept out of the inbox on purpose, in two lists with ' +
         "the user's own headings (by default Anytime and Someday). Items are inbox-shaped (id, title, completed, " +
-        'and notes, project_id, duration_minutes, assignee_id, subtasks when present) plus bucket_id; they carry ' +
+        'and notes, project_id, duration_minutes, assignee_id, subtasks, and the plan history fields original_plan, ' +
+        'deferrals, plan_trail and plan_trail_omitted when present) plus bucket_id; they carry ' +
         'no priority or deadline. These items never appear in dayglance_list_unscheduled_tasks. Read-only over ' +
         'MCP: moving an item between the Bucket List and the inbox is done in dayGLANCE.',
     },

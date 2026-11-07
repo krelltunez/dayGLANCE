@@ -19,7 +19,8 @@
 // are the user's, not the machine's: without a `timeZone` they come from the
 // local clock (the app, whose clock is the user's); with one they are read in
 // that IANA zone (a host, which is often a server on UTC). The zone also
-// rides the state, so stamps (created_at, completed_at) are reported in it.
+// rides the state, so stamps (created_at, completed_at, a plan_trail
+// stop's moved_at) are reported in it.
 
 import { agendaClock, isTaskVisibleForUser, isOwnedBy } from '@glance-apps/agenda-core';
 // The dates module itself, not the kit's root: the root also carries the HTTP
