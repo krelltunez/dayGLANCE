@@ -118,7 +118,7 @@ export function calendarFilterDates({
 /**
  * How many of the dates' rows the filter leaves out: the tag filter and
  * hide-projects together, each task counted once. `rowsForDate` is the day's
- * rows before any filter (getTasksForDate(date, false)'s map).
+ * rows before any filter (getTasksForDate(date)'s map).
  */
 export function countHiddenOnDates(dateStrs, rowsForDate, filter) {
   let hidden = 0;

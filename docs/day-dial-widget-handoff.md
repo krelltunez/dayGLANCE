@@ -251,7 +251,7 @@ widget and the dial cannot disagree about the day's shape. Per block:
 | `startedPrevDay: true` | last night's overrun, drawn from midnight |
 
 Nothing else: no notes, subtasks, project links, or anything the ring and hub
-do not draw. Not tag-filtered (`getTasksForDate(today, false)`): the home
+do not draw. Not tag-filtered (`getTasksForDate(today)`, the day as it holds): the home
 screen shows the day, not a filtered view of it.
 
 **Why this is its own field.** The snapshot's agenda-shaped fields —

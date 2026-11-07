@@ -24,7 +24,7 @@ export default function useJoboDay({ hourHeight, zoom = 1 }) {
   const nowTime = clock(currentTime.getHours() * 60 + currentTime.getMinutes());
 
   const dayTasks = useMemo(
-    () => getTasksForDate(selectedDate, false).filter((task) => !task.isAllDay && task.startTime),
+    () => getTasksForDate(selectedDate).filter((task) => !task.isAllDay && task.startTime),
     [getTasksForDate, selectedDate],
   );
   const lookup = useMemo(

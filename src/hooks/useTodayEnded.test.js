@@ -23,8 +23,7 @@ const TODAY = '2026-10-04';
 const at = (hh, mm = 0) => new Date(`${TODAY}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`);
 
 let tasks;
-const getTasksForDate = (date, applyTagFilter) => {
-  expect(applyTagFilter).toBe(false);
+const getTasksForDate = (date) => {
   return tasks.filter(task => task.date === `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`);
 };
 const stamp = `${TODAY}T08:00:00.000Z`;

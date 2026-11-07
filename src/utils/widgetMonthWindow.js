@@ -164,7 +164,7 @@ function buildAgenda(dayTasks, deadlineTasks, routines) {
  * One day's summary. Pure.
  *
  * @param opts.dateStr       'YYYY-MM-DD'.
- * @param opts.dayTasks      getTasksForDate(date, false) for the day.
+ * @param opts.dayTasks      getTasksForDate(date) for the day.
  * @param opts.prevDayTasks  The day before, for the overnight carry.
  * @param opts.deadlineTasks Inbox tasks due that day (caller-filtered).
  * @param opts.routines      Placed routines for the day — non-empty for

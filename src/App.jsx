@@ -6374,7 +6374,7 @@ const DayPlanner = () => {
     todayKey: widgetTodayKey, weekStartDay, calendarFilter, nativeCalendarKey,
   });
   const widgetTasksForDate = useCallback(
-    (date) => widgetDayTasks(dateToString(date), getTasksForDate(date, false), widgetNative),
+    (date) => widgetDayTasks(dateToString(date), getTasksForDate(date), widgetNative),
     [getTasksForDate, widgetNative],
   );
   const projectedWidgetDays = useMemo(() => {

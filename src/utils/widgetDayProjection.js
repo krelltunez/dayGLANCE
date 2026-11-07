@@ -170,7 +170,7 @@ export function buildScheduleSections({ scheduled, frames, frameAvailableMinutes
  * @param opts.date        Local Date inside the day.
  * @param opts.dateStr     'YYYY-MM-DD' of the day.
  * @param opts.dateLabel   Localized short label, as the pushed day carries.
- * @param opts.dayTasks    getTasksForDate(date, false): tasks + recurring
+ * @param opts.dayTasks    getTasksForDate(date): tasks + recurring
  *                         instances, visibility-filtered, no tag filter.
  * @param opts.prevDayTasks The day before, for the dial's overnight carry.
  * @param opts.deadlineTasks Inbox tasks due that day (caller-filtered).
