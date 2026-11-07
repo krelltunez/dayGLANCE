@@ -28,6 +28,8 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 // The panel body, exported so a test can render it directly. Everything inside
 // only ever runs while the popover is open, which is precisely the code a static
 // render of the closed badge cannot reach.
+const isDateString = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
 export function PlanHistoryPanel({ history, task, formatTime }) {
   const { t } = useTranslation();
   const { plan, changed } = history ?? { plan: null, changed: {} };
@@ -46,11 +48,19 @@ export function PlanHistoryPanel({ history, task, formatTime }) {
   // `emphasis` marks what moved between the FIRST plan and the current one. An
   // intermediate stop is not either of those, so it passes false and reads flat:
   // bolding it against a diff it took no part in would point at nothing.
+  // A row reads only what it has. An Inbox task (SCHED shows Inbox cards with
+  // a deadline, and a task moved back to the Inbox keeps its history) has no
+  // date or time now: that row says so rather than formatting a missing date,
+  // which threw "Invalid time value" the moment the panel opened.
   const row = (date, startTime, duration, emphasis = changed) => (
     <div className="flex items-center gap-1.5 whitespace-nowrap">
-      {part(formatShortDate(new Date(`${date}T12:00:00`)), emphasis.date)}
-      <span className="opacity-40">·</span>
-      {part(formatTime(startTime), emphasis.startTime)}
+      {isDateString(date)
+        ? part(formatShortDate(new Date(`${date}T12:00:00`)), emphasis.date)
+        : part(t('task.planHistoryInInbox'), emphasis.date)}
+      {isDateString(date) && startTime && (<>
+        <span className="opacity-40">·</span>
+        {part(formatTime(startTime), emphasis.startTime)}
+      </>)}
       {typeof duration === 'number' && (<>
         <span className="opacity-40">·</span>
         {part(formatDuration(duration, t), emphasis.duration)}

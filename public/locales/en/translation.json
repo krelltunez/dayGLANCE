@@ -865,6 +865,7 @@
     "planHistory": "Schedule history",
     "originallyPlanned": "Originally planned",
     "nowScheduled": "Now",
+    "planHistoryInInbox": "In the Inbox",
     "estimating": "Estimating...",
     "allDay": "All Day",
     "typeTime": "Type the time",

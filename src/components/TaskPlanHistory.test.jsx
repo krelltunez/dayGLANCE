@@ -238,3 +238,49 @@ describe('PlanHistoryPanel — the stops in between', () => {
     expect(html).not.toMatch(/font-semibold[^>]*>11:00/);
   });
 });
+
+// An Inbox task keeps its history (SCHED shows Inbox cards with a deadline,
+// and a task can be moved back to the Inbox), but it has no date or time now.
+// Opening the panel used to format that missing date and throw "Invalid time
+// value", which took the view down with it.
+describe('PlanHistoryPanel — a task now in the Inbox', () => {
+  const renderPanel = async (task, lng) => renderToStaticMarkup(
+    <I18nextProvider i18n={await i18n(lng)}>
+      <PlanHistoryPanel history={planHistory(task)} task={task} formatTime={(v) => v} />
+    </I18nextProvider>,
+  );
+  const INBOX = { id: 'i1', date: null, startTime: null, duration: 30, originalPlan: PLANNED, deferrals: 2 };
+
+  it('opens without throwing and says where the task is now', async () => {
+    const html = await renderPanel(INBOX);
+    expect(html).toContain('Now');
+    expect(html).toContain('In the Inbox');
+    expect(html).not.toContain('Invalid');
+    // The original plan still reads in full.
+    expect(html).toContain('Originally planned');
+    expect(html).toContain('09:00');
+  });
+
+  it('carries the Inbox wording in every language', async () => {
+    const html = await renderPanel(INBOX, 'de');
+    expect(html).toContain('Im Posteingang');
+  });
+
+  it('the badge itself still shows for an Inbox task with history', async () => {
+    expect(await render(INBOX)).toContain('<svg');
+  });
+
+  it('a stop with no start time reads its date alone', async () => {
+    const task = {
+      id: 's1', date: '2026-09-20', startTime: '10:00', duration: 60, originalPlan: PLANNED, deferrals: 3,
+      planTrail: [
+        { at: Date.parse('2026-09-18T08:00:00Z'), date: '2026-09-18' },
+        { at: Date.parse('2026-09-19T08:00:00Z'), date: '2026-09-19', startTime: '11:00' },
+        { at: Date.parse('2026-09-20T08:00:00Z'), date: '2026-09-20', startTime: '10:00' },
+      ],
+    };
+    const html = await renderPanel(task);
+    expect(html).not.toContain('undefined');
+    expect(html).not.toContain('null');
+  });
+});
