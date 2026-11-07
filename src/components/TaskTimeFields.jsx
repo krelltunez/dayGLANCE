@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import ClockTimePicker from './ClockTimePicker.jsx';
+import { NextDayMark } from './TimeRange.jsx';
 import { formatDuration } from '../utils/formatDuration.js';
 import { durationChoices, durationUntil, endOf, parseDurationInput } from '../utils/taskDuration.js';
 
@@ -92,7 +93,7 @@ export function EndTimeField({ startTime, duration, onChange, disabled = false, 
         {end ? (
           <>
             {formatTime(end.time)}
-            {end.nextDay && <sup data-next-day className="ml-0.5 text-[10px] font-semibold opacity-70">+1</sup>}
+            {end.nextDay && <NextDayMark className="ml-0.5 text-[10px] font-semibold opacity-70" />}
           </>
         ) : '—'}
       </button>

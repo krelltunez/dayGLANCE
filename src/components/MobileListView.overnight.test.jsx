@@ -106,3 +106,28 @@ describe('the phone list on the date a task runs into', () => {
     expect(html).toContain('7h 52m until Daily planning');
   });
 });
+
+// The start date's own card printed the end as minutes past its midnight:
+// "23:00–25:00 · 2h". It reads the real clock time, with the app's next-day
+// mark (components/TimeRange.jsx, the task dialog's "+1").
+describe('the phone list on the date the task starts', () => {
+  const nextDay = '<sup data-next-day="true" class="ml-0.5 text-[0.75em] font-semibold opacity-70" title="Ends the next day">+1</sup>';
+
+  it('prints the end as 01:00, marked +1, in 24-hour time', () => {
+    const html = render({ now: new Date(`${FRI}T22:00:00`), day: FRI });
+    expect(html).toContain(`23:00–01:00${nextDay} · 2h`);
+    expect(html).not.toContain('25:00');
+  });
+
+  it('and as 1:00 AM in 12-hour time', () => {
+    const html = render({ now: new Date(`${FRI}T22:00:00`), day: FRI, use24HourClock: false });
+    expect(html).toContain(`11:00\u00A0PM–1:00\u00A0AM${nextDay} · 2h`);
+    expect(html).not.toContain('–1:00\u00A0PM');
+  });
+
+  it('leaves an ordinary range as it was', () => {
+    const html = render({ now: new Date(`${SAT}T06:00:00`), tasks: [planning] });
+    expect(html).toContain('08:00–08:30 · 30m');
+    expect(html).not.toContain('data-next-day');
+  });
+});

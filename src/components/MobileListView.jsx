@@ -10,6 +10,7 @@ import {
 import * as LucideIcons from 'lucide-react';
 import TaskPlanHistory from './TaskPlanHistory.jsx';
 import TaskStarButton from './TaskStarButton.jsx';
+import TimeRange from './TimeRange.jsx';
 import { renderTitle, isLinkOnlyTask, hasNotesOrSubtasks, isObsidianNoteOnlyTask, openNoteAction, noteIconFor } from '../utils/textFormatting.jsx';
 import { dateToString, stripWikilinksAndTags } from '../utils/taskUtils.js';
 import { taskColorToHex } from '../utils/colorUtils.js';
@@ -181,8 +182,8 @@ const TaskCard = React.memo(({
   // minutes it runs into this date, and "from <day>" as the timelines say.
   const startTime = continuation ? '00:00' : item.startTime;
   const duration = continuation ? continuation.minutes : item.duration;
-  const endMin = timeToMinutes(startTime) + (duration || 30);
-  const timeStr = `${formatTime(startTime)}–${formatTime(minutesToTime(endMin))} · ${durLabel(duration, t)}`;
+  // The end as a real clock time, "+1" on the next date (components/TimeRange.jsx).
+  const timeStr = <><TimeRange startTime={startTime} duration={duration || 30} formatTime={formatTime} />{` · ${durLabel(duration, t)}`}</>;
   const fromDay = continuation?.fromDate
     ? formatLocalizedDate(new Date(`${continuation.fromDate}T12:00:00`), { weekday: 'short' })
     : '';
@@ -381,10 +382,7 @@ const HGSessionCard = React.memo(({
   const [startH, startM] = effectiveTime.split(':').map(Number);
   const durationMin = hg.scheduledDurationOverrides?.[date] || hg.scheduledDuration || 60;
   const normalizedTime = `${String(startH).padStart(2, '0')}:${String(startM || 0).padStart(2, '0')}`;
-  const endH = Math.floor((startH * 60 + (startM || 0) + durationMin) / 60);
-  const endM = (startH * 60 + (startM || 0) + durationMin) % 60;
-  const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-  const timeStr = `${formatTime(normalizedTime)}–${formatTime(endTime)}`;
+  const timeStr = <TimeRange startTime={normalizedTime} duration={durationMin} formatTime={formatTime} />;
   const taskLabel = incompleteTaskCount > 0
     ? t('reminders.taskCount', { count: incompleteTaskCount })
     : null;

@@ -10,6 +10,7 @@ import { splitChipTitleTag } from '../utils/textFormatting.jsx';
 import { columnTimeFromEvent, dragBlockRange, dropClampMinutes } from '../utils/dragUtils.js';
 import { continuationLayoutRow, dragPreviewSpillFor } from '../utils/continuations.js';
 import DragBlockPreview from './DragBlockPreview.jsx';
+import { NextDayMark } from './TimeRange.jsx';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import { PastDoDetails, pastDoChipStyle, pastDoColor } from './jobo/PastDoCard.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -553,7 +554,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
           <DragBlockPreview
             top={topPx}
             height={heightPx}
-            label={`${dayName} ${formatTime(block.startTime)}–${formatTime(block.endTime)}`}
+            label={<>{`${dayName} ${formatTime(block.startTime)}–${formatTime(block.endTime)}`}{block.endsNextDay && <NextDayMark />}</>}
             darkMode={darkMode}
             className="left-0 right-0 z-30"
           />

@@ -76,7 +76,8 @@ const clockAt = (minutes) => {
 // lands. A preview time produced by the same handler as the drop is already
 // clamped, and this is a no-op on it. The drawn end is clipped to maxMinute;
 // `overflowMinutes` is how much runs on past it (into the next date, #2278),
-// and the end label is the item's real end.
+// and the end label is the item's real end, `endsNextDay` when it is on the
+// next date.
 //
 // Returns null for a start that is not a number (nothing to draw).
 export const dragBlockRange = (startMinute, duration, { minMinute = 0, maxMinute = 24 * 60 } = {}) => {
@@ -92,6 +93,9 @@ export const dragBlockRange = (startMinute, duration, { minMinute = 0, maxMinute
     overflowMinutes: own ? realEnd - end : 0,
     startTime: clockAt(start),
     endTime: clockAt(realEnd),
+    // The end is on the next date (at or past midnight): the label carries
+    // the next-day mark, as every card's range does (components/TimeRange.jsx).
+    endsNextDay: realEnd >= 24 * 60,
   };
 };
 

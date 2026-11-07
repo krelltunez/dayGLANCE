@@ -197,6 +197,15 @@ describe('gestures show on the next date too', () => {
     const blocks = [...html.matchAll(/data-drag-block-preview=""[^>]*style="top:([\d.]+)px;height:([\d.]+)px"/g)].map((m) => [Number(m[1]), Number(m[2])]);
     // Tuesday from 23:30 to midnight, and Wednesday from 00:00 for the 90 minutes left.
     expect(blocks).toEqual([[23 * 60 * 2 + 60, 59], [0, 179]]);
-    expect(html).toContain('23:30–01:30');
+    // The label's end is a real clock time with the next-day mark, as every
+    // card's range (components/TimeRange.jsx).
+    expect(html).toMatch(/23:30–01:30<sup data-next-day="true"[^>]*>\+1<\/sup>/);
+  });
+
+  it('dragging: a drop that ends before midnight has no next-day mark', () => {
+    setup({ dates: [at(TUE)], drag: { task: night(), time: '21:00', date: at(TUE) } });
+    const html = renderToStaticMarkup(<TimeGrid />);
+    expect(html).toContain('21:00–23:00');
+    expect(html).not.toContain('data-next-day');
   });
 });
