@@ -10,6 +10,7 @@ import android.os.VibratorManager
 import android.util.Base64
 import android.webkit.JavascriptInterface
 import androidx.core.content.FileProvider
+import com.dayglance.app.BuildConfig
 import com.dayglance.app.R
 import com.dayglance.app.alarm.ClockAlarm
 import com.dayglance.app.data.HealthRepository
@@ -590,6 +591,19 @@ class NativeBridge(
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
     }
+
+    /**
+     * What the GLANCElauncher card in Settings is shown on, as JSON
+     * `{"sdk", "installed", "url"}` (LauncherPromo; src/utils/launcherPromo.js
+     * decides). `url` is the flavour's BuildConfig.LAUNCHER_PROMO_URL, empty
+     * where the build offers no link. Not on the headless bridge.
+     */
+    @JavascriptInterface
+    fun launcherPromoInfo(): String = LauncherPromo.describe(
+        Build.VERSION.SDK_INT,
+        LauncherPromo.isInstalled(context),
+        BuildConfig.LAUNCHER_PROMO_URL,
+    )
 
     /**
      * Returns a JSON object describing a pending action triggered by a notification

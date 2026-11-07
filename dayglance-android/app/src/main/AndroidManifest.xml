@@ -65,6 +65,11 @@
         <package android:name="com.coloros.alarmclock" />
         <package android:name="com.huawei.deskclock" />
         <package android:name="com.hihonor.deskclock" />
+        <!-- GLANCElauncher (bridge/LauncherPromo.kt). Package visibility
+             (Android 11+): without it the launcher always reads as not
+             installed, and Settings would keep offering it to people who
+             already have it. -->
+        <package android:name="app.glance.launcher" />
     </queries>
 
     <application
