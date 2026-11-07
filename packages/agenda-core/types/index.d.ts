@@ -114,7 +114,8 @@ export function promoteToInbox<T extends object>(task: T): Omit<T, 'bucketId' | 
 export function stripBucketId<T extends object>(task: T): Omit<T, 'bucketId'>;
 export function normalizeBucketConfig(raw: unknown): BucketConfig;
 
-// frameInstances.js: which GTD frames apply to a date. Callers pass frames
+// frameInstances.js: which GTD frames apply to a date (and whose set is
+// active then: pass `{ frameSets }`). Callers pass frames
 // already scoped to the user (frames have one owner; see userScope.js).
 export interface FrameInstance {
   frameId: string;
@@ -128,9 +129,35 @@ export interface FrameInstance {
   energyLevel: string;
   bufferMinutes: number;
 }
+/** Every set, or frameSetsById's Map of them. Omitted: frames read as if they had no set. */
+export interface FrameSetOptions {
+  frameSets?: ReadonlyArray<FrameSet> | Map<string, FrameSet> | null;
+}
 export function dayOfWeekFor(dateStr: string | null | undefined): number | null;
-export function frameAppliesTo(frame: unknown, dateStr: string, dayOfWeek: number | null): boolean;
-export function frameInstancesForDate(frames: unknown[] | null | undefined, dateStr: string): FrameInstance[];
+export function frameAppliesTo(frame: unknown, dateStr: string, dayOfWeek: number | null, options?: FrameSetOptions): boolean;
+export function frameInstancesForDate(frames: unknown[] | null | undefined, dateStr: string, options?: FrameSetOptions): FrameInstance[];
+
+// frameSets.js: named groups of frames, active for date ranges (#2305).
+/** Inclusive 'YYYY-MM-DD' bounds; null is an open end. */
+export interface FrameSetPeriod {
+  from: string | null;
+  until: string | null;
+}
+export interface FrameSet {
+  id: string;
+  name?: string;
+  periods?: FrameSetPeriod[];
+  lastModified?: string;
+  ownerSyncId?: string;
+}
+export function readFrameSetPeriod(period: unknown): FrameSetPeriod | null;
+export function frameSetActiveOn(set: FrameSet | null | undefined, dateStr: string): boolean;
+export function frameSetsById(frameSets: ReadonlyArray<FrameSet> | Map<string, FrameSet> | null | undefined): Map<string, FrameSet>;
+export function frameSetAllows(frame: { setId?: string | null } | null | undefined, dateStr: string, frameSets: ReadonlyArray<FrameSet> | Map<string, FrameSet> | null | undefined): boolean;
+export function normalizeFrameSetPeriods(periods: unknown): FrameSetPeriod[];
+export function switchFrameSetOn<T extends FrameSet>(set: T, today: string): T;
+export function switchFrameSetOff<T extends FrameSet>(set: T, today: string): T;
+export function withFrameSetPeriods<T extends FrameSet>(set: T, periods: unknown): T;
 
 // routineBlocks.js: today's placed routines as read-only blocks. Callers pass
 // routines already scoped to the user.
