@@ -5,6 +5,8 @@ import {
 import { renderTitle } from '../utils/textFormatting.jsx';
 import TaskStarButton from './TaskStarButton.jsx';
 import TimeRange from './TimeRange.jsx';
+import ContinuesFrom from './ContinuesFrom.jsx';
+import { agendaItemSpan } from '../utils/todayAgenda.js';
 import { nativeGetNextAlarm } from '../native.js';
 import { nextAlarmWithinTomorrow, alarmHHMM } from '../utils/nextAlarm.js';
 import GoalRing from './GoalRing.jsx';
@@ -948,8 +950,8 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     const taskFrameMap = new Map();
     for (const task of filteredAgenda) {
       if (task._agendaType !== 'scheduled' || !task.startTime) continue;
-      const tStart = timeToMinutes(task.startTime);
-      const tEnd = tStart + (task.duration || 30);
+      // Its block today: the night before's task from 00:00 (#2278).
+      const { start: tStart, end: tEnd } = agendaItemSpan(task, { defaultDuration: 30 });
       for (const frame of todayFrames) {
         const fStart = timeToMinutes(frame.start);
         const fEnd = timeToMinutes(frame.end);
@@ -974,7 +976,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       const beforeTasks = [];
       while (scheduledIdx < scheduled.length) {
         const t = scheduled[scheduledIdx];
-        const tStart = timeToMinutes(t.startTime || '00:00');
+        const tStart = agendaItemSpan(t).start;
         if (tStart < fStart && !taskFrameMap.has(String(t.id))) {
           beforeTasks.push(t);
           assignedTaskIds.add(String(t.id));
@@ -1010,13 +1012,13 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
           sEnd = timeToMinutes(section.frame.end);
         } else {
           if (section.tasks.length === 0) continue;
-          sStart = Math.min(...section.tasks.map(t => timeToMinutes(t.startTime || '00:00')));
-          sEnd = Math.max(...section.tasks.map(t => timeToMinutes(t.startTime || '00:00') + (t.duration || 0)));
+          sStart = Math.min(...section.tasks.map(t => agendaItemSpan(t).start));
+          sEnd = Math.max(...section.tasks.map(t => agendaItemSpan(t).end));
         }
         if (nowMin >= sStart && nowMin < sEnd) {
           let afterTaskIdx = -1;
           for (let ti = 0; ti < section.tasks.length; ti++) {
-            const taskEnd = timeToMinutes(section.tasks[ti].startTime || '00:00') + (section.tasks[ti].duration || 0);
+            const taskEnd = agendaItemSpan(section.tasks[ti]).end;
             if (nowMin >= taskEnd) afterTaskIdx = ti;
           }
           nowMarkerSectionInfo = { si, inSection: true, afterTaskIdx };
@@ -1065,11 +1067,14 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       } else if (task._agendaType === 'deadline') {
         timeLabel = t('goals.dueToday');
       } else {
-        const [h, m] = (task.startTime || '0:0').split(':').map(Number);
-        const startMin = h * 60 + m;
-        const endMin = startMin + (task.duration || 0);
-        // The end as a real clock time, "+1" past midnight (#2278).
-        timeLabel = <TimeRange startTime={task.startTime} duration={task.duration || 0} formatTime={formatTime} separator={'\u00A0–\u00A0'} />;
+        // Its block today: the night before's task runs from 00:00 (#2278).
+        const { start: startMin, end: endMin } = agendaItemSpan(task);
+        timeLabel = task._continuation
+          // Labelled as its piece, "00:00 · 60m" from <day>, as SCHED and
+          // the phone list label it.
+          ? <>{`${formatTime('00:00')} · ${task._continuation.minutes}m`}<ContinuesFrom fromDate={task._continuation.fromDate} size={13} className="inline-flex items-center gap-0.5 ml-1 opacity-80" /></>
+          // The end as a real clock time, "+1" past midnight (#2278).
+          : <TimeRange startTime={task.startTime} duration={task.duration || 0} formatTime={formatTime} separator={'\u00A0–\u00A0'} />;
         const diff = startMin - nowMin;
         if (diff > 0) {
           relativeLabel = new Intl.RelativeTimeFormat(i18n.resolvedLanguage || i18n.language, { numeric: 'always', style: 'short' }).format(diff, 'minute');
@@ -1085,7 +1090,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       }
       return (
         <div
-          key={`${keyPrefix}-${task._agendaType}-${task.id}`}
+          key={`${keyPrefix}-${task._agendaType}${task._continuation ? '-continuation' : ''}-${task.id}`}
           data-ctx-menu
           onContextMenu={(e) => {
             e.preventDefault();
@@ -1095,7 +1100,8 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               isRecurring: !!task.isRecurring,
               isImported: !!task.imported,
               isAllDay: !!task.isAllDay || task._agendaType === 'allday',
-              dateStr: dateToString(new Date()),
+              // The task's own date for the night before's (the menu finds it there).
+              dateStr: task._continuation ? task.date : dateToString(new Date()),
             });
           }}
           className={`flex gap-2.5 py-2 ${task.completed ? 'opacity-50' : ''} cursor-pointer ${isDesktop ? 'hover:bg-white/5' : 'active:bg-white/5'} rounded-lg transition-colors`}

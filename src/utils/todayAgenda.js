@@ -1,10 +1,32 @@
 // Today's agenda, the list GLANCE draws (desktop GlanceSidebar, the phone's
 // MobileGlanceSection) and the tray, the Stream Deck and the widget snapshot
-// read for what is happening now. Moved verbatim out of App.jsx (its
-// `todayAgenda` and `agendaNowMarker` memos); App keeps the memos and the
-// clock.
+// read for what is happening now. Moved out of App.jsx (its `todayAgenda` and
+// `agendaNowMarker` memos) when the list learned about the night before
+// (#2278); App keeps the memos and the clock.
+//
+// THE NIGHT BEFORE. A timed task that started yesterday and runs past
+// midnight is yesterday's task (agenda-core overnight.js: the start date owns
+// it), but at 00:08 it is what is happening. The agenda lists it, first, as a
+// CONTINUATION: the task's own row (a copy, like every agenda item, with its
+// real date, start and duration, so every action on it acts as on the task)
+// tagged `_continuation: { fromDate, minutes }`. Its block on today's clock is
+// [00:00, minutes), never its own start: read it with agendaItemSpan, or
+// agendaNowAndNext for what runs now and what is next. It stays while it
+// runs and leaves when it ends: done, it is a finished item, and unfinished
+// it is in the Overdue section (utils/getOverdueTasks.js), listed once, as
+// SCHED lists it.
+//
+// The calendar filter is not applied here: GLANCE applies it to the whole
+// list at render, the continuation included, as getContinuationsForDate
+// does for the timelines.
 
+import { continuationsFromPreviousDay, nowAndNext, shiftDateStr } from '@glance-apps/agenda-core';
 import { notBucketed } from './bucketList.js';
+
+const minutesOf = (time) => {
+  const [h, m] = (time || '0:0').split(':').map(Number);
+  return h * 60 + m;
+};
 
 /**
  * @param {object} input
@@ -13,7 +35,7 @@ import { notBucketed } from './bucketList.js';
  * @param {Array} input.tasks @param {Array} input.expandedRecurringTasks
  * @param {Array} input.unscheduledTasks @param {Function} input.isVisibleForUser
  * @returns {Array} deadlines, all-day items, then the timed ones in start
- *   order, each tagged `_agendaType`.
+ *   order (the night before's first), each tagged `_agendaType`.
  */
 export function buildTodayAgenda({ todayStr, nowMinutes, tasks, expandedRecurringTasks, unscheduledTasks, isVisibleForUser }) {
   const today = todayStr;
@@ -26,23 +48,65 @@ export function buildTodayAgenda({ todayStr, nowMinutes, tasks, expandedRecurrin
   const deadlines = unscheduledTasks.filter(t => notBucketed(t) && t.deadline === today && t.deadline >= today && !t.completed && isVisibleForUser(t));
   const scheduled = allTodayTasks.filter(t => {
     if (t.date !== today || t.isAllDay || !isVisibleForUser(t)) return false;
-    const [h, m] = (t.startTime || '0:0').split(':').map(Number);
-    const endMinutes = h * 60 + m + (t.duration || 0);
+    const endMinutes = minutesOf(t.startTime) + (t.duration || 0);
     // Past: hide completed tasks and imported calendar events; keep incomplete user/task-calendar tasks
     if (endMinutes <= nowMinutes) return !t.completed && !(t.imported && !t.isTaskCalendar);
     return true;
   }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 
+  // The night before's tasks still running (see the header): while they run.
+  const yesterday = shiftDateStr(today, -1);
+  const yesterdayRows = [...tasks, ...expandedRecurringTasks]
+    .filter(t => t.date === yesterday && isVisibleForUser(t));
+  const continuations = continuationsFromPreviousDay(yesterdayRows)
+    .filter(c => c.endMinutes > nowMinutes)
+    .map(c => ({ ...c.task, _agendaType: 'scheduled', _continuation: { fromDate: c.fromDate, minutes: c.minutes } }));
+
   return [
     ...deadlines.map(t => ({ ...t, _agendaType: 'deadline' })),
     ...allDay.map(t => ({ ...t, _agendaType: 'allday' })),
+    ...continuations,
     ...scheduled.map(t => ({ ...t, _agendaType: 'scheduled' })),
   ].filter(t => !t.isExample);
 }
 
 /**
+ * An agenda item's block on today's clock, in minutes: its own start and
+ * duration, or [0, minutes) for the night before's continuation.
+ * `defaultDuration` stands in for a missing duration.
+ */
+export function agendaItemSpan(item, { defaultDuration = 0 } = {}) {
+  if (item._continuation) return { start: 0, end: item._continuation.minutes };
+  const start = minutesOf(item.startTime);
+  return { start, end: start + (item.duration || defaultDuration) };
+}
+
+/**
+ * What runs now and what is next among the agenda's timed items, across
+ * midnight: agenda-core's nowAndNext over today's own items (plus
+ * `extraDayRows`, e.g. the day's hyperGLANCE sessions) and the night
+ * before's continuations, each judged from its own row.
+ *
+ * @param {Function} [opts.include] which timed items count (e.g. not completed)
+ * @returns agenda-core nowAndNext's { blocks, current, next, ahead }; a
+ *   block's `task` is the agenda item, its `startTime`/`duration` the block
+ *   on today's clock ('00:00' and the piece for a continuation).
+ */
+export function agendaNowAndNext(agenda, nowMinutes, { include = () => true, extraDayRows = [], defaultDuration = 0 } = {}) {
+  const timed = agenda.filter(t => t._agendaType === 'scheduled' && t.startTime && include(t));
+  return nowAndNext(
+    [...timed.filter(t => !t._continuation), ...extraDayRows],
+    timed.filter(t => t._continuation),
+    nowMinutes,
+    { defaultDuration },
+  );
+}
+
+/**
  * Where GLANCE's "now" marker goes and the free time it announces ("You have
- * free time at …"). Moved verbatim from App.jsx.
+ * free time at …"): moved verbatim from App.jsx, with each item's block read
+ * through agendaItemSpan, so the night before's task running at 00:08 is
+ * "in progress" and the free time starts once it ends.
  *
  * @param {object} input
  * @param {Array} input.todayAgenda @param {Date} input.now
@@ -63,11 +127,10 @@ export function buildAgendaNowMarker({ todayAgenda, now, unscheduledTasks, isVis
     for (let i = 0; i < todayAgenda.length; i++) {
       const t = todayAgenda[i];
       if (t._agendaType !== 'scheduled') continue;
-      const [h, m] = (t.startTime || '0:0').split(':').map(Number);
-      const endMin = h * 60 + m + (t.duration || 0);
-      if (nowMin >= endMin) {
+      const { start, end } = agendaItemSpan(t);
+      if (nowMin >= end) {
         insertAfterIndex = i;
-      } else if (nowMin >= h * 60 + m) {
+      } else if (nowMin >= start) {
         // Currently within this task — place marker before it (it shows "In Progress")
         insertAfterIndex = i - 1;
         insideTask = true;
@@ -90,9 +153,7 @@ export function buildAgendaNowMarker({ todayAgenda, now, unscheduledTasks, isVis
   let gapMinutes = 0;
   const nextScheduledIdx = todayAgenda.findIndex((t, i) => i > insertAfterIndex && t._agendaType === 'scheduled');
   if (nextScheduledIdx !== -1) {
-    const next = todayAgenda[nextScheduledIdx];
-    const [nh, nm] = (next.startTime || '0:0').split(':').map(Number);
-    gapMinutes = (nh * 60 + nm) - nowMin;
+    gapMinutes = agendaItemSpan(todayAgenda[nextScheduledIdx]).start - nowMin;
   } else {
     // No more scheduled tasks — gap is rest of day (cap at a large number)
     gapMinutes = 24 * 60 - nowMin;
