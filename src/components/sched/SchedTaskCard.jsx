@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpen, Calendar, CalendarPlus, CheckCircle2, CheckSquare, Circle, ExternalLink, FileText, GripVertical, Repeat, SkipForward } from 'lucide-react';
+import { BookOpen, Calendar, CalendarPlus, CheckCircle2, CheckSquare, ChevronUp, Circle, ExternalLink, FileText, GripVertical, Repeat, SkipForward } from 'lucide-react';
+import { hasTaskEnded } from '@glance-apps/agenda-core';
 import TaskPlanHistory from '../TaskPlanHistory.jsx';
 import DoSessionsBadge from '../jobo/DoSessionsBadge.jsx';
 import TaskStarButton from '../TaskStarButton.jsx';
@@ -31,6 +32,12 @@ import DeadlinePickerPopover from '../DeadlinePickerPopover.jsx';
  * `selected` and `onOpen` serve a list where a click selects (the planner
  * with its notes sidebar open): the card shows the selection, and a
  * double-click opens it through `onOpen`.
+ *
+ * `continuation` (agenda-core's continuationsFromPreviousDay) draws the card
+ * as the after-midnight piece of a task that started the day before (#2278),
+ * on the day it runs into: the piece's own time from 00:00 and "from <day>",
+ * as the timelines' ContinuationCard labels it. `task` is still the real row,
+ * so every action on the card acts on the task itself.
  */
 // Sizes, shared by SCHED, the Project Planner, MONTH's panel and day sheet:
 // one step up from the old text-sm/text-xs card, with tap targets the size
@@ -41,7 +48,7 @@ const META_ICON = 14;
 const META_HIT = 'p-1.5 -m-1.5';
 const ACTION_ICON = 18;
 
-const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = null, dnd = null, showOverdueDate = false, onSchedule = null, selected = false, onOpen = null }) => {
+const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = null, dnd = null, showOverdueDate = false, onSchedule = null, selected = false, onOpen = null, continuation = null }) => {
   const {
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
     formatTime, toggleComplete, openMobileEditTask, currentTime,
@@ -78,7 +85,9 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
     && typeof getDoSessionsForTask === 'function' && getDoSessionsForTask(task).length > 0;
   const isRecurring = typeof task.id === 'string' && task.id.startsWith('recurring-');
 
-  const timeLabel = task.isAllDay
+  const timeLabel = continuation
+    ? `${formatTime('00:00')} · ${continuation.minutes}m`
+    : task.isAllDay
     ? t('task.allDay', 'All day')
     : task.startTime
       ? `${formatTime(task.startTime)}${task.duration ? ` · ${task.duration}m` : ''}`
@@ -95,19 +104,20 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
   const startMin = task.startTime
     ? parseInt(task.startTime.slice(0, 2), 10) * 60 + parseInt(task.startTime.slice(3, 5), 10)
     : null;
-  const timePassed = !task.isAllDay && !!task.date && startMin !== null && (
-    task.date < todayStr ||
-    (task.date === todayStr && (startMin + (isEvent ? (task.duration || 0) : 0)) < nowMin)
-  );
-  // Happening right now: today's timed card whose window contains the current
+  // Happening right now: a timed card whose window contains the current
   // minute. Tasks default to 30 min (matching the scheduler); events with no
   // duration are instantaneous. In-progress tasks are NOT past-due — the red
   // label starts when the window ends, the dot covers the window itself.
-  const durationMin = task.duration || (isEvent ? 0 : 30);
-  const inProgress = !task.isAllDay && !task.completed && startMin !== null &&
-    task.date === todayStr && startMin <= nowMin && nowMin < startMin + durationMin;
-  const isPastDueTask = timePassed && !isEvent && !task.completed && !inProgress;
-  const isFinishedEvent = timePassed && isEvent;
+  //
+  // The window ends at the task's REAL end (#2278, agenda-core's
+  // hasTaskEnded): a task from 23:00 to 01:00 is still running at 00:30 the
+  // next day, not past due because its date is behind us.
+  const timed = !task.isAllDay && !!task.date && startMin !== null;
+  const ended = timed && hasTaskEnded(task, { todayStr, nowMinutes: nowMin, defaultDuration: isEvent ? 0 : 30 });
+  const started = timed && (task.date < todayStr || (task.date === todayStr && startMin <= nowMin));
+  const inProgress = started && !ended && !task.completed;
+  const isPastDueTask = ended && !isEvent && !task.completed;
+  const isFinishedEvent = ended && isEvent;
 
   const subtasks = task.subtasks || [];
   const subtasksDone = subtasks.filter(s => s.completed).length;
@@ -245,6 +255,12 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
             )}
             {timeLabel && (
               <span className={`flex-shrink-0 ${isPastDueTask ? 'text-red-400 font-medium' : ''}`}>{timeLabel}</span>
+            )}
+            {continuation && (
+              <span data-continuation-from={continuation.fromDate || ''} className="flex items-center gap-0.5 flex-shrink-0 opacity-80">
+                <ChevronUp size={META_ICON} aria-hidden="true" />
+                {t('task.continuesFrom', { day: continuation.fromDate ? formatLocalizedDate(new Date(`${continuation.fromDate}T12:00:00`), { weekday: 'short' }) : '' })}
+              </span>
             )}
             {isRecurring && <Repeat size={META_ICON} className="opacity-60 flex-shrink-0" />}
             {!isEvent && !isInbox && <DoSessionsBadge task={task} withPlanHistory={planHistoryInDoBadge} />}
