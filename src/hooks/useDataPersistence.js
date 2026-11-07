@@ -27,6 +27,7 @@ const isSubscriptionImport = (t) =>
 import { isTrayMode } from '../utils/trayMode.js';
 import { repairLoadedGhostRows } from '../utils/obsidianGhostRows.js';
 import { recordLoadFailure, isLoadProtected } from '../utils/loadFailures.js';
+import { FRAME_SETS_KEY } from '../utils/storedSlices.js';
 import { loadDailyNotes } from '../utils/dailyNotesStore.js';
 import { mergeDailyNotes } from '@glance-apps/sync';
 import { writeItem, getWriteFailures } from '../utils/storageWrites.js';
@@ -77,7 +78,7 @@ export default function useDataPersistence({
   tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines,
   darkMode, syncUrl, taskCalendarUrl, syncRetentionDays, completedTaskUids,
   routineDefinitions, routinesDate, removedTodayRoutineIds,
-  habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+  habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames, frameSets,
   goals, projects, areas, goalsProjectsEnabled,
   unscheduledOrderTimestamp,
   cloudSyncConfig, cloudSyncInitialDoneRef, suppressTimestampRef,
@@ -578,6 +579,9 @@ export default function useDataPersistence({
     saveBucket('day-planner-habits-enabled', [habitsEnabled], json(habitsEnabled));
     saveBucket('day-planner-routines-enabled', [routinesEnabled], json(routinesEnabled));
     saveBucket('day-planner-gtd-frames', [gtdFrames], json(gtdFrames));
+    // Undefined while the stored copy is unreadable: nothing to write over it
+    // (utils/storedSlices.js readFrameSets).
+    if (Array.isArray(frameSets)) saveBucket(FRAME_SETS_KEY, [frameSets], json(frameSets));
     saveBucket('day-planner-goals', [goals], json(goals));
     saveBucket('day-planner-projects', [projects], json(projects));
     saveBucket('day-planner-areas', [areas], json(areas));

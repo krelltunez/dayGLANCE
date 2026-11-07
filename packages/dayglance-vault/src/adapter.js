@@ -56,6 +56,10 @@ export const COLLECTION_KINDS = {
   projects:         { idField: 'id',     tsField: 'updatedAt'    },
   areas:            { idField: 'id',     tsField: 'updatedAt'    },
   gtdFrames:        { idField: 'id',     tsField: 'lastModified' },
+  // Frame sets (#2305, agenda-core frameSets.js): one row per set, LWW on
+  // lastModified like the frames they group, deleted with deletedFrameSetIds.
+  // Omitted from the payload until read (not loaded is not empty, below).
+  frameSets:        { idField: 'id',     tsField: 'lastModified' },
   users:            { idField: 'syncId', tsField: 'updatedAt'    }, // falls back to id
   // The JOBO ledger (docs/jobo-ledger-persistence.md): one row per Do
   // attempt, tombstones as rows that are never pruned, insert-only so every

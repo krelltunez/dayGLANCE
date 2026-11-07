@@ -1497,6 +1497,7 @@ const DayPlanner = () => {
   // GTD Frames state. Before useUndo, whose snapshots include Frames.
   const {
     gtdFrames, setGtdFrames,
+    frameSets, setFrameSets,
     showFramesModal, setShowFramesModal,
     framesModalTab, setFramesModalTab,
     editingFrame, setEditingFrame,
@@ -2115,7 +2116,7 @@ const DayPlanner = () => {
     tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines: allTodayRoutines,
     darkMode, syncUrl, taskCalendarUrl, syncRetentionDays, completedTaskUids,
     routineDefinitions, routinesDate, removedTodayRoutineIds,
-    habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+    habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames, frameSets,
     goals, projects, areas, goalsProjectsEnabled,
     unscheduledOrderTimestamp,
     cloudSyncConfig, cloudSyncInitialDoneRef, suppressTimestampRef,
@@ -2138,7 +2139,7 @@ const DayPlanner = () => {
     suppressClearPendingRef, suppressCloudUploadRef, suppressTimestampRef,
     tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays,
     completedTaskUids, recurringTasks, routineDefinitions, todayRoutines: allTodayRoutines, routinesDate,
-    removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+    removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames, frameSets,
     goals, projects, areas, goalsProjectsEnabled,
     dailyNotes, users, routineCompletions, multiUserEnabled,
   });
@@ -2621,7 +2622,7 @@ const DayPlanner = () => {
     enabled: !isTrayMode && !!cloudSyncConfig?.enabled,
     dataLoaded, syncKeyReady, syncKeyReadyRef,
     suppressCloudUploadRef, cloudSyncDebounceRef, cloudSyncDownloadRef,
-    changeKeys: [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, dayWindows, gtdFrames, bucketConfig, multiUserEnabled, users],
+    changeKeys: [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, dayWindows, gtdFrames, frameSets, bucketConfig, multiUserEnabled, users],
   });
 
   // ── GLANCEvault DB transport ─────────────────────────────────────────────
@@ -5201,14 +5202,14 @@ const DayPlanner = () => {
   // The sync payload and apply (hooks/useSyncEngineData.js): every tier calls
   // through the two closures the hook returns, built from the state below.
   const { buildSyncPayload, applyEngineData } = useSyncEngineData({
-    allTodayRoutines, areas, bucketConfig, completedTaskUids, dailyNotes, dayWindowsRef,
+    allTodayRoutines, areas, bucketConfig, completedTaskUids, dailyNotes, dayWindowsRef, frameSets,
     goals, goalsProjectsEnabled, gtdFrames, habitLogs, habits, habitsEnabled,
     icsCalendars, joboRecordsRef, minimizedSections, multiUserEnabled, obsidianCompletionDates, obsidianConfig,
     primaryCalendarMeta, projects, recurringTasks, recycleBin, removedTodayRoutineIds, routineCompletionTimestamps,
     routineCompletions, routineDefinitions, routinesDate, routinesEnabled, syncUrl, taskCalendarUrl,
     tasks, tasksLiveRef, unscheduledLiveRef, unscheduledOrderTimestamp, unscheduledTasks, use24HourClock,
     users, weatherTempUnit, weatherZip, setAreas, setBucketConfig, setCompletedTaskUids,
-    setDailyNotes, setGoals, setGoalsProjectsEnabled, setGtdFrames, setHabitLogs, setHabits,
+    setDailyNotes, setFrameSets, setGoals, setGoalsProjectsEnabled, setGtdFrames, setHabitLogs, setHabits,
     setHabitsEnabled, setIcsCalendars, setMultiUserEnabled, setObsidianCompletionDates, setObsidianConfig, setPrimaryCalendarMeta,
     setProjects, setRecurringTasks, setRecycleBin, setRemovedTodayRoutineIds, setRoutineCompletionTimestamps, setRoutineCompletions,
     setRoutineDefinitions, setRoutinesDate, setRoutinesEnabled, setSyncUrl, setTaskCalendarAuth, setTaskCalendarUrl,

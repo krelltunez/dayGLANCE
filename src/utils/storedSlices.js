@@ -94,6 +94,30 @@ export const readGtdFrames = () => {
   } catch { return []; }
 };
 
+export const FRAME_SETS_KEY = 'day-planner-frame-sets';
+export const DELETED_FRAME_SET_IDS_KEY = 'day-planner-deleted-frame-set-ids';
+
+/**
+ * Frame sets (#2305, agenda-core frameSets.js): [] when this device has none,
+ * UNDEFINED when the stored copy cannot be read. Unreadable is not empty: the
+ * payload omits an undefined slice rather than publishing [] (which the vault
+ * diff would read as every set deleted), and the failure is recorded so the
+ * save pass does not write over the stored copy (utils/loadFailures.js).
+ */
+export const readFrameSets = () => {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(FRAME_SETS_KEY);
+    if (saved === null) return [];
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) throw new TypeError('frame sets are not a list');
+    return parsed;
+  } catch (error) {
+    if (saved !== null) recordLoadFailure(FRAME_SETS_KEY, error, saved);
+    return undefined;
+  }
+};
+
 export const readTaskCalendarAuth = () => {
   const saved = localStorage.getItem('day-planner-task-calendar-auth');
   return saved ? JSON.parse(saved) : { username: '', appPassword: '', caldavBaseUrl: '' };

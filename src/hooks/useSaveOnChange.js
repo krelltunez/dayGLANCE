@@ -18,7 +18,7 @@ export default function useSaveOnChange({
   suppressClearPendingRef, suppressCloudUploadRef, suppressTimestampRef,
   tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays,
   completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate,
-  removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+  removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames, frameSets,
   goals, projects, areas, goalsProjectsEnabled,
   dailyNotes, users, routineCompletions, multiUserEnabled,
 }) {
@@ -54,5 +54,5 @@ export default function useSaveOnChange({
     // are called, not dependencies, and would over-trigger). The suppress* refs are
     // stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames, goals, projects, areas, goalsProjectsEnabled, dailyNotes, users, routineCompletions, multiUserEnabled]);
+  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames, frameSets, goals, projects, areas, goalsProjectsEnabled, dailyNotes, users, routineCompletions, multiUserEnabled]);
 }

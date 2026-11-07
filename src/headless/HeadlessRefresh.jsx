@@ -103,7 +103,7 @@ export default function HeadlessRefresh({
   const store = useHeadlessStore();
   const {
     dataLoaded, tasks, unscheduledTasks, recurringTasks, multiUserEnabled, meUserSyncId,
-    gtdFrames, todayRoutines: allTodayRoutines, routineCompletions, routinesEnabled,
+    gtdFrames, frameSets, todayRoutines: allTodayRoutines, routineCompletions, routinesEnabled,
     projects, goals, goalsProjectsEnabled, weatherTempUnit, use24HourClock, syncRetentionDays,
   } = store;
 
@@ -372,7 +372,9 @@ export default function HeadlessRefresh({
           // The same filter and stored preferences the app's Inbox uses.
           inboxCount: inboxCountOf(inboxFromStorage({ tasks, unscheduledTasks, recurringTasks, projects, goalsProjectsEnabled, isVisibleForUser })),
           todayRoutines: allTodayRoutines.filter(ownedBy), routineCompletions, routinesEnabled,
-          frameInstancesForDate: (date) => frameInstancesForDate(gtdFrames.filter(ownedBy), dateToString(date)),
+          // The sets as App passes them (#2305): without them every set's
+          // frames would reach the launcher on every date.
+          frameInstancesForDate: (date) => frameInstancesForDate(gtdFrames.filter(ownedBy), dateToString(date), { frameSets }),
           getDayWindow,
           weatherCoords: getStoredWeatherCoords(),
           // Null when the fetch failed: the shell keeps the last snapshot's

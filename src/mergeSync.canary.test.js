@@ -99,6 +99,10 @@ const REPRESENTATIVE = {
   routinesEnabled: true,
   routinesEnabledUpdatedAt: ISO,
   gtdFrames: [{ id: 'f1', label: 'Deep', start: '09:00', end: '11:00', lastModified: ISO }],
+  // Spread into the payload only once read (the parser above does not see a
+  // spread key), listed here so tests 2/3 hold the wrapper block to it.
+  frameSets: [{ id: 's1', name: 'Work', periods: [{ from: null, until: null }], lastModified: ISO }],
+  deletedFrameSetIds: { goneset: ISO },
   bucketConfig: { headings: { b1: 'Anytime', b2: 'Someday' }, secondListHidden: false, notes: '', updatedAt: ISO },
   goals: [{ id: 'g1', title: 'goal', status: 'active', updatedAt: ISO }],
   deletedGoalIds: { gonegoal: ISO },

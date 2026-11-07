@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { readGtdFrames } from '../utils/storedSlices.js';
+import { readGtdFrames, readFrameSets } from '../utils/storedSlices.js';
 
 const useGTDFrames = () => {
   const [gtdFrames, setGtdFrames] = useState(readGtdFrames);
+  // Frame sets (#2305): undefined while the stored copy is unreadable, never
+  // [] in its place (utils/storedSlices.js readFrameSets).
+  const [frameSets, setFrameSets] = useState(readFrameSets);
   const [showFramesModal, setShowFramesModal] = useState(false);
   const [framesModalTab, setFramesModalTab] = useState('frames'); // 'frames' | 'schedule'
   const [editingFrame, setEditingFrame] = useState(null); // frame object being edited, or 'new' for create
@@ -23,6 +26,7 @@ const useGTDFrames = () => {
 
   return {
     gtdFrames, setGtdFrames,
+    frameSets, setFrameSets,
     showFramesModal, setShowFramesModal,
     framesModalTab, setFramesModalTab,
     editingFrame, setEditingFrame,
