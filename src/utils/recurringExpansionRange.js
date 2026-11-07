@@ -60,6 +60,12 @@ export function computeRecurringExpansionRange({
   // a month grid with a weekly series missing from weeks 3–6 would look
   // complete, just emptier.
   const monthDates = monthWindowDates(today, weekStartDay);
+  // And the first cell of today's month grid, for GLANCElauncher's month
+  // grid (launcherSnapshot.js), which draws today's whole month from the
+  // snapshot's rows: six days before the 1st covers the grid's first cell
+  // for any week start. Late in a month the widget window starts weeks after
+  // the 1st, and the grid's early weeks lost every recurring occurrence.
+  const monthGridStart = new Date(today.getFullYear(), today.getMonth(), 1 - 6, 12);
 
   const allDateStrs = [
     ...visibleDates.map(d => dateToString(d)),
@@ -71,6 +77,7 @@ export function computeRecurringExpansionRange({
     dateToString(horizon),
     dateToString(monthDates[0]),
     dateToString(monthDates[monthDates.length - 1]),
+    dateToString(monthGridStart),
   ].sort();
   // And the day before the earliest of them: an occurrence that starts there
   // and runs past midnight draws its after-midnight piece on the first day

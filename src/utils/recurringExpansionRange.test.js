@@ -40,8 +40,9 @@ describe('computeRecurringExpansionRange', () => {
       schedDaysShown: 3,
       today: TODAY,
     });
-    // The day before the earliest date, for its overnight spill (#2278).
-    expect(r.rangeStart).toBe('2026-09-08');
+    // The day before the earliest date, for its overnight spill (#2278):
+    // the month grid's first possible cell (26 Aug) is earlier than last week.
+    expect(r.rangeStart).toBe('2026-08-25');
     // today + N is inside; the end itself is the widget month window's last
     // payload day (Sun 13 Sep + 48), which reaches further.
     expect('2026-09-21' <= r.rangeEnd).toBe(true);
@@ -55,10 +56,20 @@ describe('computeRecurringExpansionRange', () => {
     const r = computeRecurringExpansionRange({
       visibleDates: [nextMonth], selectedDate: nextMonth, schedDaysShown: 1, today: TODAY,
     });
-    // Back to the start of today's week (Sunday), for the month window, and
-    // the day before it.
-    expect(r.rangeStart).toBe('2026-09-12');
+    // Back to the month grid's first possible cell (six days before the
+    // 1st), and the day before it.
+    expect(r.rangeStart).toBe('2026-08-25');
     expect(r.rangeEnd).toBe('2026-10-31');
+  });
+
+  // GLANCElauncher draws today's whole month grid from the snapshot. Late in
+  // the month the widget window starts weeks after the 1st; the grid's
+  // first cell must still have its recurring occurrences.
+  it('reaches back to the first cell of today\'s month grid late in the month', () => {
+    const late = d(2026, 11, 28);
+    const r = computeRecurringExpansionRange({ visibleDates: [late], selectedDate: late, schedDaysShown: 1, today: late });
+    // 1 Nov minus six days is 26 Oct, and the day before it.
+    expect(r.rangeStart).toBe('2026-10-25');
   });
 
   it('keeps the SCHED rolling window and month range as before', () => {
@@ -69,7 +80,8 @@ describe('computeRecurringExpansionRange', () => {
       schedDaysShown: 14,
       today: TODAY,
     });
-    expect(r.rangeStart).toBe('2026-08-30');
+    // The month grid's first possible cell (26 Aug) opens it, not the month range.
+    expect(r.rangeStart).toBe('2026-08-25');
     // The month range is still covered; the month window runs past it.
     expect('2026-10-04' <= r.rangeEnd).toBe(true);
     expect(r.rangeEnd).toBe('2026-10-31');
@@ -93,8 +105,9 @@ describe('computeRecurringExpansionRange', () => {
       });
       const [y, m, dd] = start.split('-').map(Number);
       const end = plus(d(y, m, dd), WIDGET_MONTH_PAYLOAD_DAYS - 1).toISOString().slice(0, 10);
-      // The range opens the day before the window, for its overnight spill.
-      expect(r.rangeStart).toBe(plus(d(y, m, dd), -1).toISOString().slice(0, 10));
+      // The range opens by the day before the window, for its overnight
+      // spill (the month grid's first cell reaches further back here).
+      expect(r.rangeStart <= plus(d(y, m, dd), -1).toISOString().slice(0, 10)).toBe(true);
       expect(r.rangeEnd).toBe(end);
     });
 

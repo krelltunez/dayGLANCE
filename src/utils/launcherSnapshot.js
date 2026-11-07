@@ -23,13 +23,19 @@ export const LAUNCHER_SNAPSHOT_VERSION = 1;
 export const FRAME_WINDOW = { daysBefore: 7, daysAfter: 34 };
 
 /**
- * Device-calendar events are listed over this window: the launcher's planning
- * and dial look at today and the days ahead, and every event is a row in the
- * provider, so the window is kept to what is drawn. It opens a day before
- * today: an event last night that runs past midnight is yesterday's row, and
- * the launcher draws its piece on today (#2278, docs/launcher-integration.md).
+ * Device-calendar events are listed over this window. The launcher's month
+ * grid draws today's whole month, so the window reaches every cell of it
+ * whatever the day: 37 days back is the grid's first cell when today is the
+ * 31st (30 days to the 1st, up to 6 more to the start of its week), and 42
+ * days ahead is past its last cell when today is the 1st. A shorter window
+ * left the grid looking like a quiet month: every phone-calendar event
+ * outside it simply was not there. The Android provider reads the window in
+ * one range query (LauncherDeviceEvents.kt), so its length costs rows, not
+ * reads. The window also covers an event last night that runs past
+ * midnight: it is yesterday's row, and the launcher draws its piece on today
+ * (#2278, docs/launcher-integration.md).
  */
-export const DEVICE_EVENT_WINDOW = { daysBefore: 1, daysAfter: 6 };
+export const DEVICE_EVENT_WINDOW = { daysBefore: 37, daysAfter: 42 };
 
 /**
  * What the Android shell needs to read the device calendar itself
