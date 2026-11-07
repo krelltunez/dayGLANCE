@@ -348,6 +348,24 @@ lowercase, no colons). The Play entry stays a placeholder until the launcher shi
 there. There is no debug entry: where the launcher's release key is present, its
 debug builds carry that key too.
 
+## Telling users about the launcher
+
+Settings on Android offers the launcher in two places: a one-time card at the
+top of the mobile Settings page, and a permanent entry under Integrations.
+`src/utils/launcherPromo.js` decides; the shell only reports the facts through
+`DayGlanceNative.launcherPromoInfo()` (`bridge/LauncherPromo.kt`): the SDK
+level, whether `app.glance.launcher` is installed (it is listed in the
+manifest's `<queries>` for that), and the flavour's `LAUNCHER_PROMO_URL`.
+
+Neither shows below Android 12 (no `knownSigner`, so the launcher could only run
+in demo mode), when the launcher is installed, or when the build's URL is empty.
+The `play` flavour's URL stays empty until the launcher is approved on Google
+Play; the `github` flavour links the launcher's latest GitHub release. The card
+also waits until the app has been used on the device for three days (a
+device-local first-seen stamp, written at the app's first start) and never
+returns once dismissed. Both stamps are `dg-` keys: not synced, and not in the
+local backups. The method is not on the headless bridge.
+
 ## Verifying on a device
 
 With a launcher signed by the release key and both apps installed:

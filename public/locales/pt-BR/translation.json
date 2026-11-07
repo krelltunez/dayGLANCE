@@ -791,7 +791,15 @@
     "aiNeedsKey": "Adicione uma chave de API acima para ativá-los.",
     "binAutoEmpty": "Esvaziar a lixeira automaticamente",
     "binAutoEmptyAfter": "Depois de {{days}} dias",
-    "binAutoEmptyHint": "Tarefas excluídas há mais tempo são removidas definitivamente em todos os dispositivos que você sincroniza."
+    "binAutoEmptyHint": "Tarefas excluídas há mais tempo são removidas definitivamente em todos os dispositivos que você sincroniza.",
+    "launcherPromo": {
+      "title": "GLANCElauncher",
+      "body": "Um launcher de tela inicial pensado para o seu dia: suas tarefas e rotinas do dayGLANCE e seus afazeres e pessoas do lastGLANCE, bem onde você vai vê-los ao desbloquear o dispositivo.",
+      "viewOnGithub": "Ver no GitHub",
+      "getOnPlay": "Disponível no Google Play",
+      "getIt": "Obter",
+      "notNow": "Agora não"
+    }
   },
   "dailyNotes": {
     "quickNotes": "Notas rápidas",

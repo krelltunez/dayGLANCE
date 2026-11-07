@@ -32,6 +32,7 @@ export const SECTION_SEARCH = {
   trmnl: ['settings.trmnlDashboard', 'settings.trmnlWebhookUrl'],
   glanceIntegrations: ['settings.glanceIntegrations', 'settings.glanceServerUrl'],
   localIntegrations: ['settings.localIntegrations'],
+  glanceLauncher: ['settings.launcherPromo.title'],
   automationIntents: ['settings.automationIntents'],
   backup: ['backup.title', 'backup.exportBackup', 'backup.restoreBackup', 'backup.autoBackup', 'backup.localBackups', 'backup.remoteBackups', 'backup.folderBackup', 'backup.historyTitle'],
   globalShortcut: ['settings.globalShortcuts'],

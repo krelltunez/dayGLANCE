@@ -8,6 +8,7 @@ import { searchSettings } from './settings/settingsSearch.js';
 import useSettingsSections from './settings/useSettingsSections.js';
 import { revealSettingsSection } from './settings/settingsLink.js';
 import { useTranslation } from 'react-i18next';
+import { LauncherPromoCard, useLauncherPromo } from './LauncherPromo.jsx';
 
 const SettingsModal = () => {
   const { t } = useTranslation();
@@ -20,6 +21,11 @@ const SettingsModal = () => {
   // anything (settings/useSettingsSections.js). A topic page is a list of
   // these; separators go between the visible ones only (#2075).
   const sections = useSettingsSections();
+
+  // GLANCElauncher, once (utils/launcherPromo.js). Android tablets in
+  // landscape use this dialog rather than the phone's Settings page, so the
+  // one-time card lives here too; everywhere else it never shows.
+  const launcherPromo = useLauncherPromo();
 
   // The topic list shows only topics with something to show on this device,
   // and opens on the topic last used here (docs/settings-redesign.md).
@@ -127,9 +133,18 @@ const SettingsModal = () => {
                       );
                     })}
                   </div>
-                ) : (
+                ) : (<>
+                  {launcherPromo.showCard && (
+                    <div className="mb-6" data-settings-launcher-promo>
+                      <LauncherPromoCard
+                        url={launcherPromo.url}
+                        onDismiss={launcherPromo.dismiss}
+                        cardBg={cardBg} borderClass={borderClass} textPrimary={textPrimary} textSecondary={textSecondary}
+                      />
+                    </div>
+                  )}
                   <SettingsTopicPage key={activeTopicId} topic={activeTopic} sections={sections} borderClass={borderClass} />
-                )}
+                </>)}
               </div>
               </div>
             </div>

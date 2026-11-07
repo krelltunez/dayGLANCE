@@ -791,7 +791,15 @@
     "aiNeedsKey": "Ajoutez une clé API ci-dessus pour les activer.",
     "binAutoEmpty": "Vider la corbeille automatiquement",
     "binAutoEmptyAfter": "Après {{days}} jours",
-    "binAutoEmptyHint": "Les tâches supprimées depuis plus longtemps sont effacées définitivement, sur tous les appareils que vous synchronisez."
+    "binAutoEmptyHint": "Les tâches supprimées depuis plus longtemps sont effacées définitivement, sur tous les appareils que vous synchronisez.",
+    "launcherPromo": {
+      "title": "GLANCElauncher",
+      "body": "Un lanceur d’écran d’accueil pensé autour de votre journée : vos tâches et routines dayGLANCE et vos corvées et personnes lastGLANCE, là où vous les verrez en déverrouillant votre appareil.",
+      "viewOnGithub": "Voir sur GitHub",
+      "getOnPlay": "Disponible sur Google Play",
+      "getIt": "Obtenir",
+      "notNow": "Plus tard"
+    }
   },
   "dailyNotes": {
     "quickNotes": "Notes rapides",

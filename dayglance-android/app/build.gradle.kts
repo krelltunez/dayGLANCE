@@ -115,13 +115,20 @@ android {
 
     flavorDimensions += "distribution"
     productFlavors {
+        // LAUNCHER_PROMO_URL: where Settings' GLANCElauncher card links
+        // (bridge/LauncherPromo.kt, src/utils/launcherPromo.js). Empty means
+        // the build shows no card and no Integrations entry at all.
         create("play") {
             dimension = "distribution"
             buildConfigField("boolean", "BILLING_ENABLED", "true")
+            // Empty until GLANCElauncher is approved on Google Play. Once it is, set this to
+            // "https://play.google.com/store/apps/details?id=app.glance.launcher".
+            buildConfigField("String", "LAUNCHER_PROMO_URL", "\"\"")
         }
         create("github") {
             dimension = "distribution"
             buildConfigField("boolean", "BILLING_ENABLED", "false")
+            buildConfigField("String", "LAUNCHER_PROMO_URL", "\"https://github.com/krelltunez/GLANCElauncher/releases/latest\"")
         }
     }
 }

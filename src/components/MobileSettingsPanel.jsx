@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { notBucketed } from '../utils/bucketList.js';
 import SettingsTopicPage from './settings/SettingsTopicPage.jsx';
 import useSettingsSections from './settings/useSettingsSections.js';
+import { LauncherPromoCard, useLauncherPromo } from './LauncherPromo.jsx';
 import { visibleTopics, topicAttention } from './settings/settingsTopics.js';
 import { mobileViewForTopic, revealSettingsSection } from './settings/settingsLink.js';
 import { keyboardOverTabLayout } from '../utils/keyboardInset.js';
@@ -90,6 +91,7 @@ const MobileSettingsPanel = () => {
   // The same sections the desktop dialog shows (settings/useSettingsSections.js).
   // A topic row opens `topic:<id>`; the tiles' own screens keep their names.
   const sections = useSettingsSections();
+  const launcherPromo = useLauncherPromo();
   const listedTopics = visibleTopics(sections);
   const mobileTopic = mobileSettingsView?.startsWith('topic:')
     ? listedTopics.find((topic) => `topic:${topic.id}` === mobileSettingsView) ?? null
@@ -151,6 +153,16 @@ const MobileSettingsPanel = () => {
           </button>
         </div>
       </div>
+    )}
+
+    {/* GLANCElauncher, once (utils/launcherPromo.js): Android 12+, not
+        installed, a link in this build, a few days in, never dismissed. */}
+    {launcherPromo.showCard && (
+      <LauncherPromoCard
+        url={launcherPromo.url}
+        onDismiss={launcherPromo.dismiss}
+        cardBg={cardBg} borderClass={borderClass} textPrimary={textPrimary} textSecondary={textSecondary}
+      />
     )}
 
     {/* Quick toggles */}

@@ -791,7 +791,15 @@
     "aiNeedsKey": "Add an API key above to turn these on.",
     "binAutoEmpty": "Empty the Recycle Bin automatically",
     "binAutoEmptyAfter": "After {{days}} days",
-    "binAutoEmptyHint": "Tasks deleted longer ago than this are removed for good, on every device you sync with."
+    "binAutoEmptyHint": "Tasks deleted longer ago than this are removed for good, on every device you sync with.",
+    "launcherPromo": {
+      "title": "GLANCElauncher",
+      "body": "A home screen launcher built around your day: your dayGLANCE tasks and routines and your lastGLANCE chores and people, right where you will see it when you unlock your device.",
+      "viewOnGithub": "View on GitHub",
+      "getOnPlay": "Get it on Google Play",
+      "getIt": "Get it",
+      "notNow": "Not now"
+    }
   },
   "dailyNotes": {
     "quickNotes": "Quick Notes",
