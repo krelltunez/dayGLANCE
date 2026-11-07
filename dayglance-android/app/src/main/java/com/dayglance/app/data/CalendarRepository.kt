@@ -65,10 +65,18 @@ class CalendarRepository(private val context: Context) {
         return calendars
     }
 
-    fun getEvents(date: LocalDate): List<CalEvent> {
+    fun getEvents(date: LocalDate): List<CalEvent> = getEventsBetween(date, date)
+
+    /**
+     * Every event and VTODO from the start of [from] to the end of [toInclusive], in one
+     * Instances query and one task query, so a long window costs two reads rather than two
+     * per day (the launcher's month window, LauncherDeviceEvents). An event is listed once
+     * per instance, with its own start and end; a VTODO is dated by its due day.
+     */
+    fun getEventsBetween(from: LocalDate, toInclusive: LocalDate): List<CalEvent> {
         val zone = ZoneId.systemDefault()
-        val startMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
-        val endMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val startMs = from.atStartOfDay(zone).toInstant().toEpochMilli()
+        val endMs = toInclusive.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
 
         val uri = CalendarContract.Instances.CONTENT_URI.buildUpon()
             .appendPath(startMs.toString())
@@ -182,19 +190,25 @@ class CalendarRepository(private val context: Context) {
                 val calIdIdx   = cursor.getColumnIndex(CalendarContract.Events.CALENDAR_ID)
                 val calNameIdx = cursor.getColumnIndex(CalendarContract.Events.CALENDAR_DISPLAY_NAME)
                 val colorIdx   = cursor.getColumnIndex(CalendarContract.Events.CALENDAR_COLOR)
+                val dueIdx     = cursor.getColumnIndex(colDue)
+                val instanceIds = events.mapTo(HashSet()) { it.id }
 
                 while (cursor.moveToNext()) {
                     val eventId = cursor.getLong(idIdx)
                     // Skip if already returned from the Instances query
-                    if (events.any { it.id == eventId.toString() }) continue
+                    if (eventId.toString() in instanceIds) continue
+                    // Its due day; the selection keeps it inside the window.
+                    val dueDay = if (dueIdx >= 0 && !cursor.isNull(dueIdx))
+                        Instant.ofEpochMilli(cursor.getLong(dueIdx)).atZone(zone).toLocalDate().toString()
+                    else from.toString()
 
                     val colorInt = if (colorIdx >= 0) cursor.getInt(colorIdx) else 0x6b7280
 
                     events += CalEvent(
                         id           = "task-$eventId",
                         title        = cursor.getString(titleIdx) ?: "",
-                        start        = date.toString(),
-                        end          = date.toString(),
+                        start        = dueDay,
+                        end          = dueDay,
                         allDay       = true,
                         notes        = cursor.getString(descIdx) ?: "",
                         location     = cursor.getString(locIdx) ?: "",

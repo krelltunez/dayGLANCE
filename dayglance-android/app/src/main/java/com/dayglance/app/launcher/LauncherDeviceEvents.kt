@@ -22,7 +22,7 @@ import java.util.Locale
  * One event must be one row whichever side read it:
  * dayglance-ios/TestFixtures/launcherDeviceEvents.vectors.json is generated
  * from the web layer and [LauncherDeviceEventsTest] holds this to it. Pure
- * apart from the [read] it is handed.
+ * apart from the range read it is handed.
  */
 object LauncherDeviceEvents {
 
@@ -59,14 +59,16 @@ object LauncherDeviceEvents {
     /**
      * [snapshotJson] with its `native` task rows replaced by a fresh read of the
      * window around [today], or unchanged when it carries no `deviceCalendar` or
-     * cannot be parsed. [read] is CalendarRepository.getEvents.
+     * cannot be parsed. [readRange] is CalendarRepository.getEventsBetween, asked
+     * once for the whole window (the month grid's, a few dozen days), whose events
+     * are then listed under each day they cover as a read of that day would list them.
      */
-    fun withLiveEvents(snapshotJson: String, today: LocalDate, read: (LocalDate) -> List<CalEvent>): String {
+    fun withLiveEvents(snapshotJson: String, today: LocalDate, readRange: (LocalDate, LocalDate) -> List<CalEvent>): String {
         return try {
             val root = JSONObject(snapshotJson)
             val config = config(root) ?: return snapshotJson
             val dates = windowDates(today, config)
-            val live = rows(dates.map { it to read(it) }, config)
+            val live = rows(byDate(dates, readRange(dates.first(), dates.last())), config)
             val tasks = root.optJSONArray("tasks") ?: JSONArray()
             val next = JSONArray()
             for (i in 0 until tasks.length()) {
@@ -77,6 +79,25 @@ object LauncherDeviceEvents {
             root.put("tasks", next).toString()
         } catch (e: Exception) {
             snapshotJson
+        }
+    }
+
+    /**
+     * [events] from one range read, listed under each of [dates] they cover, as a
+     * read of that one day returns them: an event from its start day through its end
+     * day (an all-day event's end is already inclusive). Only the day an event is
+     * listed under matters to [rows] for a multi-day all-day event, which gets a row
+     * on each day; any other event's row is dated by its own start, so listing a
+     * timed event that ends on a later day under that day too changes nothing.
+     */
+    fun byDate(dates: List<LocalDate>, events: List<CalEvent>): List<Pair<LocalDate, List<CalEvent>>> {
+        val spans = events.map { e ->
+            val start = e.start.take(10)
+            Triple(e, start, if (e.end.length >= 10) e.end.take(10) else start)
+        }
+        return dates.map { date ->
+            val d = date.toString()
+            date to spans.filter { (_, start, end) -> start <= d && d <= end }.map { it.first }
         }
     }
 

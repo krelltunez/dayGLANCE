@@ -31,6 +31,26 @@ class LauncherDeviceEventsTest {
         (0 until arr.length()).map { event(arr.getJSONObject(it)) }
     }
 
+    /**
+     * The fixture's events as one range read returns them: each instance once, whatever
+     * days it covers, and only those that touch the asked range. The fixture lists each
+     * day's events as the provider does (by start, VTODOs last).
+     */
+    private fun rangeReader(events: JSONObject): (LocalDate, LocalDate) -> List<CalEvent> = { from, to ->
+        val seen = HashSet<Pair<String, String>>()
+        val out = ArrayList<CalEvent>()
+        for (key in events.keys().asSequence().sorted()) {
+            val arr = events.getJSONArray(key)
+            for (i in 0 until arr.length()) {
+                val e = event(arr.getJSONObject(i))
+                if (e.end.take(10) < from.toString() || e.start.take(10) > to.toString()) continue
+                if (seen.add(e.id to e.start)) out.add(e)
+            }
+        }
+        // As the provider lists them: instances by start, then the VTODOs.
+        out.sortedWith(compareBy<CalEvent>({ it.id.startsWith("task-") }, { it.start }))
+    }
+
     /** Key order and number boxing aside, the same JSON. */
     private fun normalised(o: JSONObject): Map<String, Any?> = JSONObject(o.toString()).toMap()
 
@@ -55,6 +75,40 @@ class LauncherDeviceEventsTest {
     }
 
     @Test
+    fun `one range read over the window lists the same rows as a read of each day`() {
+        val cases = fixture.getJSONArray("cases")
+        for (i in 0 until cases.length()) {
+            val c = cases.getJSONObject(i)
+            val config = LauncherDeviceEvents.config(JSONObject().put("deviceCalendar", c.getJSONObject("deviceCalendar")))!!
+            val dates = LauncherDeviceEvents.windowDates(LocalDate.parse(c.getString("today")), config)
+            val events = rangeReader(c.getJSONObject("events"))(dates.first(), dates.last())
+            val rows = LauncherDeviceEvents.rows(LauncherDeviceEvents.byDate(dates, events), config)
+            val expected = c.getJSONArray("rows")
+            assertEquals(c.getString("name"), (0 until expected.length()).map { normalised(expected.getJSONObject(it)) }, rows.map { normalised(it) })
+        }
+    }
+
+    @Test
+    fun `a range read's events are listed under every day they cover`() {
+        fun ev(id: String, start: String, end: String, allDay: Boolean) =
+            CalEvent(id, id, start, end, allDay, "", "", "1", "Cal", "#039BE5")
+        val dates = (0..3).map { LocalDate.parse("2026-11-01").plusDays(it.toLong()) }
+        val trip = ev("trip", "2026-10-30", "2026-11-02", true)
+        val late = ev("late", "2026-11-02T23:00:00", "2026-11-03T01:00:00", false)
+        val lunch = ev("lunch", "2026-11-04T12:00:00", "2026-11-04T13:00:00", false)
+        val listed = LauncherDeviceEvents.byDate(dates, listOf(trip, late, lunch)).associate { (d, es) -> d.toString() to es.map { it.id } }
+        assertEquals(
+            mapOf(
+                "2026-11-01" to listOf("trip"),
+                "2026-11-02" to listOf("trip", "late"),
+                "2026-11-03" to listOf("late"),
+                "2026-11-04" to listOf("lunch"),
+            ),
+            listed,
+        )
+    }
+
+    @Test
     fun `a live read replaces the snapshot's native rows and keeps every other row`() {
         val c = fixture.getJSONArray("cases").getJSONObject(0)
         val snapshot = JSONObject()
@@ -63,7 +117,7 @@ class LauncherDeviceEventsTest {
                 .put(JSONObject().put("id", "t1").put("native", false))
                 .put(JSONObject().put("id", "native-cal-stale-2026-10-21").put("native", true)))
             .put("deviceCalendar", c.getJSONObject("deviceCalendar"))
-        val out = JSONObject(LauncherDeviceEvents.withLiveEvents(snapshot.toString(), LocalDate.parse("2026-10-21"), reader(c.getJSONObject("events"))))
+        val out = JSONObject(LauncherDeviceEvents.withLiveEvents(snapshot.toString(), LocalDate.parse("2026-10-21"), rangeReader(c.getJSONObject("events"))))
         val tasks = out.getJSONArray("tasks")
         val ids = (0 until tasks.length()).map { tasks.getJSONObject(it).getString("id") }
         assertEquals("t1", ids.first())
@@ -74,8 +128,8 @@ class LauncherDeviceEventsTest {
     @Test
     fun `a snapshot without the block, or one that does not parse, is served as it is`() {
         val plain = """{"version":1,"tasks":[{"id":"native-cal-1-2026-10-21","native":true}]}"""
-        assertSame(plain, LauncherDeviceEvents.withLiveEvents(plain, LocalDate.parse("2026-10-21")) { error("not read") })
-        assertSame("not json", LauncherDeviceEvents.withLiveEvents("not json", LocalDate.parse("2026-10-21")) { emptyList() })
+        assertSame(plain, LauncherDeviceEvents.withLiveEvents(plain, LocalDate.parse("2026-10-21")) { _, _ -> error("not read") })
+        assertSame("not json", LauncherDeviceEvents.withLiveEvents("not json", LocalDate.parse("2026-10-21")) { _, _ -> emptyList() })
     }
 
     /** nativeCalendar.test.js holds nativeEventDuration to the same values (#2278). */
