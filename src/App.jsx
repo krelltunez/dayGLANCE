@@ -1533,7 +1533,7 @@ const DayPlanner = () => {
     if (deletedUserSyncIds.length === 0) return;
     clearDeletedMemberRefs(deletedUserSyncIds, {
       setTasks, setUnscheduledTasks, setRecurringTasks, setRecycleBin,
-      setProjects, setGoals, setHabits, setRoutineDefinitions, setTodayRoutines, setGtdFrames,
+      setProjects, setGoals, setHabits, setRoutineDefinitions, setTodayRoutines, setGtdFrames, setFrameSets,
     });
     // The setters are stable; this runs once per roster load, not per render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
