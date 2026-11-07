@@ -72,7 +72,7 @@ export function reparentDeletedGoal(goalId, { setProjects } = {}, nowIso = new D
  */
 export function clearDeletedMemberRefs(deletedUserSyncIds, {
   setTasks, setUnscheduledTasks, setRecurringTasks, setRecycleBin,
-  setProjects, setGoals, setHabits, setRoutineDefinitions, setTodayRoutines, setGtdFrames,
+  setProjects, setGoals, setHabits, setRoutineDefinitions, setTodayRoutines, setGtdFrames, setFrameSets,
 } = {}, nowIso = new Date().toISOString()) {
   if (!Array.isArray(deletedUserSyncIds) || deletedUserSyncIds.length === 0) return;
   const assignments = { deletedUserSyncIds, field: 'assignedUserSyncIds' };
@@ -103,4 +103,9 @@ export function clearDeletedMemberRefs(deletedUserSyncIds, {
   // Frames have no per-row timestamp; do not invent one.
   setGtdFrames?.((frames) =>
     stripUserRefs(frames, { deletedUserSyncIds, field: 'ownerSyncId', stampField: null }, nowIso));
+  // Frame sets (#2305) are owned like the frames they group, and repaired the
+  // same way, so a deleted member's set does not vanish from every view while
+  // its frames still follow it. (Unreadable sets are undefined, left alone.)
+  setFrameSets?.((sets) =>
+    stripUserRefs(sets, { deletedUserSyncIds, field: 'ownerSyncId', stampField: null }, nowIso));
 }

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { restoreFrames } from '../utils/undoFrames.js';
+import { restoreFrameSets, recordFrameSetTombstones } from '../utils/frameSetEdits.js';
 import { describeUndoLabel } from '../utils/undoLabels.js';
 
 // How long a toast stays. Each kind has a floor: 2s for a passive note, 4s
@@ -16,7 +17,7 @@ export function toastDelay(toast) {
   return Math.max(floor, Math.min(reading, 15000));
 }
 
-const useUndo = ({ tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrames, setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks, setGtdFrames, playUISound, t }) => {
+const useUndo = ({ tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrames, frameSets, setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks, setGtdFrames, setFrameSets, playUISound, t }) => {
   // Toast text, translated when the app passes t (tests may not).
   const say = (key, fallback) => (typeof t === 'function' ? t(key) : fallback);
   // "Undone: Completed "Write report"" when the step says what it did, else
@@ -31,6 +32,7 @@ const useUndo = ({ tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrame
   const recycleBinRef = useRef(recycleBin);
   const recurringTasksRef = useRef(recurringTasks);
   const gtdFramesRef = useRef(gtdFrames);
+  const frameSetsRef = useRef(frameSets);
 
   const [undoToast, setUndoToast] = useState(null);
   // Action steps (a JOBO Do edit) run one at a time, in the order pressed.
@@ -50,6 +52,8 @@ const useUndo = ({ tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrame
     const timer = setTimeout(() => setUndoToast(null), toastDelay(undoToast));
     return () => clearTimeout(timer);
   }, [undoToast]);
+  // After the toast's effect, which the toast tests run by position.
+  useEffect(() => { frameSetsRef.current = frameSets; }, [frameSets]);
 
   // Undo/redo: snapshot the task arrays and Frames (read from refs for latest
   // state). Frame edits (skip a day, adjust, resize) push undo steps too, so a
@@ -60,6 +64,9 @@ const useUndo = ({ tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrame
     recycleBin: structuredClone(recycleBinRef.current),
     recurringTasks: structuredClone(recurringTasksRef.current),
     ...(Array.isArray(gtdFramesRef.current) ? { gtdFrames: structuredClone(gtdFramesRef.current) } : {}),
+    // Frame sets, for a step that names the sets it touched (frameSetIds):
+    // deleting a set is one step with its frames' unassignment.
+    ...(Array.isArray(frameSetsRef.current) ? { frameSets: structuredClone(frameSetsRef.current) } : {}),
   });
 
   const applySnapshot = (snapshot) => {
@@ -69,6 +76,17 @@ const useUndo = ({ tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrame
     setRecurringTasks(snapshot.recurringTasks);
     // Frames come back per frame, freshly stamped (utils/undoFrames.js).
     if (snapshot.gtdFrames && setGtdFrames) setGtdFrames(prev => restoreFrames(prev, snapshot.gtdFrames, Date.now()));
+    // Only the sets the step touched, and a set the step removed goes again
+    // with its tombstone (utils/frameSetEdits.js restoreFrameSets).
+    if (snapshot.frameSets && snapshot.frameSetIds?.length && setFrameSets) {
+      const now = Date.now();
+      const { sets, removed } = restoreFrameSets(frameSetsRef.current, snapshot.frameSets, snapshot.frameSetIds, now);
+      if (removed.length) recordFrameSetTombstones(removed, new Date(now).toISOString());
+      if (sets !== frameSetsRef.current) {
+        frameSetsRef.current = sets;
+        setFrameSets(sets);
+      }
+    }
   };
 
   // `label` says what the step does (`{ key, taskId }`, utils/undoLabels.js).
@@ -81,7 +99,8 @@ const useUndo = ({ tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrame
       tasks: tasksRef.current, unscheduledTasks: unscheduledTasksRef.current,
       recycleBin: recycleBinRef.current, recurringTasks: recurringTasksRef.current,
     });
-    undoStackRef.current = [...undoStackRef.current.slice(-49), { ...takeSnapshot(), said }];
+    const frameSetIds = Array.isArray(label?.frameSetIds) ? label.frameSetIds : undefined;
+    undoStackRef.current = [...undoStackRef.current.slice(-49), { ...takeSnapshot(), said, ...(frameSetIds ? { frameSetIds } : {}) }];
     redoStackRef.current = [];
     return said;
   };
@@ -129,7 +148,7 @@ const useUndo = ({ tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrame
     undoStackRef.current = undoStackRef.current.slice(0, -1);
     if (snapshot.action) { runAction(snapshot, 'undo', redoStackRef); return; }
     // The redo step says the same thing as the step it reverses.
-    redoStackRef.current = [...redoStackRef.current, { ...takeSnapshot(), said: snapshot.said }];
+    redoStackRef.current = [...redoStackRef.current, { ...takeSnapshot(), said: snapshot.said, frameSetIds: snapshot.frameSetIds }];
     applySnapshot(snapshot);
     playUISound('undo');
     setUndoToast({ message: report('undo', snapshot.said), ...wayBack('undo') });
@@ -143,7 +162,7 @@ const useUndo = ({ tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrame
     const snapshot = redoStackRef.current[redoStackRef.current.length - 1];
     redoStackRef.current = redoStackRef.current.slice(0, -1);
     if (snapshot.action) { runAction(snapshot, 'redo', undoStackRef); return; }
-    undoStackRef.current = [...undoStackRef.current, { ...takeSnapshot(), said: snapshot.said }];
+    undoStackRef.current = [...undoStackRef.current, { ...takeSnapshot(), said: snapshot.said, frameSetIds: snapshot.frameSetIds }];
     applySnapshot(snapshot);
     playUISound('undo');
     setUndoToast({ message: report('redo', snapshot.said), ...wayBack('redo') });

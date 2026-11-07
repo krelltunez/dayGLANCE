@@ -241,6 +241,67 @@ describe('HeadlessRefresh', () => {
     root.unmount();
   });
 
+  // Frame sets (#2305): the root loads the slice with the app's reader, pushes
+  // it like the app, applies a pulled change into storage, and the launcher
+  // snapshot it builds honours the sets, as App's getFrameInstancesForDate does.
+  it('loads, pushes and applies frame sets, and the snapshot honours them', async () => {
+    seedStorage(ls);
+    const frames = [
+      { id: 'f-work', label: 'Work', enabled: true, days: [1, 2, 3, 4, 5], start: '09:00', end: '12:00', setId: 'work', lastModified: '2026-10-01T00:00:00.000Z' },
+      { id: 'f-free', label: 'Reading', enabled: true, days: [1, 2, 3, 4, 5], start: '18:00', end: '19:00', lastModified: '2026-10-01T00:00:00.000Z' },
+    ];
+    const sets = [{ id: 'work', name: 'Work', periods: [{ from: null, until: null }], lastModified: '2026-10-01T00:00:00.000Z' }];
+    ls.setItem('day-planner-gtd-frames', JSON.stringify(frames));
+    ls.setItem('day-planner-frame-sets', JSON.stringify(sets));
+    // The other device switched Work off on 2026-10-17, before this run's today.
+    const theirs = [{ ...sets[0], periods: [{ from: null, until: '2026-10-16' }], lastModified: '2026-10-19T09:00:00.000Z' }];
+    const { bridge, calls } = fakeBridge();
+    globalThis.window.DayGlanceNative = bridge;
+    const seen = [];
+    const factory = vi.fn((callbacks) => ({
+      sync: async () => {
+        const payload = await callbacks.buildPayload();
+        seen.push(payload.data);
+        const { data } = mergeSyncData(payload.data, { ...payload.data, frameSets: theirs }, 0);
+        await callbacks.applyPayload(data, { allowEmpty: true });
+      },
+      getLastSynced: () => '2026-10-19T10:00:00.000Z',
+    }));
+    const root = await mount({ bridge: () => bridge, createFileEngine: factory, createVaultEngine: () => null, now: () => new Date('2026-10-19T12:00:00') });
+    await until(() => calls.headlessDone.length > 0);
+
+    // Pushed as App would: the stored sets, their tombstones, the frame's setId.
+    expect(seen[0].frameSets).toEqual(sets);
+    expect(seen[0].deletedFrameSetIds).toEqual({});
+    expect(seen[0].gtdFrames.find((f) => f.id === 'f-work').setId).toBe('work');
+    // The pulled switch landed in storage.
+    expect(JSON.parse(ls.getItem('day-planner-frame-sets'))).toEqual(theirs);
+    // The snapshot's frames: Work only on the days its set was on.
+    const rows = calls.updateLauncherSnapshot[0].frames;
+    const on = (date) => rows.filter((r) => r.date === date).map((r) => r.frameId);
+    expect(on('2026-10-16')).toEqual(['f-work', 'f-free']);
+    expect(on('2026-10-19')).toEqual(['f-free']);
+    expect(calls.headlessDone[0]).toMatchObject({ outcome: 'ran' });
+    root.unmount();
+  });
+
+  it('leaves unreadable frame sets out of the payload rather than pushing []', async () => {
+    seedStorage(ls);
+    ls.setItem('day-planner-frame-sets', '{not json');
+    const { bridge, calls } = fakeBridge();
+    globalThis.window.DayGlanceNative = bridge;
+    const engine = scriptedFileEngine();
+    const root = await mount({ bridge: () => bridge, createFileEngine: engine.factory, createVaultEngine: () => null, now: () => new Date('2026-10-19T12:00:00') });
+    await until(() => calls.headlessDone.length > 0);
+
+    expect(engine.seen.payloads[0].data).not.toHaveProperty('frameSets');
+    // …and the save pass did not write over the stored copy.
+    expect(ls.getItem('day-planner-frame-sets')).toBe('{not json');
+    // The deps guard accepted an undefined slice whose key is present.
+    expect(errors.mock.calls.filter((c) => String(c[0]).includes('useSyncEngineData'))).toEqual([]);
+    root.unmount();
+  });
+
   it('fetches the forecast for the stored location and pushes it in the snapshot', async () => {
     seedStorage(ls);
     ls.setItem('day-planner-weather-coords', JSON.stringify({ lat: 39.74, lon: -104.99 }));

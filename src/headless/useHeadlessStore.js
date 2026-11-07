@@ -15,7 +15,7 @@ import { loadRoutineState } from '../hooks/useRoutines.js';
 import {
   readMinimizedSections, readUse24HourClock, readBucketConfig, readDailyNotes,
   readMultiUserEnabled, readUsers, readMeUserSyncId, readObsidianConfig,
-  readObsidianCompletionDates, readWeatherZip, readWeatherTempUnit, readGtdFrames,
+  readObsidianCompletionDates, readWeatherZip, readWeatherTempUnit, readGtdFrames, readFrameSets,
   readTaskCalendarAuth, readSyncRetentionDays, readHabitsEnabled, readRoutinesEnabled,
   readGoalsProjectsEnabled, emptyRoutineDefinitions,
 } from '../utils/storedSlices.js';
@@ -61,6 +61,8 @@ export function initialHeadlessState() {
     weatherZip: readWeatherZip(),
     weatherTempUnit: readWeatherTempUnit(),
     gtdFrames: readGtdFrames(),
+    // Undefined when unreadable, as in App (not loaded is not empty).
+    frameSets: readFrameSets(),
     bucketConfig: readBucketConfig(),
     obsidianConfig: readObsidianConfig(),
     obsidianCompletionDates: readObsidianCompletionDates(),

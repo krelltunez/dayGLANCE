@@ -125,6 +125,7 @@ All data is stored in `localStorage`. Cloud sync (WebDAV) is optional and layere
 | `day-planner-recurring-tasks` | Recurring task templates |
 | `day-planner-daily-notes` | Notes by date (`{ "YYYY-MM-DD": { text, lastModified } }`) |
 | `day-planner-gtd-frames` | GTD time-block frame definitions |
+| `day-planner-frame-sets` | Frame sets: groups of frames active for date ranges |
 | `day-planner-habits` | Habit definitions |
 | `day-planner-habit-logs` | Habit completion counts by date |
 | `day-planner-routine-definitions` | Routine chips by day of week |
@@ -132,7 +133,7 @@ All data is stored in `localStorage`. Cloud sync (WebDAV) is optional and layere
 | `day-planner-ai-config` | AI provider config and feature flags |
 | `day-planner-deleted-task-ids` | Tombstones: `{ id: deletionTimestamp }` |
 
-Tombstone maps (deleted IDs with timestamps) exist for tasks, routine chips, habits, and frames. They prevent deleted items from being resurrected during sync merges.
+Tombstone maps (deleted IDs with timestamps) exist for tasks, routine chips, habits, frames and frame sets. They prevent deleted items from being resurrected during sync merges.
 
 ---
 
@@ -232,8 +233,45 @@ Frames are named time blocks that appear on the day view. Tasks are assigned to 
   bufferMinutes: number,
   enabled: boolean,
   singleDate?: "YYYY-MM-DD",  // for one-off overrides
+  setId?: string,             // the frame set it belongs to, at most one
 }
 ```
+
+### Frame set
+
+A frame set (#2305) groups frames that are switched on and off together for
+dates, such as Work, Classes or Holiday. The rules are pure, in
+`packages/agenda-core/src/frameSets.js`:
+
+```js
+{
+  id: string,
+  name: string,
+  periods: [{ from: "YYYY-MM-DD" | null, until: "YYYY-MM-DD" | null }],
+  lastModified: string,
+  ownerSyncId?: string,
+}
+```
+
+- A set is **active on D** when one of its periods covers D, both ends
+  included. `until: null` is open ended, `from: null` open started. A set
+  with no periods is never active. A new set is one period open at both
+  ends, so frames moved into it keep their past.
+- A frame **applies on D** when its own rules do (`enabled`, `days`,
+  `singleDate`, `exceptions`, unchanged) **and** its set is active on D. A
+  frame with no set, or whose `setId` names a set this device does not know
+  (deleted, or not synced yet), applies as if it had no set: a sync gap never
+  hides frames. Every caller of `frameInstancesForDate` passes
+  `{ frameSets }` (`src/utils/frameSetCallers.test.js` holds them to it).
+- The **switch is for today and keeps history**: off closes the period
+  covering today at yesterday, or drops it if it began today; on opens a
+  period at today, merged with one that touches it. Periods planned after
+  today are left alone by both. Writers keep periods sorted and merged, so
+  two devices making the same switch write the same row.
+- **Sync**: one row per set, last-writer-wins on `lastModified`, deleted with
+  `deletedFrameSetIds`, on both tiers. The slice is `undefined`, and left out
+  of the payload, while its stored copy cannot be read (not loaded is not
+  empty). Deleting a set unassigns its frames in the same undo step.
 
 ---
 

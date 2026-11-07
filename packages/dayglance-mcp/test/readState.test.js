@@ -92,13 +92,14 @@ const APP = { now: NOW, userSyncId: ME, weekStartDay: 1 };
 const APP_BEFORE = { currentTime: NOW, meUserSyncId: ME, weekStartDay: 1 };
 
 const KEYS = [
-  'areas', 'bucketConfig', 'dailyNotes', 'frames', 'goals', 'isVisibleForUser', 'multiUserEnabled',
+  'areas', 'bucketConfig', 'dailyNotes', 'frameSets', 'frames', 'goals', 'isVisibleForUser', 'multiUserEnabled',
   'nowMinutes', 'projects', 'recurringTasks', 'recycleBin', 'routineCompletions', 'routines',
   'routinesDate', 'routinesEnabled', 'tasks', 'todayDate', 'unscheduledTasks', 'users', 'weekStartDay',
 ];
 const PASSED_THROUGH = [
   'tasks', 'recurringTasks', 'unscheduledTasks', 'recycleBin', 'routinesDate', 'routineCompletions',
   'routinesEnabled', 'goals', 'projects', 'areas', 'dailyNotes', 'bucketConfig', 'users', 'multiUserEnabled',
+  'frameSets',
 ];
 
 /** Everything observable about a state: its values, and its visibility predicate applied to every item. */

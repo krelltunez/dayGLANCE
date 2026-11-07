@@ -415,6 +415,26 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     if (areasMerge.localChanged) result.localChanged = true;
     if (areasMerge.remoteChanged) result.remoteChanged = true;
   }
+  // Frame sets (#2305, agenda-core frameSets.js): a dayGLANCE-only collection
+  // the upstream merge drops. Merged here by id the way the upstream merges
+  // the frames they group: last-writer-wins on lastModified, a tombstone in
+  // deletedFrameSetIds newer than a copy removes it, no sync horizon (as for
+  // areas). Equal stamps with different content converge on one copy
+  // (breakTimestampTies). The tombstone map itself is unioned and pruned with
+  // the other bundles below. A side without the key carries nothing: the
+  // payload omits it until the sets have been read (not loaded is not empty),
+  // and a build that predates sets never had it. When neither side has it the
+  // result omits it too, so nothing reads as an empty list.
+  if (Array.isArray(local?.frameSets) || Array.isArray(remote?.frameSets)) {
+    const deletedSetIds = unionTombstones(local?.deletedFrameSetIds, remote?.deletedFrameSetIds);
+    const localSets = Array.isArray(local?.frameSets) ? local.frameSets : [];
+    const remoteSets = Array.isArray(remote?.frameSets) ? remote.frameSets : [];
+    const setsMerge = mergeArrayById(localSets, remoteSets, deletedSetIds, null, { timestampField: 'lastModified' });
+    const setsTies = breakTimestampTies(setsMerge.merged, localSets, remoteSets);
+    result.data.frameSets = setsTies.merged;
+    if (setsMerge.localChanged || setsTies.localChanged) result.localChanged = true;
+    if (setsMerge.remoteChanged || setsTies.remoteChanged) result.remoteChanged = true;
+  }
   // JOBO ledger (docs/jobo-ledger-persistence.md): a dayGLANCE-only
   // collection the upstream merge drops, re-merged here by id with core's
   // pickJoboRecord. No tombstone map (deletions are rows) and NO sync

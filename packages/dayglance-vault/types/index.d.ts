@@ -4,9 +4,9 @@
 //
 // `data` throughout is dayGLANCE's sync payload `.data`: the synced slices
 // under their payload names (tasks, recurringTasks, unscheduledTasks,
-// recycleBin, todayRoutines, habits, goals, projects, areas, gtdFrames, users,
-// joboRecords, dailyNotes, and every other key as a singleton bundle). The
-// adapter's apply functions MUTATE it in place.
+// recycleBin, todayRoutines, habits, goals, projects, areas, gtdFrames,
+// frameSets, users, joboRecords, dailyNotes, and every other key as a
+// singleton bundle). The adapter's apply functions MUTATE it in place.
 
 /** The payload's `.data`: slices by name. */
 export type VaultData = Record<string, unknown>;

@@ -55,6 +55,7 @@ export const TOMBSTONE_BUNDLE_KEYS = [
   'deletedTaskIds',
   'deletedRoutineChipIds',
   'deletedFrameIds',
+  'deletedFrameSetIds',
   'removedTodayRoutineIds',
   'deletedHabitIds',
   'deletedGoalIds',

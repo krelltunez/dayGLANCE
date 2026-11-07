@@ -80,8 +80,9 @@ export function toFrameObject(instance, availableSlots) {
  */
 export function buildFrames(state, date, { includeNative = false } = {}) {
   // There is no global frames toggle in dayGLANCE; `enabled` is per template
-  // and frameInstancesForDate already honours it.
-  const { frames = [] } = state ?? {};
+  // and frameInstancesForDate already honours it, as it honours frame sets
+  // (#2305): a frame in a set switched off on `date` is not reported.
+  const { frames = [], frameSets } = state ?? {};
   if (!date) return [];
 
   // Device calendar events follow the CONSENT TIER, not merely what would be
@@ -106,7 +107,7 @@ export function buildFrames(state, date, { includeNative = false } = {}) {
   // hold the start of this one (#2278), under the same consent tier.
   const prevDayTasks = rowsOn(shiftDateStr(date, -1));
 
-  return frameInstancesForDate(frames, date).map((instance) => toFrameObject(
+  return frameInstancesForDate(frames, date, { frameSets }).map((instance) => toFrameObject(
     instance,
     computeAvailableSlots(instance, {
       state,
