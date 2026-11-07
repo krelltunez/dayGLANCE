@@ -1,6 +1,7 @@
 import React from 'react';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { act, create } from 'react-test-renderer';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { DayPlannerContext } from '../context/DayPlannerContext.jsx';
@@ -31,7 +32,7 @@ beforeAll(async () => {
   await inst.init({ lng: 'en', fallbackLng: false, resources: { en: { translation: bundle } }, interpolation: { escapeValue: false } });
 });
 
-function render(surface, hhmm, { filterForCalendar = (list) => list } = {}) {
+function tree(surface, hhmm, { filterForCalendar = (list) => list, extra = {} } = {}) {
   const currentTime = new Date(`${SAT}T${hhmm}:00`);
   const isVisibleForUser = () => true;
   const todayAgenda = buildTodayAgenda({
@@ -53,13 +54,14 @@ function render(surface, hhmm, { filterForCalendar = (list) => list } = {}) {
     timeToMinutes: (time) => { const [h, m] = time.split(':').map(Number); return h * 60 + m; },
     darkMode: false,
     textPrimary: '', textSecondary: '', cardBg: '', borderClass: '', hoverBg: '',
+    ...extra,
   };
   const features = {
     aiConfig: { features: {} }, myFrames: [], getFrameInstancesForDate: () => [],
     goals: [], projects: [], hgVisibleProjects: [], goalsProjectsEnabled: false,
     isVisibleForUser,
   };
-  return renderToStaticMarkup(
+  return (
     <I18nextProvider i18n={inst}>
       <DayPlannerContext.Provider value={planner}>
         <FeaturesContext.Provider value={features}>
@@ -68,9 +70,11 @@ function render(surface, hhmm, { filterForCalendar = (list) => list } = {}) {
           </SyncContext.Provider>
         </FeaturesContext.Provider>
       </DayPlannerContext.Provider>
-    </I18nextProvider>,
+    </I18nextProvider>
   );
 }
+
+const render = (surface, hhmm, opts) => renderToStaticMarkup(tree(surface, hhmm, opts));
 
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
@@ -107,5 +111,27 @@ describe.each(['desktop', 'mobile'])('%s GLANCE agenda, the night before’s tas
     const words = text(render(surface, '00:08', { filterForCalendar: hideNight }));
     expect(words).not.toContain('Two-Hour Task');
     expect(words).toContain('Breakfast');
+  });
+
+  it('acts on the real task: the context menu looks for it on its own date', () => {
+    const setTaskContextMenu = vi.fn();
+    let root;
+    act(() => { root = create(tree(surface, '00:08', { extra: { setTaskContextMenu } })); });
+    const rows = root.root.findAll((n) => n.type === 'div' && typeof n.props.onContextMenu === 'function' && n.props['data-ctx-menu']);
+    // The first row is the night before's (no deadlines or all-day items here).
+    act(() => { rows[0].props.onContextMenu({ preventDefault() {}, clientX: 1, clientY: 2 }); });
+    expect(setTaskContextMenu).toHaveBeenCalledWith(expect.objectContaining({ taskId: 'night', dateStr: FRI }));
+  });
+});
+
+describe('desktop GLANCE, the night before’s task opens as itself', () => {
+  it('a double-click opens the editor on the task’s own start and duration', () => {
+    const openMobileEditTask = vi.fn();
+    let root;
+    act(() => { root = create(tree('desktop', '00:08', { extra: { openMobileEditTask, setTaskContextMenu: vi.fn() } })); });
+    const rows = root.root.findAll((n) => n.type === 'div' && typeof n.props.onDoubleClick === 'function' && n.props['data-ctx-menu']);
+    const el = { matches: () => false, classList: { contains: () => false }, parentElement: null };
+    act(() => { rows[0].props.onDoubleClick({ target: el, currentTarget: el, stopPropagation() {} }); });
+    expect(openMobileEditTask).toHaveBeenCalledWith(expect.objectContaining({ id: 'night', date: FRI, startTime: '23:00', duration: 120 }), false);
   });
 });
