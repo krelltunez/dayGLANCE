@@ -1,6 +1,6 @@
 {
   "name": "@glance-apps/mcp-host",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The transport-and-safety layer for a GLANCE app's MCP server: the HTTP listener and its path, Host, Origin and bearer-token guards, port policy, write gate, idempotent replay, pagination, write journal, and local date rules.",
   "license": "MIT",
   "type": "module",
