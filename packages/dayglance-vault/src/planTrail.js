@@ -2,8 +2,9 @@
 // union, its cap, and the comparison that tells a tier whether the merge
 // changed anything. Moved verbatim from the app's src/utils/planTrail.js
 // (#2280), which imports them back; the save pass that records a stop, and
-// the display helpers, stay there. `clean` is exported for that module only
-// (as cleanTrail) and is not part of the package's public API.
+// the display helpers, stay there.
+
+import { planTrailStops } from '@glance-apps/agenda-core';
 
 // Six stops plus the baseline and the current plan is eight lines — about as
 // much as the popover holds before it stops being glanceable.
@@ -11,8 +12,10 @@ export const TRAIL_CAP = 6;
 
 const key = (entry) => `${entry.at}|${entry.date}|${entry.startTime}`;
 
-const clean = (trail) => (Array.isArray(trail) ? trail : [])
-  .filter((e) => e && e.date && e.startTime && Number.isFinite(Number(e.at)));
+// What counts as a recorded stop is agenda-core's (planTrailStops), the rule
+// every reader of the trail applies too, so a stop the merge drops is one no
+// reader counts and one it keeps is one every reader shows.
+const clean = planTrailStops;
 
 /**
  * Merge two trails. A union rather than a carry-forward or a last-writer-wins:
@@ -49,4 +52,3 @@ export function sameTrail(a, b) {
   const right = clean(b);
   return left.length === right.length && left.every((e, i) => key(e) === key(right[i]));
 }
-export { clean as cleanTrail };
