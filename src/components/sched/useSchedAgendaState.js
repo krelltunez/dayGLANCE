@@ -140,10 +140,10 @@ export default function useSchedAgendaState({ dateRange } = {}) {
   const rawDays = useMemo(() => {
     const out = [];
     for (const date of windowDates) {
-      // Second arg opts out of the app-wide tag filter — SCHED has its own
-      // filter panel, and the invisible global filter made freshly-tagged
-      // tasks vanish from the agenda.
-      const dayTasks = getTasksForDate(date, false)
+      // The day as it holds, without the calendar's tag filter: SCHED has
+      // its own filter panel, and the invisible global filter made
+      // freshly-tagged tasks vanish from the agenda.
+      const dayTasks = getTasksForDate(date)
         .filter(task => !task.isExample)
         .sort((a, b) =>
           ((a.isAllDay ? 0 : 1) - (b.isAllDay ? 0 : 1)) ||

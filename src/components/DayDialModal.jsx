@@ -516,9 +516,12 @@ const DayDialModal = () => {
     : null),
   [solar, selectedDate]);
 
-  // Calendars off hides calendar-imported events (Obsidian-imported tasks
-  // are the user's own work and stay); totals and the ring follow together
-  // since the same filtered list feeds computeDialModel.
+  // The day as it HOLDS (getTasksForDate): the calendar's tag and project
+  // filter is display-only and never reaches the dial, which draws the same
+  // day as the launcher's and the widgets'. Its own layers are the dial's
+  // filter: Calendars off hides calendar-imported events (Obsidian-imported
+  // tasks are the user's own work and stay); totals and the ring follow
+  // together since the same filtered list feeds computeDialModel.
   const applyLayers = (all) => (layers.calendars
     ? all
     : all.filter((t) => !(t.imported && t.importSource !== 'obsidian')));

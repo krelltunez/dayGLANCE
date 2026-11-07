@@ -62,9 +62,10 @@ go inside it. Instead:
   `joboRecords`) rather than rebuilding JOBO's full day model per cell.
 - **One accessor beside `getTasksForDate`.** `getDayDisplayForDate(date,
   applyTagFilter)` on the planner context: for a date before today with the
-  flag on, it passes `getTasksForDate`'s result through the rule; otherwise
-  it returns that result unchanged. It keeps the tag-filter argument, since
-  views differ on it.
+  flag on, it passes the calendar's read (`getCalendarTasksForDate`, the tag
+  filter and the hidden projects) through the rule; otherwise it returns that
+  result unchanged. It keeps the filter argument, since views differ on it.
+  `getTasksForDate` itself is the day as it holds, with no filter.
 - **Adopted only where a view picks its day's tasks.** Each view already
   does this in one expression per column, so swapping the accessor there
   changes what a column shows without touching layout, overlap packing or

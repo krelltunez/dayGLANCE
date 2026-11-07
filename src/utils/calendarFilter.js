@@ -6,11 +6,12 @@
 // - HIDE PROJECTS (useTagFilter's hiddenProjects): a task whose project the
 //   user ticked is left out, e.g. "Household" while at work.
 //
-// It is a VIEW filter and nothing else. A hidden task still occupies its time:
-// frames' free slots, scheduling, day occupancy, the dial, widget and launcher
-// snapshots and the MCP read model read the day without it. In App.jsx it
-// rides getCalendarTasksForDate, getDayDisplayForDate and the continuations
-// only; getTasksForDate(date, true) stays the tag filter alone, as before.
+// It is a VIEW filter and nothing else, both its parts. A hidden task still
+// occupies its time: frames' free slots, scheduling, day occupancy, the frame
+// nudge, focus, the dial, widget and launcher snapshots and the MCP read model
+// read the day without it. In App.jsx it rides getCalendarTasksForDate,
+// getDayDisplayForDate and the continuations only; getTasksForDate is the day
+// as it holds, with no filter (hooks/useDayReads.js).
 //
 // Pure, so the rules and the count are tested without the app.
 
@@ -117,7 +118,7 @@ export function calendarFilterDates({
 /**
  * How many of the dates' rows the filter leaves out: the tag filter and
  * hide-projects together, each task counted once. `rowsForDate` is the day's
- * rows before any filter (getTasksForDate(date, false)'s map).
+ * rows before any filter (getTasksForDate(date)'s map).
  */
 export function countHiddenOnDates(dateStrs, rowsForDate, filter) {
   let hidden = 0;

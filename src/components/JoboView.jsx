@@ -143,7 +143,7 @@ export default function JoboView() {
   } = useJoboDoActions({ date, model, doItems, currentTime, nowDate, beforeOpen: closeDetails });
   // The Check's Not started group also reads the day's all-day tasks, which
   // the Plan column leaves out.
-  const checkDayTasks = useMemo(() => getTasksForDate(selectedDate, false), [getTasksForDate, selectedDate]);
+  const checkDayTasks = useMemo(() => getTasksForDate(selectedDate), [getTasksForDate, selectedDate]);
   const openCheckNotes = (task) => {
     setCheckOpen(false);
     if (sidebar && lookup.some(candidate => String(candidate.id) === String(task.id))) {

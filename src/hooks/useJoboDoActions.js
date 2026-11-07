@@ -86,7 +86,7 @@ export default function useJoboDoActions({ date, model, doItems, currentTime, no
       ? doLinkCandidates({
         // The day's tasks arrive filtered for this household member; the
         // Inbox is filtered here the same way.
-        dayTasks: getTasksForDate(selectedDate, false),
+        dayTasks: getTasksForDate(selectedDate),
         inboxTasks: (ctx.unscheduledTasks || []).filter((task) => typeof isVisibleForUser !== 'function' || isVisibleForUser(task)),
         ...(goalsProjectsEnabled ? { projects: projects || [], goals: goals || [] } : {}),
       })

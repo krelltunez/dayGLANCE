@@ -454,7 +454,7 @@ export default function MobileJoboView({ stickyHeaderRef, gutterW = HOUR_GUTTER_
           <div className="px-4 py-3">
             <CheckJournal model={model} date={date} loaded={joboLoaded && Array.isArray(joboRecords)} error={joboError}
               formatTime={ctx.formatTime} today={nowDate} carry={carry} onUndo={ctx.performUndo}
-              dayTasks={ctx.getTasksForDate(ctx.selectedDate, false)}
+              dayTasks={ctx.getTasksForDate(ctx.selectedDate)}
               textSecondary={ctx.textSecondary} borderClass={ctx.borderClass} />
           </div>
         </JoboSheet>

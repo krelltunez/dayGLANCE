@@ -67,12 +67,11 @@ export function toFrameObject(instance, availableSlots) {
  * Frames for one date, each with its free slots.
  *
  * THE TASK LIST IS UNFILTERED HERE, and that is the point of taking it as an
- * argument. In the app, frame availability is computed from getTasksForDate,
- * which applies the user's active TAG FILTER by default: hide a tag in the
- * sidebar and the app reports more free time than exists. That is dubious in
- * the UI and would be plainly wrong over MCP, where an assistant's view of
- * the day would silently depend on a view preference it cannot see and the
- * user has forgotten about. The renderer passes the whole day.
+ * argument. Over MCP an assistant's view of the day must not silently depend
+ * on a view preference it cannot see and the user has forgotten about, so the
+ * renderer passes the whole day. The app now does the same: its calendar
+ * filter (tags and hidden projects) is display-only, and frame availability
+ * reads the unfiltered day (src/hooks/useDayReads.js).
  *
  * `frames` must arrive already scoped to the current user: frames carry
  * ownerSyncId, which isVisibleForUser does not understand (see the ownership
