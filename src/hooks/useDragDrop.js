@@ -6,6 +6,7 @@ import { describeObstacle } from '../utils/dayOccupancy.js';
 import { anchorDragImageAtTop, dropClampMinutes } from '../utils/dragUtils.js';
 import { nativeEventEndString } from '../utils/nativeCalendar.js';
 import { pixelsToSnappedMinutes, resizeBlockByPixels } from '../utils/taskResize.js';
+import { timelinePosition } from '../utils/timelinePosition.js';
 
 // Pure utilities used by position helpers
 const timeToMinutes = (time) => {
@@ -141,27 +142,9 @@ export default function useDragDrop({
   };
 
   // Convert minutes from midnight to pixel position using actual DOM row positions
-  // This eliminates cumulative drift from sub-pixel border rounding on high-DPI screens
-  const minutesToPosition = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (timeGridRef.current) {
-      const children = timeGridRef.current.children;
-      // Only use hour row children (first 24), not overlay divs that follow
-      const numRows = Math.min(24, children.length);
-      if (hours < numRows) {
-        const rowTop = children[hours].offsetTop;
-        if (mins === 0) return rowTop;
-        const rowHeight = hours + 1 < numRows
-          ? children[hours + 1].offsetTop - rowTop
-          : children[hours].offsetHeight;
-        return rowTop + mins * rowHeight / 60;
-      }
-    }
-    // Fallback when DOM not available
-    const hourHeight = 161;
-    return hours * hourHeight + mins * 160 / 60;
-  };
+  // This eliminates cumulative drift from sub-pixel border rounding on high-DPI screens.
+  // 24:00 is the bottom of the last row (utils/timelinePosition.js, #2306).
+  const minutesToPosition = (minutes) => timelinePosition(minutes, timeGridRef.current?.children ?? null);
 
   // Convert pixel position (relative to time grid top) to minutes from midnight
   const positionToMinutes = (y) => {
