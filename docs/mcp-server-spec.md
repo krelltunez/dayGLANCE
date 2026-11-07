@@ -209,6 +209,30 @@ Resolved: yes. Token plus Origin validation, modeled on the existing Stream Deck
 
 Revisit if a delete tool is ever proposed. Delete would require in-app confirmation.
 
+**The journal read back over MCP (#2321, owner-approved, Tier 1).** The journal had one surface,
+the tray and bolt button, for the user. `dayglance_list_mcp_writes` gives it a second, for the
+client: an agent can see what it or another client already changed this session before it changes
+the same thing again. It is a read (the dayGLANCE-data read tier, §6.3, so it answers in read-only
+mode too), registered beside the read tools (`electron/mcpJournalRead.ts`), and it reads the same
+module-scope journal the tray reads, per call.
+
+- **Named for what it is, not "history".** It lists only MCP writes since the last start, newest
+  first. Edits made in the app, on other devices or by sync are not in it, and its description says
+  so, so a model cannot mistake it for a task's history.
+- **The op never reaches tool output**, as before. A row is built from `at` (the wire stamp form),
+  `tool`, `summary`, the entity ids the op touched under the read tools' names, and, where the op's
+  before-state allows, `changes: [{ field, before }]` in the values the read tools show. The op,
+  its internal fields and the idempotency key are not read into it. The generic half (newest first,
+  the id filter, the page, building the row) is `journalPage` in `@glance-apps/mcp-host`, so a
+  GLANCEvault-client host reuses it with its own op description; which ids and fields each of
+  dayGLANCE's ops names is dayGLANCE's.
+- **No `after`.** An op keeps what its undo needs, the value before. The value after is not derived
+  from live state: anything that edited the entity since would make that answer wrong. The client
+  reads the entity for its current value.
+- **Not trimmed.** The tray's display trims to 50; the read pages over the whole session list with
+  the read tools' cursor and cap (default 50, max 200), so nothing older is dropped. Entries leave
+  only when the user undoes them.
+
 ### 4.4 Headless variant for the Docker image
 
 **Resolved: not in the image. Revised in r7 (#2280): a GLANCEvault-client MCP host, as a separate component.**
@@ -248,6 +272,7 @@ The design, the extraction inventory and the open questions are in `docs/mcp-vau
 | `update_task` | `(task_id, title?, notes?, priority?, deadline?, assignee_id?, clear_fields?)` | Field editor for existing tasks (post-v1 addition). Absent leaves a field alone, present sets it, and a field named in `clear_fields` is removed — clearing is only ever the explicit list (models emit `null` when they have no value, so `null`-clears invite silent accidental loss; a field name must be typed into a list on purpose). Only fields that can meaningfully be empty are clearable (`notes`, `deadline`, `assignee`); naming `title` or anything else is a typed validation error. By-design typed rejections: priority/deadline (set or clear) on scheduled tasks (same rule as `create_task`); `_native` events; recurring instances (synthetic per-date ids, a dedicated error, never generic not-found); CalDAV task-calendar tasks (the `set_task_completion` precedent — a local-only edit desyncs the server). `project_id` is not editable, and date/time/duration/completion keep their dedicated tools. `assignee_id` and `assignee` in `clear_fields` are multi-user-gated like `create_task`'s argument. Title edits are supported, which makes journal group labels latest-entry-wins by contract (a rename updates the label; the journal in `@glance-apps/mcp-host` documents the one-quoted-span summary rule that keeps `summaryTitle` extraction correct). Undo captures per-field before-state (`restore_task_fields`), including deleting fields the edit added. Recurring occurrences are edited by `update_recurring_task`. |
 | `update_recurring_task` | `(task_id, scope, title?, start_time?, duration_minutes?, all_day?, notes?, project_id?, repeat?, assignee_id?, clear_fields?)` | #2066. Writes through the app's own occurrence save (`applyRecurringInstanceEdit`, #2049) with a REQUIRED scope, the question the app asks: `occurrence` writes that date's exception, `series` writes the template and clears the field from every exception. Notes, project and the pattern are series-only by design. Completions are never touched. Undo (`restore_series_fields`) restores the template fields and the exception dates the edit changed; series ops group per series in the journal. |
 | `get_goal_progress` | `(goal_id?, window?)` | Needs scope arguments. Unscoped, it returns either too little or an unbounded tree. |
+| `list_mcp_writes` | `(task_id?, subtask_id?, series_id?, goal_id?, project_id?, limit?, cursor?)` | #2321. The §4.3 session write journal read back: MCP writes since the last start, newest first, never the app's own edits. A read on the dayGLANCE-data tier. Rows carry `at`, `tool`, `summary`, the ids touched and, where the undo op allows, `changes: [{ field, before }]`; the op never reaches output. Paginated like `list_unscheduled_tasks`. |
 
 **Naming:** MCP namespaces tools per server, so a `dayglance_` prefix is not required for collision avoidance, but it helps model disambiguation when many servers are connected. Recommend the prefix.
 
@@ -626,6 +651,13 @@ Privacy policy updates per §9. Umbrella paragraph. ToU confirmation. MAS descri
 1. **Naming.** `GLANCEmcp` fits the `GLANCEintents` / `GLANCEvault` pattern, but MCP is already an acronym and the doubling reads awkwardly. "dayGLANCE MCP server" is plain and searchable. Weak preference for plain.
 2. **Should the `.mcpb` be submitted to the Connectors Directory?** Discoverable to a well-matched audience, but it is a listed artifact that assumes dayGLANCE is installed and running, which is a poor first experience for anyone who finds it cold. Probably defer past v1.
 3. **Does the write journal persist across restarts?** Session-scoped is simpler and covers the runaway-loop case. Persistent is better for "what changed my schedule last Tuesday," but that is arguably a general audit-log feature rather than an MCP one.
+
+   *Still open, with one part decided (#2321).* The journal is now readable over MCP
+   (`dayglance_list_mcp_writes`, §4.3), session-scoped as before. Persisting it across restarts
+   (Tier 2 of #2321) is declined for now: a saved MCP-only log would look like an audit log while
+   missing every edit made in the app, on other devices or by sync, so "what changed my schedule
+   last Tuesday" would get a confidently partial answer. Revisit if a general change history that
+   records every source is built; MCP writes would be one source in it, not a log of their own.
 
 *(r2 had two further questions. Its question 5 — reuse the Stream Deck token handshake or build a parallel scheme? — was resolved by Phase 0: parallel scheme, shared idioms; see §3.5. Its question 1 — does `get_day` include `_native` device calendar events? — was resolved in r4: included, behind a separate consent tier, read-only; see §5.1, §6.3.)*
 
