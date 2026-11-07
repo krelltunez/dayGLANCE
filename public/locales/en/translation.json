@@ -2866,5 +2866,14 @@
       "tagRemoved": "Removed #{{from}}",
       "subtasksReordered": "Reordered the subtasks of \"{{title}}\""
     }
+  },
+  "calendarFilter": {
+    "title": "Filter calendar",
+    "hideProjects": "Hide projects",
+    "showAll": "Show all",
+    "hidden_one": "{{count}} hidden",
+    "hidden_other": "{{count}} hidden",
+    "hiddenHint_one": "Filter calendar: {{count}} task hidden on the days shown",
+    "hiddenHint_other": "Filter calendar: {{count}} tasks hidden on the days shown"
   }
 }

@@ -2868,5 +2868,14 @@
       "tagRemoved": "#{{from}} rimosso",
       "subtasksReordered": "Sottoattività di «{{title}}» riordinate"
     }
+  },
+  "calendarFilter": {
+    "title": "Filtra calendario",
+    "hideProjects": "Nascondi progetti",
+    "showAll": "Mostra tutto",
+    "hidden_one": "{{count}} nascosta",
+    "hidden_other": "{{count}} nascoste",
+    "hiddenHint_one": "Filtra calendario: {{count}} attività nascosta nei giorni mostrati",
+    "hiddenHint_other": "Filtra calendario: {{count}} attività nascoste nei giorni mostrati"
   }
 }

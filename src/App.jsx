@@ -41,6 +41,8 @@ import useDirectAccessStatus from './hooks/useDirectAccessStatus.js';
 import { evaluateSnapshotPush } from './utils/widgetSnapshotDedupe.js';
 import { buildLauncherSnapshot, launcherSnapshotFingerprint } from './utils/launcherSnapshot.js';
 import { readInboxFilterPrefs, inboxCountOf } from './utils/inboxFilter.js';
+import { HIDDEN_PROJECTS_KEY, readHiddenProjects, calendarFilterDates } from './utils/calendarFilter.js';
+import useDayReads from './hooks/useDayReads.js';
 import { latestSyncedAt } from './utils/launcherHeartbeat.js';
 import { readLauncherLedger } from './intents/launcherWrites.js';
 import { runLauncherRefreshCycle } from './intents/launcherRefreshCycle.js';
@@ -60,7 +62,7 @@ import useFolderBackup from './hooks/useFolderBackup.js';
 import useStorageProjection from './hooks/useStorageProjection.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, extractShareTitle } from './utils/textFormatting.jsx';
 import { msUntilMidnightRefresh, rememberViewsForMidnight, readMidnightViews, clearMidnightViews } from './utils/midnightRefresh.js';
-import { computeAvailableSlots as computeAvailableSlotsPure, adjustPastConflicts } from './utils/dayOccupancy.js';
+import { adjustPastConflicts } from './utils/dayOccupancy.js';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, stripWikilinksAndTags, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
 import { carryCreatedAt } from './utils/createdAt.js';
 import DaySummaryCallouts from './components/DaySummaryCallouts.jsx';
@@ -643,7 +645,10 @@ const DayPlanner = () => {
   const [aiSubtasksLoadingForTask, setAiSubtasksLoadingForTask] = useState(null); // taskId while loading
 
   const [minimizedSections, setMinimizedSections] = useState(readMinimizedSections);
-  const { selectedTags, setSelectedTags, showUntagged, setShowUntagged, showMobileTagFilter, setShowMobileTagFilter, toggleTag, clearTagFilter } = useTagFilter();
+  const {
+    selectedTags, setSelectedTags, showUntagged, setShowUntagged, showMobileTagFilter, setShowMobileTagFilter, toggleTag, clearTagFilter,
+    hiddenProjects, toggleHiddenProject, showAllProjects,
+  } = useTagFilter();
   const [use24HourClock, setUse24HourClock] = useState(readUse24HourClock);
   const [inboxAutoArchiveDays, setInboxAutoArchiveDays] = useState(() => {
     const saved = localStorage.getItem('day-planner-inbox-auto-archive-days');
@@ -1952,6 +1957,8 @@ const DayPlanner = () => {
     filterableTags,
     incompleteTodayTasks,
     filterByTags,
+    filterForCalendar,
+    liveHiddenProjects,
     filteredUnscheduledTasks,
     filteredTodayTasks,
     liveInboxTagFilter,
@@ -1962,6 +1969,7 @@ const DayPlanner = () => {
     recurringTasks,
     selectedDate,
     selectedTags,
+    hiddenProjects,
     inboxPriorityFilter,
     hideCompletedInbox,
     hideProjectTasksInbox,
@@ -4706,6 +4714,8 @@ const DayPlanner = () => {
         recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
         routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
         selectedTags: JSON.parse(localStorage.getItem('day-planner-selected-tags') || '[]'),
+        // The calendar's hidden projects (#2307): per device, so a backup is how they move.
+        hiddenProjects: readHiddenProjects(),
         minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
         cloudSyncConfig: JSON.parse(localStorage.getItem('day-planner-cloud-sync-config') || 'null'),
         reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null'),
@@ -5010,6 +5020,7 @@ const DayPlanner = () => {
     if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
     if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
     if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
+    if (Array.isArray(data.hiddenProjects)) localStorage.setItem(HIDDEN_PROJECTS_KEY, JSON.stringify(data.hiddenProjects));
     if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
     if (data.cloudSyncConfig) localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(data.cloudSyncConfig));
     if (data.reminderSettings) localStorage.setItem('day-planner-reminder-settings', JSON.stringify(data.reminderSettings));
@@ -5699,24 +5710,20 @@ const DayPlanner = () => {
     return map;
   }, [tasksWithEventNotes, expandedRecurringTasks, isVisibleForUser]);
 
-  // Helper to get tasks for a specific date (must be after filterByTags).
-  // Memoized so downstream useCallback/useMemo consumers stay stable; only
-  // re-created when the tag filter or the date-grouped task map changes.
-  const getTasksForDate = useCallback((date, applyTagFilter = true) => {
-    const dateStr = dateToString(date);
-    const dayTasks = tasksByDate[dateStr] || [];
-    return applyTagFilter ? filterByTags(dayTasks) : dayTasks;
-  }, [filterByTags, tasksByDate]);
-
-  // The previous date's rows, for what they leave on `date` after midnight
-  // (#2278, agenda-core overnight.js). The previous date owns those tasks; the
-  // timelines draw their continuation and occupancy counts it as busy, but
-  // getTasksForDate(date) never lists it.
-  const getPrevDayTasks = useCallback((date, applyTagFilter = true) => {
-    const prev = new Date(date);
-    prev.setDate(prev.getDate() - 1);
-    return getTasksForDate(prev, applyTagFilter);
-  }, [getTasksForDate]);
+  // A date's tasks, as the day holds them (getTasksForDate, for scheduling,
+  // free time and snapshots) and as the calendar shows them
+  // (getCalendarTasksForDate: the tag filter and the hidden projects, #2307).
+  // The line between the two is hooks/useDayReads.js; frames' free time is
+  // there too, so it is tested on the scheduling side of that line.
+  const calendarFilterMode = (isMobile || (isTablet && !isLandscape)) && mobileViewMode !== 'grid'
+    ? mobileViewMode : effectiveViewMode;
+  const calendarFilterDateStrs = useMemo(() => calendarFilterDates({
+    mode: calendarFilterMode, selectedDate, visibleDates, weekViewDates, dayViewColumns, monthViewRange,
+  }), [calendarFilterMode, selectedDate, visibleDates, weekViewDates, dayViewColumns, monthViewRange]);
+  const {
+    getTasksForDate, getCalendarTasksForDate, calendarHiddenCount,
+    getPrevDayTasks, computeAvailableSlots, dialFrameSlots,
+  } = useDayReads({ tasksByDate, filterByTags, filterForCalendar, routineOccupancy, calendarFilterDateStrs });
 
   // JOBO slice 6: a date before today shows what was done
   // (docs/jobo-past-days.md, src/jobo/pastDay.js). Only the views' own
@@ -5744,23 +5751,25 @@ const DayPlanner = () => {
     pastDayIndex, currentTime, getTasksForDate, isVisibleForUser,
     gestureActive: !!draggedTask || isResizing,
   });
+  // The calendar filter (tags and hidden projects) holds a Do to the rule
+  // its task is held to: a Do carries the task's title and project.
   const getDayDisplayForDate = useCallback((date, applyTagFilter = true) => pastDayDisplay({
     dateStr: dateToString(date),
     todayStr: nowTodayStr,
-    dayTasks: getTasksForDate(date, applyTagFilter),
+    dayTasks: getCalendarTasksForDate(date, applyTagFilter),
     index: pastDayIndex,
     isVisibleForUser,
-    tagFilter: applyTagFilter ? filterByTags : null,
+    tagFilter: applyTagFilter ? filterForCalendar : null,
     todayEnded,
-  }), [getTasksForDate, pastDayIndex, isVisibleForUser, filterByTags, nowTodayStr, todayEnded]);
+  }), [getCalendarTasksForDate, pastDayIndex, isVisibleForUser, filterForCalendar, nowTodayStr, todayEnded]);
   // The pieces the previous date leaves on `date` after midnight, for the
   // timelines (#2278): carried from the previous date as it is SHOWN, so a
   // past night's block that gave way to its Do (JOBO slice 6) gives way on
   // the next date too; `asPlanned` (JOBO's Plan side) reads the plan as it
   // stood. utils/continuations.js continuationsForDate.
   const getContinuationsForDate = useCallback((date, applyTagFilter = true, { asPlanned = false } = {}) => continuationsForDate(date, {
-    readShown: getDayDisplayForDate, readPlanned: getTasksForDate, applyTagFilter, asPlanned,
-  }), [getTasksForDate, getDayDisplayForDate]);
+    readShown: getDayDisplayForDate, readPlanned: getCalendarTasksForDate, applyTagFilter, asPlanned,
+  }), [getCalendarTasksForDate, getDayDisplayForDate]);
   // SCHED's Do badge: a task's timed Do on its own date, from the same index
   // (src/jobo/pastDay.js, doSessionsByTask). Cached per date for as long as
   // the index stands, so a day's cards share one pass over its slices. Empty
@@ -5889,47 +5898,8 @@ const DayPlanner = () => {
     generateFrameNudge({ auto: true });
   }, [activeFrameNudgeKey, activeFrameForNudge, aiConfig, gtdFrames, frameNudgeDismissedKey, generateFrameNudge, myFrames]);
 
-  // Free time inside a frame instance, subtracting tasks, routines, and (for
-  // today) elapsed time. The arithmetic, the buffer
-  // merging, and the now-floor all live in src/utils/dayOccupancy.js, which is
-  // pure and tested; this only resolves the date and supplies the task list.
-  //
-  // The list stays TAG-FILTERED (getTasksForDate applies the active filter by
-  // default), preserving today's behaviour exactly. That coupling is dubious
-  // on its own terms, since a view preference should not change how much time
-  // the app believes you have, but unpicking it changes numbers on screen for
-  // anyone with a filter active and does not belong in the same change as the
-  // routine fix.
-  const computeAvailableSlots = useCallback((frameInstance, date) => {
-    const slotDate = date instanceof Date ? date : new Date(frameInstance.date + 'T12:00:00');
-    const now = new Date();
-    return computeAvailableSlotsPure(frameInstance, {
-      state: routineOccupancy,
-      tasks: getTasksForDate(slotDate).filter(t => !t.isAllDay && t.startTime),
-      // Last night's task still running after midnight is busy time (#2278).
-      prevDayTasks: getPrevDayTasks(slotDate),
-      dateStr: dateToString(slotDate),
-      todayStr: dateToString(now),
-      nowMinutes: now.getHours() * 60 + now.getMinutes(),
-    });
-  }, [getTasksForDate, getPrevDayTasks, routineOccupancy]);
-
-  // A frame's free time as the Day Dial ships it: the same rule, with two
-  // differences on purpose. No now floor (todayStr is the day itself and now
-  // is 00:00), because each widget entry floors the slots at its own minute
-  // (dialFrameAvailableMinutes); and no tag filter, because the dial draws the
-  // unfiltered day.
-  const dialFrameSlots = useCallback((frameInstance, date) => {
-    const dateStr = dateToString(date);
-    return computeAvailableSlotsPure(frameInstance, {
-      state: routineOccupancy,
-      tasks: getTasksForDate(date, false).filter(t => !t.isAllDay && t.startTime),
-      prevDayTasks: getPrevDayTasks(date, false),
-      dateStr,
-      todayStr: dateStr,
-      nowMinutes: 0,
-    });
-  }, [getTasksForDate, getPrevDayTasks, routineOccupancy]);
+  // Free time inside a frame (computeAvailableSlots) and the dial's frame
+  // slots (dialFrameSlots) come from useDayReads above.
   const dialFramesForDate = useCallback((date) => getFrameInstancesForDate(date)
     .map(f => ({ ...f, slots: dialFrameSlots(f, date) })), [getFrameInstancesForDate, dialFrameSlots]);
 
@@ -7253,6 +7223,9 @@ const DayPlanner = () => {
     showUntagged, setShowUntagged,
     showMobileTagFilter, setShowMobileTagFilter,
     allTags, filterableTags,
+    // The calendar filter's Hide projects (#2307) and what it all leaves out.
+    hiddenProjects, liveHiddenProjects, toggleHiddenProject, showAllProjects,
+    calendarHiddenCount,
 
     // ── Task modals & editing ─────────────────────────────────────────────────
     showAddTask, setShowAddTask,
@@ -7426,8 +7399,8 @@ const DayPlanner = () => {
     calculateTaskPosition, getTimeFromCursorPosition,
     getAdjustedTimeForImportedConflicts,
     getConflictingTasks, calculateConflictPosition, wouldExceedMaxColumns,
-    filterByTags,
-    getTasksForDate, getDayDisplayForDate, getDoSessionsForTask, getDateIndicators, hasTasksOnDate,
+    filterByTags, filterForCalendar,
+    getTasksForDate, getCalendarTasksForDate, getDayDisplayForDate, getDoSessionsForTask, getDateIndicators, hasTasksOnDate,
     getContinuationsForDate,
     getDayName, getMonthDays, getNextQuarterHour,
     getTodayStr, getOverdueTasks,

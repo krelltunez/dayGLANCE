@@ -2991,5 +2991,18 @@
       "tagRemoved": "#{{from}} видалено",
       "subtasksReordered": "Змінено порядок підзавдань у «{{title}}»"
     }
+  },
+  "calendarFilter": {
+    "title": "Фільтр календаря",
+    "hideProjects": "Приховати проєкти",
+    "showAll": "Показати все",
+    "hidden_one": "{{count}} приховане",
+    "hidden_few": "{{count}} приховані",
+    "hidden_many": "{{count}} прихованих",
+    "hidden_other": "{{count}} прихованих",
+    "hiddenHint_one": "Фільтр календаря: {{count}} завдання приховане в показаних днях",
+    "hiddenHint_few": "Фільтр календаря: {{count}} завдання приховані в показаних днях",
+    "hiddenHint_many": "Фільтр календаря: {{count}} завдань приховано в показаних днях",
+    "hiddenHint_other": "Фільтр календаря: {{count}} завдання приховано в показаних днях"
   }
 }
