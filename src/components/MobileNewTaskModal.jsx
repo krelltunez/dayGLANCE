@@ -8,6 +8,7 @@ import { SOURCE_APPS } from '../native.js';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import QuickAddChips from './QuickAddChips.jsx';
 import TaskProjectField from './TaskProjectField.jsx';
+import TaskTagPicker from './TaskTagPicker.jsx';
 import RecurrencePicker from './RecurrencePicker.jsx';
 import TaskModalNotes from './TaskModalNotes.jsx';
 import { DurationField, EndTimeField } from './TaskTimeFields.jsx';
@@ -42,7 +43,7 @@ const MobileNewTaskModal = () => {
     moveToRecycleBin, clearNativeEventOverride,
     sendTaskToBucket,
     handleNewTaskInputChange,
-    dismissNlChip,
+    dismissNlChip, editNewTaskTitle,
   } = useDayPlannerCtx();
   const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, triggerTaskAISuggestion, goalsProjectsEnabled, multiUserEnabled, users } = useFeaturesCtx();
   const { wikilinkCandidates = [] } = useSyncCtx() || {};
@@ -191,6 +192,9 @@ const MobileNewTaskModal = () => {
                   )
                 )}
               </div>
+
+              {/* Tags: #words in the title, picked from the tags in use (#2308) */}
+              <TaskTagPicker id="task-tag-picker" title={newTask.title} onEditTitle={editNewTaskTitle} />
 
               {/* Project assignment (only when Goals & Projects is enabled;
                   never for Bucket List items — a PLANNER without a project) */}
