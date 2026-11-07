@@ -80,7 +80,7 @@ class LauncherProvider : ContentProvider() {
     private fun withDeviceEvents(snapshotJson: String?): String? {
         if (snapshotJson.isNullOrEmpty() || !canReadCalendar()) return snapshotJson
         watchCalendar()
-        return LauncherDeviceEvents.withLiveEvents(snapshotJson, LocalDate.now()) { calendar.getEvents(it) }
+        return LauncherDeviceEvents.withLiveEvents(snapshotJson, LocalDate.now()) { from, to -> calendar.getEventsBetween(from, to) }
     }
 
     /**

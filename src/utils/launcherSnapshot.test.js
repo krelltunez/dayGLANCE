@@ -67,19 +67,20 @@ describe('buildLauncherSnapshot', () => {
     // The app's own list holds only the day on screen, and a stale copy of one event.
     const tasks = [ev('n-stale', TODAY, { title: 'stale view copy' }), { id: 't1', title: 'Mine', date: TODAY }];
     const deviceEvents = {
-      dates: new Set(['2026-10-17', '2026-10-18', TODAY, '2026-10-20', '2026-10-25', '2026-10-26']),
+      dates: new Set(['2026-09-11', '2026-09-12', '2026-10-18', TODAY, '2026-10-20', '2026-11-30', '2026-12-01']),
       byDate: {
-        '2026-10-17': [ev('n-old', '2026-10-17')],
+        '2026-09-11': [ev('n-old', '2026-09-11')],
+        '2026-09-12': [ev('n-first', '2026-09-12')],
         '2026-10-18': [ev('n-yday', '2026-10-18')],
         [TODAY]: [ev('n-today', TODAY)],
         '2026-10-20': [ev('n-tmrw', '2026-10-20')],
-        '2026-10-25': [ev('n-edge', '2026-10-25')],
-        '2026-10-26': [ev('n-far', '2026-10-26')],
+        '2026-11-30': [ev('n-edge', '2026-11-30')],
+        '2026-12-01': [ev('n-far', '2026-12-01')],
       },
     };
-    expect(DEVICE_EVENT_WINDOW).toEqual({ daysBefore: 1, daysAfter: 6 });
+    expect(DEVICE_EVENT_WINDOW).toEqual({ daysBefore: 37, daysAfter: 42 });
     const snap = buildLauncherSnapshot(base({ tasks, deviceEvents }));
-    expect(snap.tasks.map(t => t.id)).toEqual(['t1', 'n-yday', 'n-today', 'n-tmrw', 'n-edge']);
+    expect(snap.tasks.map(t => t.id)).toEqual(['t1', 'n-first', 'n-yday', 'n-today', 'n-tmrw', 'n-edge']);
     expect(snap.tasks.find(t => t.id === 'n-today')).toMatchObject({ source: 'calendar', native: true });
     expect(snap.tasks.find(t => t.id === 't1').native).toBe(false);
     expect(snap.carryDeviceEvents).toBeUndefined();
@@ -260,7 +261,7 @@ describe('buildLauncherSnapshot', () => {
       date.setDate(today.getDate() + d);
       dates.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`);
     }
-    expect(dates[0]).toBe(YESTERDAY);
+    expect(dates.includes(YESTERDAY)).toBe(true);
     const flight = { id: '9', title: 'Flight', start: `${YESTERDAY}T23:30:00`, end: `${TODAY}T01:00:00`, allDay: false, calendarId: '1', color: '#039BE5' };
     const { tasks: native } = nativeResultsToTasks(dates.map((d) => (d === YESTERDAY || d === TODAY ? [flight] : [])), dates);
 

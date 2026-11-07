@@ -89,7 +89,7 @@ rows, by the app's rule (`packages/agenda-core/src/overnight.js`,
   occurrences that run past midnight (the app's recurring expansion opens a
   day before the earliest date it covers, and keeps yesterday's occurrence
   that crosses midnight even when it was not completed), and device-calendar
-  rows from a day before today (`deviceCalendar.daysBefore` is 1; the
+  rows from well before today (`deviceCalendar.daysBefore`, below; the
   provider's own read uses the same window). A device event's `duration` is
   its full start to its full end, wall-clock, at most a whole day, so an event
   from 23:00 to 01:00 is a 120-minute row on its start date.
@@ -128,7 +128,14 @@ every change. `insert`, `update` and `delete` throw.
 calendar is the OS's, so an event added in another app changes nothing the app
 pushes, and the app may be closed for days. On every `tasks` query the provider
 reads the calendar itself over the window around today
-(`launcher/LauncherDeviceEvents.kt`), with the snapshot's `deviceCalendar`: the
+(`launcher/LauncherDeviceEvents.kt`), in one range query whose events are then
+listed under each day they cover. The window is 37 days back and 42 ahead
+(`DEVICE_EVENT_WINDOW` in `utils/launcherSnapshot.js`): every cell of the
+launcher's month grid for today's month, whatever the day, since an event
+outside the window is simply absent and the grid reads as a quiet month. The
+app's recurring expansion reaches back to the same grid's first cell
+(`utils/recurringExpansionRange.js`) for the same reason. The read takes the
+snapshot's `deviceCalendar`: the
 calendars the user shows (`filter`, empty for all) and the user's edits to
 device events (`overrides`, by event id, colour resolved to hex). Those rows
 replace the snapshot's `native` ones, and a change to the calendar notifies
