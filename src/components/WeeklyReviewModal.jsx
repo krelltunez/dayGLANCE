@@ -13,7 +13,7 @@ import { notBucketed } from '../utils/bucketList.js';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
 import { formatDuration } from '../utils/formatDuration.js';
 import { aiFeatureOn } from '../ai.js';
-import { frameSetAllows, frameSetsById } from '@glance-apps/agenda-core';
+import { weeklyFrameInstances } from '../utils/weeklyFrameInstances.js';
 
 const WeeklyReviewModal = () => {
   const {
@@ -195,22 +195,14 @@ const WeeklyReviewModal = () => {
         const nextPlannedMinutes = nextRegular.reduce((sum, t) => sum + (t.duration || 0), 0) + nextRecurringMinutes;
 
         // Frame availability for next week
+        // The instances the timeline shows, frame sets included (#2305).
         let nextFrameTotalMinutes = 0;
-        // A frame in a set counts only on the dates its set is active (#2305).
-        const setsById = frameSetsById(frameSets);
-        gtdFrames.filter(f => f.enabled && !f.singleDate).forEach(frame => {
-          nextWeekDates.forEach(ds => {
-            const dayOfWeek = new Date(ds + 'T12:00:00').getDay();
-            if (!frame.days.includes(dayOfWeek)) return;
-            if (!frameSetAllows(frame, ds, setsById)) return;
-            const exception = frame.exceptions?.[ds];
-            if (exception?.deleted) return;
-            const instanceStart = exception?.start || frame.start;
-            const instanceEnd = exception?.end || frame.end;
-            const cap = timeToMinutes(instanceEnd) - timeToMinutes(instanceStart);
+        for (const instances of weeklyFrameInstances(gtdFrames, nextWeekDates, frameSets).values()) {
+          for (const inst of instances) {
+            const cap = timeToMinutes(inst.end) - timeToMinutes(inst.start);
             if (cap > 0) nextFrameTotalMinutes += cap;
-          });
-        });
+          }
+        }
         const nextFrameAvailableMinutes = Math.max(0, nextFrameTotalMinutes - nextPlannedMinutes);
 
         // Day load map
@@ -300,18 +292,11 @@ const WeeklyReviewModal = () => {
           : [];
 
         // Frame utilization for past week
-        const pastSetsById = frameSetsById(frameSets);
+        const pastInstances = weeklyFrameInstances(gtdFrames, pastWeekDates, frameSets);
         const frameStats = gtdFrames.filter(f => f.enabled && !f.singleDate).map(frame => {
           let totalCapacityMin = 0;
           let scheduledMin = 0;
-          pastWeekDates.forEach(ds => {
-            const dayOfWeek = new Date(ds + 'T12:00:00').getDay();
-            if (!frame.days.includes(dayOfWeek)) return;
-            if (!frameSetAllows(frame, ds, pastSetsById)) return;
-            const exception = frame.exceptions?.[ds];
-            if (exception?.deleted) return;
-            const instanceStart = exception?.start || frame.start;
-            const instanceEnd = exception?.end || frame.end;
+          (pastInstances.get(frame.id) || []).forEach(({ date: ds, start: instanceStart, end: instanceEnd }) => {
             const capacityMin = timeToMinutes(instanceEnd) - timeToMinutes(instanceStart);
             if (capacityMin <= 0) return;
             totalCapacityMin += capacityMin;
