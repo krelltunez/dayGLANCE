@@ -1,5 +1,6 @@
 import { BookOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import TimeRange from './TimeRange.jsx';
 
 function fmtTime(t) {
   if (!t) return '';
@@ -9,32 +10,26 @@ function fmtTime(t) {
   return m === 0 ? `${hour}${suffix}` : `${hour}:${String(m).padStart(2, '0')}${suffix}`;
 }
 
-function fmtEndTime(startTime, duration) {
-  if (!startTime || !duration) return null;
-  const [h, m] = startTime.split(':').map(Number);
-  const totalMin = h * 60 + m + duration;
-  const eh = Math.floor(totalMin / 60) % 24;
-  const em = totalMin % 60;
-  const suffix = eh < 12 ? 'am' : 'pm';
-  const hour = eh % 12 || 12;
-  return em === 0 ? `${hour}${suffix}` : `${hour}:${String(em).padStart(2, '0')}${suffix}`;
-}
-
 // The tray popup's NOW bar. The bar itself opens the main window at the
 // running task. When the task's title carries a [[wikilink]] (the main
 // window pushes it as `note`, title already stripped), an open-book button
 // beside the label opens that note in Obsidian through the main process,
 // without raising the main window: the tray exists so you do not have to.
+//
+// The range is the task's own, through the shared formatter (#2278): a task
+// from 23:00 for two hours reads "11pm–1am" with the app's raised "+1"
+// ("Ends the next day"), whether it is 23:30 or 00:08 the next day (the main
+// window pushes the night before's task while it runs).
 export default function TrayNowBar({ darkMode, currentTask }) {
   const { t } = useTranslation();
   if (!currentTask) return null;
 
   const open = () => window.electronAPI?.openMainAt({ action: 'goto-task', taskId: currentTask.id });
   const openNote = () => window.electronAPI?.obsidian?.openNote?.(currentTask.note);
-  const start = fmtTime(currentTask.startTime);
-  const end = fmtEndTime(currentTask.startTime, currentTask.duration);
-  const timeLabel = end ? `${start}–${end}` : start;
-  const label = timeLabel ? `Now: ${currentTask.title}  ·  ${timeLabel}` : `Now: ${currentTask.title}`;
+  const timeLabel = !currentTask.startTime ? null
+    : currentTask.duration
+      ? <TimeRange startTime={currentTask.startTime} duration={currentTask.duration} formatTime={fmtTime} />
+      : fmtTime(currentTask.startTime);
   const noteLabel = currentTask.note ? t('task.openWikiNoteInObsidian', { name: currentTask.note }) : '';
 
   return (
@@ -51,7 +46,7 @@ export default function TrayNowBar({ darkMode, currentTask }) {
         className="flex-1 min-w-0 flex items-center gap-2 px-4 py-1.5 text-left transition-opacity hover:opacity-80"
       >
         <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-        <span className="truncate">{label}</span>
+        <span className="truncate">{`Now: ${currentTask.title}`}{timeLabel && <>{'  ·  '}{timeLabel}</>}</span>
       </button>
       {currentTask.note && (
         <button
