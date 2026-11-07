@@ -1,5 +1,6 @@
 // GLANCElauncher in Settings (utils/launcherPromo.js says who sees it, and
-// when): a one-time card at the top of the mobile Settings page, and a
+// when): a one-time card at the top of the mobile Settings page (and of the
+// desktop Settings dialog, which Android tablets in landscape use), and a
 // permanent entry under Integrations, so the link can still be found once the
 // card is dismissed. Both open the flavour's link the way every external link
 // in the app does, an anchor the Android shell hands to a Custom Tab.

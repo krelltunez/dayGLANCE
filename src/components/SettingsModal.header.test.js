@@ -55,3 +55,21 @@ describe('Escape closes Settings', () => {
     expect(hook).toMatch(/if \(showSettings\) \{\s*e\.preventDefault\(\);\s*setShowSettings\(false\);/);
   });
 });
+
+// GLANCElauncher's one-time card (utils/launcherPromo.js): Android tablets in
+// landscape open this dialog, not the phone's Settings page, so it carries the
+// card too, above the topic page and only while not searching. Whether it
+// shows at all is useLauncherPromo's rule, the same as on the phone.
+describe('Settings dialog: the GLANCElauncher card', () => {
+  it('shows the one-time card from the shared hook, above the topic page', () => {
+    expect(source).toContain("import { LauncherPromoCard, useLauncherPromo } from './LauncherPromo.jsx'");
+    expect(source).toContain('const launcherPromo = useLauncherPromo()');
+    const card = source.indexOf('data-settings-launcher-promo');
+    expect(source.slice(source.lastIndexOf('{', card), card)).toContain('launcherPromo.showCard');
+    expect(card).toBeGreaterThan(source.indexOf('data-settings-scroll'));
+    expect(card).toBeLessThan(source.indexOf('<SettingsTopicPage'));
+    expect(card).toBeGreaterThan(source.indexOf('settingsQuery ? ('));
+    expect(source).toContain('onDismiss={launcherPromo.dismiss}');
+  });
+});
+
