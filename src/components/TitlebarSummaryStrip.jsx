@@ -50,7 +50,7 @@ export default function TitlebarSummaryStrip() {
   const todayStr = dateToString(currentTime);
   const summary = useMemo(
     () => computeDaySummary(
-      getTasksForDate(new Date(currentTime), false),
+      getTasksForDate(new Date(currentTime)),
       listEndOfDayTime,
       getDayWindow?.(todayStr) ?? null,
     ),

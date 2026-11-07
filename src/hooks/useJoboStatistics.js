@@ -29,7 +29,7 @@ export default function useJoboStatistics({ open = false } = {}) {
   const nowTime = `${String(currentTime.getHours()).padStart(2, '0')}:${String(currentTime.getMinutes()).padStart(2, '0')}`;
   const model = useMemo(() => {
     if (!joboLoaded || !Array.isArray(joboRecords)) return null;
-    const dayTasks = getTasksForDate(selectedDate, false).filter(task => !task.isAllDay && task.startTime);
+    const dayTasks = getTasksForDate(selectedDate).filter(task => !task.isAllDay && task.startTime);
     return buildJoboDayModel({
       date, tasks: dayTasks,
       taskLookup: [...(tasks || []), ...(unscheduledTasks || []), ...(expandedRecurringTasks || []), ...dayTasks],

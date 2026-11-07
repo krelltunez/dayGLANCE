@@ -359,7 +359,7 @@ export function buildWidgetSnapshot({
     // window — the native side should show nothing rather than "0m".
     daySummary: (() => {
       const win = getDayWindow(todayStr);
-      const sum = computeDaySummary(getTasksForDate(today, false), listEndOfDayTime, win);
+      const sum = computeDaySummary(getTasksForDate(today), listEndOfDayTime, win);
       return {
         date: todayStr,
         windowStart: win?.start ?? null,
@@ -420,8 +420,8 @@ export function buildWidgetSnapshot({
       yesterday.setDate(yesterday.getDate() - 1);
       return projectDialSnapshot({
         date: todayStr,
-        dayTasks: getTasksForDate(today, false),
-        prevDayTasks: getTasksForDate(yesterday, false),
+        dayTasks: getTasksForDate(today),
+        prevDayTasks: getTasksForDate(yesterday),
         dayWindow: getDayWindow(todayStr),
         routines: todayRoutines,
         routineCompletions,

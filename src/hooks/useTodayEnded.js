@@ -23,7 +23,7 @@ export default function useTodayEnded({ pastDayIndex, currentTime, getTasksForDa
   const nowMinute = currentTime.getHours() * 60 + currentTime.getMinutes();
   const now = useMemo(() => (pastDayIndex ? todayEndedTasks({
     dateStr: todayStr,
-    dayTasks: getTasksForDate(new Date(`${todayStr}T12:00:00`), false),
+    dayTasks: getTasksForDate(new Date(`${todayStr}T12:00:00`)),
     index: pastDayIndex,
     isVisibleForUser,
     nowMinute,

@@ -126,7 +126,7 @@ export default function SummaryStrip({ compact = false, fabClearance = false, st
   // whole day, and computing "unblocked" from a filtered subset would report
   // hidden hours as free.
   const summary = useMemo(
-    () => computeDaySummary(getTasksForDate(selectedDate, false), listEndOfDayTime, dayWindow),
+    () => computeDaySummary(getTasksForDate(selectedDate), listEndOfDayTime, dayWindow),
     [getTasksForDate, selectedDate, listEndOfDayTime, dayWindow],
   );
 

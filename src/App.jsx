@@ -63,6 +63,7 @@ import useStorageProjection from './hooks/useStorageProjection.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, extractShareTitle } from './utils/textFormatting.jsx';
 import { msUntilMidnightRefresh, rememberViewsForMidnight, readMidnightViews, clearMidnightViews } from './utils/midnightRefresh.js';
 import { adjustPastConflicts } from './utils/dayOccupancy.js';
+import { focusBlockAt, focusModeAvailableAt } from './utils/focusBlock.js';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, stripWikilinksAndTags, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
 import { carryCreatedAt } from './utils/createdAt.js';
 import DaySummaryCallouts from './components/DaySummaryCallouts.jsx';
@@ -5710,11 +5711,12 @@ const DayPlanner = () => {
     return map;
   }, [tasksWithEventNotes, expandedRecurringTasks, isVisibleForUser]);
 
-  // A date's tasks, as the day holds them (getTasksForDate, for scheduling,
-  // free time and snapshots) and as the calendar shows them
-  // (getCalendarTasksForDate: the tag filter and the hidden projects, #2307).
-  // The line between the two is hooks/useDayReads.js; frames' free time is
-  // there too, so it is tested on the scheduling side of that line.
+  // A date's tasks, as the day holds them (getTasksForDate: no filter, for
+  // scheduling, free time, the nudge, focus, the Day Dial and snapshots) and
+  // as the calendar shows them (getCalendarTasksForDate: the tag filter and
+  // the hidden projects, #2307). The calendar filter is display-only; the line
+  // between the two is hooks/useDayReads.js, and frames' free time is there
+  // too, so it is tested on the scheduling side of that line.
   const calendarFilterMode = (isMobile || (isTablet && !isLandscape)) && mobileViewMode !== 'grid'
     ? mobileViewMode : effectiveViewMode;
   const calendarFilterDateStrs = useMemo(() => calendarFilterDates({
@@ -5723,7 +5725,7 @@ const DayPlanner = () => {
   const {
     getTasksForDate, getCalendarTasksForDate, calendarHiddenCount,
     getPrevDayTasks, computeAvailableSlots, dialFrameSlots,
-  } = useDayReads({ tasksByDate, filterByTags, filterForCalendar, routineOccupancy, calendarFilterDateStrs });
+  } = useDayReads({ tasksByDate, filterForCalendar, routineOccupancy, calendarFilterDateStrs });
 
   // JOBO slice 6: a date before today shows what was done
   // (docs/jobo-past-days.md, src/jobo/pastDay.js). Only the views' own
@@ -5732,7 +5734,7 @@ const DayPlanner = () => {
   // ledger slices are memoized on the ledger alone, the resolver on the
   // tasks, so a task edit does not re-project the ledger. Today takes the
   // rule split at the NOW line. With JOBO off, or for later days, this is
-  // getTasksForDate exactly.
+  // getCalendarTasksForDate exactly.
   const pastDaySlices = useMemo(
     () => (joboEnabled && Array.isArray(joboRecords) ? buildPastDaySlices(joboRecords) : null),
     [joboEnabled, joboRecords],
@@ -5845,6 +5847,7 @@ const DayPlanner = () => {
       frames: getFrameInstancesForDate(today),
       gapMinutes: agendaNowMarker.gapMinutes,
       inboxTasks: unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample && isVisibleForUser(t)),
+      // The day as it holds, unfiltered: the calendar filter is display-only.
       todayTasks: getTasksForDate(today),
     });
     if (plan.status !== 'ok') {
@@ -6149,44 +6152,14 @@ const DayPlanner = () => {
     setUndoToast({ message: said, actionable: true });
   };
 
-  // Focus mode availability: current task or back-to-back block >= 45 min remaining
+  // Focus mode availability: current task or back-to-back block >= 45 min
+  // remaining (utils/focusBlock.js), over the day as it holds: focus is about
+  // what is actually scheduled now, whatever the calendar filter shows.
   const focusModeAvailable = useMemo(() => {
     const now = currentTime;
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-    const todayTasks = getTasksForDate(now);
-
-    const timelineTasks = todayTasks
-      .filter(t => !t.isAllDay && !t.completed && t.startTime)
-      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
-
-    const inProgress = timelineTasks.filter(t => {
-      const start = timeToMinutes(t.startTime);
-      const end = start + t.duration;
-      return start <= nowMin && end > nowMin;
-    });
-
-    if (inProgress.length === 0) return false;
-
-    let blockStart = Math.min(...inProgress.map(t => timeToMinutes(t.startTime)));
-    let blockEnd = Math.max(...inProgress.map(t => timeToMinutes(t.startTime) + t.duration));
-
-    let extended = true;
-    while (extended) {
-      extended = false;
-      for (const t of timelineTasks) {
-        const tStart = timeToMinutes(t.startTime);
-        const tEnd = tStart + t.duration;
-        if (tStart <= blockEnd && tEnd > blockEnd) {
-          blockEnd = tEnd;
-          extended = true;
-        }
-      }
-    }
-
-    const remainingMinutes = blockEnd - nowMin;
-    return remainingMinutes >= 45;
-    // getTasksForDate already tracks tasks/expandedRecurringTasks (via tasksByDate)
-    // and the active tag filter, so it is the single correct dependency here.
+    return focusModeAvailableAt(getTasksForDate(now), now.getHours() * 60 + now.getMinutes());
+    // getTasksForDate already tracks tasks/expandedRecurringTasks (via
+    // tasksByDate), so it is the single correct dependency here.
   }, [currentTime, getTasksForDate]);
   focusModeAvailableRef.current = focusModeAvailable;
 
@@ -6409,7 +6382,7 @@ const DayPlanner = () => {
     todayKey: widgetTodayKey, weekStartDay, calendarFilter, nativeCalendarKey,
   });
   const widgetTasksForDate = useCallback(
-    (date) => widgetDayTasks(dateToString(date), getTasksForDate(date, false), widgetNative),
+    (date) => widgetDayTasks(dateToString(date), getTasksForDate(date), widgetNative),
     [getTasksForDate, widgetNative],
   );
   const projectedWidgetDays = useMemo(() => {
@@ -7032,45 +7005,11 @@ const DayPlanner = () => {
     setAiSubtasksLoadingForTask(null);
   }, [aiConfig, pushUndo, updateRecurringTemplate]);
 
-  // Focus mode: compute the current block tasks (used to snapshot when entering focus mode)
+  // Focus mode: compute the current block tasks (used to snapshot when entering
+  // focus mode), over the day as it holds (utils/focusBlock.js).
   const computeFocusBlockTasks = () => {
     const now = new Date();
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-    const todayTasks = getTasksForDate(now);
-
-    const timelineTasks = todayTasks
-      .filter(t => !t.isAllDay && !t.completed && t.startTime)
-      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
-
-    const inProgress = timelineTasks.filter(t => {
-      const start = timeToMinutes(t.startTime);
-      const end = start + t.duration;
-      return start <= nowMin && end > nowMin;
-    });
-
-    if (inProgress.length === 0) return [];
-
-    let blockEnd = Math.max(...inProgress.map(t => timeToMinutes(t.startTime) + t.duration));
-
-    let extended = true;
-    while (extended) {
-      extended = false;
-      for (const t of timelineTasks) {
-        const tStart = timeToMinutes(t.startTime);
-        const tEnd = tStart + t.duration;
-        if (tStart <= blockEnd && tEnd > blockEnd) {
-          blockEnd = tEnd;
-          extended = true;
-        }
-      }
-    }
-
-    const blockStart = Math.min(...inProgress.map(t => timeToMinutes(t.startTime)));
-    return timelineTasks.filter(t => {
-      const tStart = timeToMinutes(t.startTime);
-      const tEnd = tStart + t.duration;
-      return tStart < blockEnd && tEnd > blockStart;
-    });
+    return focusBlockAt(getTasksForDate(now), now.getHours() * 60 + now.getMinutes())?.tasks ?? [];
   };
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());

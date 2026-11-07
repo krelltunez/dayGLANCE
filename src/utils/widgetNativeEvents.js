@@ -30,7 +30,7 @@ export function groupWidgetNativeEvents(dates, tasks) {
  * (or before the first fetch lands) the app's list is returned untouched.
  *
  * @param dateStr  'YYYY-MM-DD'.
- * @param dayTasks getTasksForDate(date, false) for that day.
+ * @param dayTasks getTasksForDate(date) for that day.
  * @param widgetNative groupWidgetNativeEvents(…) or null.
  */
 export function widgetDayTasks(dateStr, dayTasks, widgetNative) {
