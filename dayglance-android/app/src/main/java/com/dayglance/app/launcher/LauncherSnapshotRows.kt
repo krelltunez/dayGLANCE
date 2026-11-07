@@ -1,5 +1,6 @@
 package com.dayglance.app.launcher
 
+import com.dayglance.app.BuildConfig
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -15,7 +16,8 @@ import org.json.JSONObject
  */
 object LauncherSnapshotRows {
 
-    const val AUTHORITY = "com.dayglance.app.launcher"
+    /** `com.dayglance.app.launcher` in release; a debug build's own, so it installs beside the store app (#2272). */
+    const val AUTHORITY = BuildConfig.APPLICATION_ID + ".launcher"
 
     val COLLECTIONS: Set<String> = setOf("tasks", "goals", "projects", "routines", "frames", "weather", "dayShape", "meta")
 
