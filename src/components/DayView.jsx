@@ -61,7 +61,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
     borderClass, textSecondary,
     expandedNotesTaskId,
     taskContextMenu, setTaskContextMenu,
-    getTasksForDate, getDayDisplayForDate, getContinuationsForDate,
+    getTasksForDate, getCalendarTasksForDate, getDayDisplayForDate, getContinuationsForDate,
     getTaskCalendarStyle,
     taskWidths, setTaskRef,
     calculateConflictPosition,
@@ -128,8 +128,9 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
   };
 
   // A past date shows what was done (slice 6): its recorded Do replace the
-  // plan blocks they belong to, as read-only PastDoCards below.
-  const readDay = !planOnly && typeof getDayDisplayForDate === 'function' ? getDayDisplayForDate : getTasksForDate;
+  // plan blocks they belong to, as read-only PastDoCards below. JOBO's Plan
+  // side reads the plan, through the calendar filter all the same (#2307).
+  const readDay = !planOnly && typeof getDayDisplayForDate === 'function' ? getDayDisplayForDate : (getCalendarTasksForDate || getTasksForDate);
   const allDayTasks = readDay(col.date);
   const colTasks = allDayTasks.filter(t => {
     if (t.isAllDay || !t.startTime) return false;

@@ -115,3 +115,38 @@ describe('allTags and filterableTags', () => {
     expect(views.filterableTags).toEqual(['garden', 'home', 'work']);
   });
 });
+
+// #2307: the calendar's Hide projects. The rules are utils/calendarFilter.js's;
+// these pin how the hook feeds them.
+describe('filterForCalendar', () => {
+  const day = [
+    inboxTask('chore', { projectId: 'household' }),
+    inboxTask('loose'),
+    inboxTask('later', { projectId: 'shelved' }),
+  ];
+  const projects = [{ id: 'household' }, { id: 'shelved', status: 'archived' }];
+
+  it('leaves out a hidden project and keeps a task with no project', () => {
+    const view = useComputedViews(baseArgs({ projects, hiddenProjects: ['household'] }));
+    expect(ids(view.filterForCalendar(day))).toEqual(['loose', 'later']);
+    expect([...view.liveHiddenProjects]).toEqual(['household']);
+  });
+
+  it('ignores an archived or unknown project without dropping it from the saved list', () => {
+    const hiddenProjects = ['shelved', 'gone'];
+    const view = useComputedViews(baseArgs({ projects, hiddenProjects }));
+    expect(view.filterForCalendar(day)).toBe(day);
+    expect(view.liveHiddenProjects.size).toBe(0);
+    expect(hiddenProjects).toEqual(['shelved', 'gone']);
+  });
+
+  it('hides nothing while Goals & Projects is off', () => {
+    const view = useComputedViews(baseArgs({ projects, hiddenProjects: ['household'], goalsProjectsEnabled: false }));
+    expect(view.filterForCalendar(day)).toBe(day);
+  });
+
+  it('leaves filterByTags as the tag filter alone', () => {
+    const view = useComputedViews(baseArgs({ projects, hiddenProjects: ['household'] }));
+    expect(ids(view.filterByTags(day))).toEqual(['chore', 'loose', 'later']);
+  });
+});

@@ -28,7 +28,7 @@ const MobileAllDaySection = () => {
     postponeTask, postponeDeadlineTask,
     handleMobileTaskTouchStart, handleMobileTaskTouchMove, handleMobileTaskTouchEnd,
     formatTime, timeToMinutes,
-    getTasksForDate, getDeadlineTasksForDate,
+    getTasksForDate, getCalendarTasksForDate, getDeadlineTasksForDate,
     getTaskCalendarStyle,
   } = useDayPlannerCtx();
 
@@ -36,11 +36,13 @@ const MobileAllDaySection = () => {
     routinesEnabled, todayRoutines, routineCompletions,
     openRoutinesDashboard,
   } = useFeaturesCtx();
+  // The days as the calendar filter leaves them (tags and hidden projects, #2307).
+  const readDay = getCalendarTasksForDate || getTasksForDate;
 
   return (
     <>
 {/* All-day tasks - inside sticky header group */}
-{(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay && !t.isExample) || getDeadlineTasksForDate(dateToString(date)).some(t => !t.isExample)) || (routinesEnabled && todayRoutines.some(r => r.isAllDay))) && (
+{(visibleDates.some(date => readDay(date).some(t => t.isAllDay && !t.isExample) || getDeadlineTasksForDate(dateToString(date)).some(t => !t.isExample)) || (routinesEnabled && todayRoutines.some(r => r.isAllDay))) && (
   <div ref={mobileAllDaySectionRef} className={`border-b ${borderClass} ${cardBg} ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
     <div className="flex">
       <div className={`w-12 flex-shrink-0 px-2 py-2 text-[10px] font-semibold ${textSecondary} border-r ${borderClass} flex items-start justify-center uppercase`}>
@@ -48,7 +50,7 @@ const MobileAllDaySection = () => {
       </div>
       <div className="flex-1 min-w-0 p-2 space-y-1.5">
         {visibleDates.map((date) => {
-          const dayTasks = getTasksForDate(date).filter(t => t.isAllDay && !t.isExample && (!projectFilter || t.projectId === projectFilter)).sort((a, b) => {
+          const dayTasks = readDay(date).filter(t => t.isAllDay && !t.isExample && (!projectFilter || t.projectId === projectFilter)).sort((a, b) => {
             const order = (t) => {
               if (t.importSource === 'file') return 0;             // ICS downloads
               if (t.imported && !t.isTaskCalendar) return 1;       // Imported calendar events

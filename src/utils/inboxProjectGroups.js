@@ -16,7 +16,9 @@
 // a single choice (utils/projectPickerRows.js), and narrows it to a typed
 // filter through filterProjectGroups below.
 
-const activeProject = (p) => p && p.status !== 'archived' && p.status !== 'completed';
+// The projects a picker offers: not completed, not archived. The calendar's
+// hide-projects filter (utils/calendarFilter.js) offers and honours the same.
+export const isActiveProject = (p) => !!p && p.status !== 'archived' && p.status !== 'completed';
 
 /**
  * @param {{ projects?: object[], goals?: object[], areas?: object[] }} lists
@@ -29,7 +31,7 @@ const activeProject = (p) => p && p.status !== 'archived' && p.status !== 'compl
  *   false when no goal is in a real area: the popover then skips the area
  *   level and lists the goals directly.
  */
-export function groupInboxProjects({ projects = [], goals = [], areas = [] } = {}, { isListed = activeProject } = {}) {
+export function groupInboxProjects({ projects = [], goals = [], areas = [] } = {}, { isListed = isActiveProject } = {}) {
   const active = projects.filter((p) => p && isListed(p));
   const drawnGoals = goals.filter((g) => g && g.status !== 'archived');
   const goalIds = new Set(drawnGoals.map((g) => g.id));
