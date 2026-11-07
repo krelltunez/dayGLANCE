@@ -1,7 +1,7 @@
 {
   "id": "dayglance-bridge",
   "name": "dayGLANCE Bridge",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "minAppVersion": "1.7.2",
   "description": "Show your dayGLANCE agenda in the sidebar and keep tasks in daily notes, chosen folders and project notes in step with the planner.",
   "author": "krelltunez",
