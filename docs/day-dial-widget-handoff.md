@@ -1063,10 +1063,9 @@ this section records what the build decided on top of it.
   free time from the same `computeAvailableSlots` GLANCE uses (so the same
   buffer and occupancy rules), computed WITHOUT the now floor: each widget
   entry takes "still available" at its own minute
-  (`dialFrameAvailableMinutes`) instead of freezing the push's. Two
-  deliberate differences from GLANCE's number: no tag filter (the dial
-  draws the unfiltered day), and completed tasks still occupy time (as in
-  GLANCE).
+  (`dialFrameAvailableMinutes`) instead of freezing the push's. Both read
+  the unfiltered day: the calendar's tag and project filter is display-only
+  and reaches neither. Completed tasks still occupy time (as in GLANCE).
 - **Not derived from `sections`.** Today's `sections` drops frames that have
   ended and frames with nothing free and nothing in them, while the ring
   draws the whole day's; and a section carries its task rows, which the

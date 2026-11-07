@@ -7,36 +7,39 @@ import { countHiddenOnDates } from '../utils/calendarFilter.js';
  * How App reads one date's tasks, in two kinds that must not be confused
  * (#2307):
  *
- * - what the day HOLDS, for everything that schedules, counts free time or
- *   snapshots the day: getTasksForDate, getPrevDayTasks, computeAvailableSlots
- *   and dialFrameSlots. getTasksForDate(date, true) applies the TAG filter and
- *   nothing more, as it always has (a known leak of a view preference into
- *   frames' free time, kept as it was; see computeAvailableSlots below);
+ * - what the day HOLDS: getTasksForDate, getPrevDayTasks, computeAvailableSlots
+ *   and dialFrameSlots. No filter of any kind: everything that schedules,
+ *   measures free time or occupancy, nudges, runs focus or snapshots the day
+ *   reads this;
  * - what the CALENDAR SHOWS: getCalendarTasksForDate, the tag filter and the
  *   hidden projects together (utils/calendarFilter.js). The views take it,
- *   directly or through App's getDayDisplayForDate and continuations. A hidden
- *   task still occupies its time, so nothing in the first kind may read it.
+ *   directly or through App's getDayDisplayForDate and continuations.
+ *
+ * The calendar filter is DISPLAY-ONLY, both its parts: a task it leaves off the
+ * calendar still occupies its time, so nothing of the first kind may read it.
+ * The tag filter used to ride getTasksForDate by default and so reached frames'
+ * free time, scheduling, the nudge, focus and the in-app Day Dial; this hook no
+ * longer takes the tag filter on its own, so the held day cannot reach it.
  *
  * Moved out of App.jsx with the hide-projects filter, so the line between the
- * two is tested (useDayReads.test.js) rather than kept by convention.
+ * two is tested (useDayReads.test.js, useDayReads.wiring.test.js) rather than
+ * kept by convention.
  *
  * @param {object} deps
  * @param {Record<string, object[]>} deps.tasksByDate  the visible rows by date
- * @param {(list: object[]) => object[]} deps.filterByTags
  * @param {(list: object[]) => object[]} deps.filterForCalendar  tags and hidden projects
  * @param {object} deps.routineOccupancy  dayOccupancy's routine state
  * @param {string[]} deps.calendarFilterDateStrs  the dates the view on screen draws
  */
-export default function useDayReads({ tasksByDate, filterByTags, filterForCalendar, routineOccupancy, calendarFilterDateStrs = [] }) {
-  // Helper to get tasks for a specific date (must be after filterByTags).
+export default function useDayReads({ tasksByDate, filterForCalendar, routineOccupancy, calendarFilterDateStrs = [] }) {
+  // A date's tasks as the day HOLDS them: every visible row, no filter. It
+  // takes the date alone; there is no filtered variant of it to ask for.
   // Memoized so downstream useCallback/useMemo consumers stay stable; only
-  // re-created when the tag filter or the date-grouped task map changes.
-  // `true` applies the TAG filter only: several of its callers are not views.
-  const getTasksForDate = useCallback((date, applyTagFilter = true) => {
-    const dateStr = dateToString(date);
-    const dayTasks = tasksByDate[dateStr] || [];
-    return applyTagFilter ? filterByTags(dayTasks) : dayTasks;
-  }, [filterByTags, tasksByDate]);
+  // re-created when the date-grouped task map changes.
+  const getTasksForDate = useCallback(
+    (date) => tasksByDate[dateToString(date)] || [],
+    [tasksByDate],
+  );
 
   // A date's tasks as the CALENDAR shows them: the tag filter and the hidden
   // projects together. View-only: see above.
@@ -57,11 +60,11 @@ export default function useDayReads({ tasksByDate, filterByTags, filterForCalend
   // The previous date's rows, for what they leave on `date` after midnight
   // (#2278, agenda-core overnight.js). The previous date owns those tasks; the
   // timelines draw their continuation and occupancy counts it as busy, but
-  // getTasksForDate(date) never lists it.
-  const getPrevDayTasks = useCallback((date, applyTagFilter = true) => {
+  // getTasksForDate(date) never lists it. As the day holds them, unfiltered.
+  const getPrevDayTasks = useCallback((date) => {
     const prev = new Date(date);
     prev.setDate(prev.getDate() - 1);
-    return getTasksForDate(prev, applyTagFilter);
+    return getTasksForDate(prev);
   }, [getTasksForDate]);
 
   // Free time inside a frame instance, subtracting tasks, routines, and (for
@@ -69,12 +72,11 @@ export default function useDayReads({ tasksByDate, filterByTags, filterForCalend
   // merging, and the now-floor all live in src/utils/dayOccupancy.js, which is
   // pure and tested; this only resolves the date and supplies the task list.
   //
-  // The list stays TAG-FILTERED (getTasksForDate applies the active filter by
-  // default), preserving today's behaviour exactly. That coupling is dubious
-  // on its own terms, since a view preference should not change how much time
-  // the app believes you have, but unpicking it changes numbers on screen for
-  // anyone with a filter active and does not belong in the same change as the
-  // routine fix. The hidden projects (#2307) are NOT applied here.
+  // Over the day as it HOLDS, unfiltered: a view preference does not change
+  // how much time the user has. A task the calendar leaves out, by its tag or
+  // its project, is still busy time for the frames' "N min free" readouts,
+  // scheduling into a frame, the AI's slot context and the snapshots'
+  // frameAvailableMinutes.
   const computeAvailableSlots = useCallback((frameInstance, date) => {
     const slotDate = date instanceof Date ? date : new Date(frameInstance.date + 'T12:00:00');
     const now = new Date();
@@ -89,17 +91,16 @@ export default function useDayReads({ tasksByDate, filterByTags, filterForCalend
     });
   }, [getTasksForDate, getPrevDayTasks, routineOccupancy]);
 
-  // A frame's free time as the Day Dial ships it: the same rule, with two
-  // differences on purpose. No now floor (todayStr is the day itself and now
-  // is 00:00), because each widget entry floors the slots at its own minute
-  // (dialFrameAvailableMinutes); and no tag filter, because the dial draws the
-  // unfiltered day.
+  // A frame's free time as the Day Dial ships it: the same rule over the same
+  // unfiltered day, with one difference on purpose. No now floor (todayStr is
+  // the day itself and now is 00:00), because each widget entry floors the
+  // slots at its own minute (dialFrameAvailableMinutes).
   const dialFrameSlots = useCallback((frameInstance, date) => {
     const dateStr = dateToString(date);
     return computeAvailableSlotsPure(frameInstance, {
       state: routineOccupancy,
-      tasks: getTasksForDate(date, false).filter(t => !t.isAllDay && t.startTime),
-      prevDayTasks: getPrevDayTasks(date, false),
+      tasks: getTasksForDate(date).filter(t => !t.isAllDay && t.startTime),
+      prevDayTasks: getPrevDayTasks(date),
       dateStr,
       todayStr: dateStr,
       nowMinutes: 0,
