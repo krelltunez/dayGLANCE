@@ -10,12 +10,15 @@ import {
   createWriteGate,
   createIdempotencyStore,
   generateMcpToken,
+  appendEntry,
   type HostBridge as RendererBridge,
   type BridgeResult as RendererResult,
 } from '@glance-apps/mcp-host';
 import type { ReadToolDeps } from '@glance-apps/dayglance-mcp';
 import { buildMcpReadState, handleMcpRequest } from '@glance-apps/dayglance-mcp/model';
 import type { WriteToolDeps } from './mcpWriteTools.js';
+import type { JournalReadDeps } from './mcpJournalRead.js';
+import type { JournalEntry, JournalRecord } from './mcpJournal.js';
 
 // The seam the unit tests cannot see (2026-10-04). Every layer below the
 // listener has its own tests: argument parsers, the write gate, the replay
@@ -94,10 +97,10 @@ interface Harness {
   close(): Promise<void>;
 }
 
-async function start(opts: { readDeps?: ReadToolDeps; writeDeps?: WriteToolDeps; token?: string }): Promise<Harness> {
+async function start(opts: { readDeps?: ReadToolDeps; writeDeps?: WriteToolDeps; journalDeps?: JournalReadDeps; token?: string }): Promise<Harness> {
   const port = await freePort();
   const quiet = () => {};
-  const server = startMcpServer({ token: opts.token ?? TOKEN, portOverride: port, readDeps: opts.readDeps, writeDeps: opts.writeDeps, log: quiet, logError: quiet });
+  const server = startMcpServer({ token: opts.token ?? TOKEN, portOverride: port, readDeps: opts.readDeps, writeDeps: opts.writeDeps, journalDeps: opts.journalDeps, log: quiet, logError: quiet });
   if (!server) throw new Error('listener refused to start');
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
   const url = `http://127.0.0.1:${port}${MCP_ENDPOINT_PATH}`;
@@ -160,21 +163,22 @@ describe('the registered surface, read over the wire', () => {
     h = await start({
       readDeps: readDeps(bridge.bridge, { multiUserEnabled: () => multiUser }),
       writeDeps: writeDeps(bridge.bridge, { multiUserEnabled: () => multiUser }),
+      journalDeps: { entries: () => [], timeZone: () => TZ },
     });
   });
   afterAll(() => h.close());
   afterEach(() => { multiUser = false; bridge.calls.length = 0; });
 
-  it('lists exactly the tools the reference documents: 20 without multi-user, 21 with', async () => {
+  it('lists exactly the tools the reference documents: 21 without multi-user, 22 with', async () => {
     const client = await h.connect();
     const without = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(without).toEqual(documentedTools.filter((n) => n !== 'dayglance_list_users'));
-    expect(without).toHaveLength(20);
+    expect(without).toHaveLength(21);
 
     multiUser = true;
     const withUsers = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(withUsers).toEqual(documentedTools);
-    expect(withUsers).toHaveLength(21);
+    expect(withUsers).toHaveLength(22);
   });
 
   it('a multi-user toggle changes the schema on the SAME connection\'s next request, no reconnect', async () => {
@@ -603,6 +607,198 @@ describe('frames net of recurring occurrences, over the wire (#2278)', () => {
       available_minutes: 120,
       available_slots: [{ start: '00:30', end: '01:30', minutes: 60 }, { start: '02:00', end: '03:00', minutes: 60 }],
     });
+  });
+});
+
+// #2321: the session write journal read back over MCP. The writes go through
+// the real write pipeline and land in a journal kept the way main.ts keeps it
+// (appendEntry into a plain array); the read goes through the real listener.
+describe('dayglance_list_mcp_writes, over the wire (#2321)', () => {
+  // What the renderer's undo descriptors carry beside user data: the op kinds,
+  // the schedule op's whole before-task with its bookkeeping (the transition
+  // id IS the caller's idempotency key), all host-side metadata.
+  const INTERNAL = 'internal-lastModified-2026';
+  const journalScript: Script = {
+    ...okScript,
+    // The kinds the renderer really journals, so the read can describe them.
+    create_task: (p) => {
+      const { taskId, title } = p as { taskId: string; title: string };
+      return { ok: true, data: { task: { id: taskId, title } }, undo: { summary: `Created task “${title}”`, op: { kind: 'remove_created', taskId } } };
+    },
+    schedule_task: (p) => {
+      const { taskId, date, startTime } = p as { taskId: string; date: string; startTime: string };
+      return {
+        ok: true,
+        data: { block: { id: taskId, title: 'Order shingles', date, start_time: startTime } },
+        undo: {
+          summary: `Scheduled “Order shingles” at ${date} ${startTime}`,
+          op: { kind: 'restore_unscheduled', taskId, beforeTask: { id: taskId, title: 'Order shingles', priority: 2, transitionId: 'shingles-1', lastModified: INTERNAL } },
+        },
+      };
+    },
+    create_goal: (p) => ({
+      ok: true,
+      data: { goal: { id: (p as { goalId: string }).goalId, title: 'Home' } },
+      undo: { summary: 'Created goal “Home”', op: { kind: 'remove_created_goal', goalId: (p as { goalId: string }).goalId } },
+    }),
+  };
+
+  /** A harness whose journal is kept as main.ts keeps it, with a clock that ticks a minute per write. */
+  async function journalHarness(over: { writes?: boolean; reads?: boolean } = {}) {
+    const bridge = fakeBridge(journalScript);
+    let entries: JournalEntry[] = [];
+    const record = (rec: JournalRecord) => {
+      entries = appendEntry(entries, rec, new Date(NOW + entries.length * 60_000).toISOString());
+    };
+    const h = await start({
+      ...(over.reads === false ? {} : { readDeps: readDeps(bridge.bridge) }),
+      writeDeps: writeDeps(bridge.bridge, { journal: record, includeWrites: () => over.writes !== false }),
+      journalDeps: { entries: () => entries, timeZone: () => TZ },
+    });
+    return { h, bridge, entries: () => entries };
+  }
+
+  const list = async (client: Client, args: Record<string, unknown> = {}) => {
+    const r = await client.callTool({ name: 'dayglance_list_mcp_writes', arguments: args });
+    // The raw wire text and the structured copy, for the leak assertions.
+    const raw = `${(r.content as Array<{ text: string }>)[0]!.text}\n${JSON.stringify(r.structuredContent ?? null)}`;
+    return { r, raw, data: body(r) as { items: Array<Record<string, unknown>>; total: number; truncated: boolean; next_cursor: string | null; timezone: string } };
+  };
+
+  it('reads back the writes this session made, newest first, without the undo op or anything in it', async () => {
+    const { h, bridge, entries } = await journalHarness();
+    try {
+      const client = await h.connect();
+      const created = await client.callTool({ name: 'dayglance_create_task', arguments: { title: 'Order shingles', idempotency_key: 'shingles-1' } });
+      const taskId = (body(created).task as { id: string }).id;
+      await client.callTool({ name: 'dayglance_schedule_task', arguments: { task_id: taskId, start: '2026-10-05 09:00' } });
+      await client.callTool({ name: 'dayglance_create_goal', arguments: { title: 'Home' } });
+      expect(entries()).toHaveLength(3);
+      const callsBefore = bridge.calls.length;
+
+      const { r, raw, data } = await list(client);
+      expect(r.isError).toBeFalsy();
+      // A read of main-process state: the renderer is never asked.
+      expect(bridge.calls).toHaveLength(callsBefore);
+      expect(data).toMatchObject({ total: 3, truncated: false, next_cursor: null, timezone: TZ });
+      expect(data.items.map((i) => i.tool)).toEqual(['dayglance_create_goal', 'dayglance_schedule_task', 'dayglance_create_task']);
+      expect(data.items[1]).toEqual({
+        at: { date: TODAY, time: '12:01' },
+        tool: 'dayglance_schedule_task',
+        summary: 'Scheduled “Order shingles” at 2026-10-05 09:00',
+        task_id: taskId,
+        changes: [
+          { field: 'date', before: null },
+          { field: 'start_time', before: null },
+          { field: 'priority', before: 2 },
+        ],
+      });
+      expect(data.items[2]).toEqual({ at: { date: TODAY, time: '12:00' }, tool: 'dayglance_create_task', summary: 'Created task “Order shingles”', task_id: taskId });
+      expect(data.items[0]).toMatchObject({ goal_id: expect.any(String) });
+      expect(r.structuredContent).toEqual(data);
+
+      // Nothing of the descriptor crosses the wire: not the op, its kinds, the
+      // before-task's bookkeeping, nor the idempotency key it carried.
+      for (const leak of ['"op"', 'restore_unscheduled', 'remove_created', 'beforeTask', 'transitionId', 'lastModified', INTERNAL, 'shingles-1', 'idempotency', '"seq"']) {
+        expect(raw, leak).not.toContain(leak);
+      }
+    } finally {
+      await h.close();
+    }
+  });
+
+  it('task_id narrows to that task\'s writes; an id nothing touched is an empty list, not an error', async () => {
+    const { h } = await journalHarness();
+    try {
+      const client = await h.connect();
+      const a = body(await client.callTool({ name: 'dayglance_create_task', arguments: { title: 'Order shingles' } })).task as { id: string };
+      await client.callTool({ name: 'dayglance_create_task', arguments: { title: 'Call roofer' } });
+      await client.callTool({ name: 'dayglance_schedule_task', arguments: { task_id: a.id, start: '2026-10-05 09:00' } });
+
+      const { data } = await list(client, { task_id: a.id });
+      expect(data.items.map((i) => [i.tool, i.task_id])).toEqual([['dayglance_schedule_task', a.id], ['dayglance_create_task', a.id]]);
+      expect(data.total).toBe(2);
+
+      const none = await list(client, { task_id: 'no-such-task' });
+      expect(none.r.isError).toBeFalsy();
+      expect(none.data).toMatchObject({ items: [], total: 0, truncated: false });
+    } finally {
+      await h.close();
+    }
+  });
+
+  it('an empty journal is an empty list', async () => {
+    const { h } = await journalHarness();
+    try {
+      const { r, data } = await list(await h.connect());
+      expect(r.isError).toBeFalsy();
+      expect(data).toEqual({ items: [], total: 0, truncated: false, next_cursor: null, timezone: TZ });
+    } finally {
+      await h.close();
+    }
+  });
+
+  it('pages under the read tools\' cap: a limit above 200 is a validation error, and the cursor walks the rest', async () => {
+    const { h } = await journalHarness();
+    try {
+      const client = await h.connect();
+      for (const title of ['one', 'two', 'three']) await client.callTool({ name: 'dayglance_create_task', arguments: { title } });
+      const tooMany = await list(client, { limit: 201 });
+      expect(tooMany.r.isError).toBe(true);
+      expect(tooMany.data).toMatchObject({ error: { code: 'validation' } });
+
+      const first = await list(client, { limit: 2 });
+      expect(first.data).toMatchObject({ total: 3, truncated: true });
+      expect(first.data.next_cursor).toMatch(/^dgc1\./);
+      const second = await list(client, { limit: 2, cursor: first.data.next_cursor });
+      expect(second.data.items.map((i) => i.summary)).toEqual(['Created task “one”']);
+      // The cursor is bound to its filter.
+      const changed = await list(client, { limit: 2, cursor: first.data.next_cursor, task_id: 'x' });
+      expect(changed.data).toMatchObject({ error: { code: 'validation' } });
+    } finally {
+      await h.close();
+    }
+  });
+
+  it('rides the read tier: it answers in read-only mode, and is not registered without the read surface', async () => {
+    const readOnly = await journalHarness({ writes: false });
+    try {
+      const client = await readOnly.h.connect();
+      const refused = await client.callTool({ name: 'dayglance_create_task', arguments: { title: 'Nope' } });
+      expect(body(refused)).toMatchObject({ error: { code: 'read_only_mode' } });
+      const { r, data } = await list(client);
+      expect(r.isError).toBeFalsy();
+      expect(data).toMatchObject({ items: [], total: 0 });
+    } finally {
+      await readOnly.h.close();
+    }
+
+    const noReads = await journalHarness({ reads: false });
+    try {
+      const client = await noReads.h.connect();
+      const names = (await client.listTools()).tools.map((t) => t.name);
+      expect(names).toContain('dayglance_create_task');
+      expect(names).not.toContain('dayglance_list_mcp_writes');
+      await expect(client.callTool({ name: 'dayglance_list_mcp_writes', arguments: {} })).rejects.toThrow(/not found/);
+    } finally {
+      await noReads.h.close();
+    }
+  });
+
+  it('the description says what it is not: MCP writes only, this session, not the app\'s edits', async () => {
+    const { h } = await journalHarness();
+    try {
+      const tool = (await (await h.connect()).listTools()).tools.find((t) => t.name === 'dayglance_list_mcp_writes')!;
+      expect(tool.description).toMatch(/since dayGLANCE last started/);
+      expect(tool.description).toMatch(/ONLY writes made over MCP/);
+      expect(tool.description).toMatch(/Edits made in the dayGLANCE app, on other devices/);
+      expect(tool.description).toMatch(/not a task's full history/);
+      expect(Object.keys(tool.inputSchema.properties ?? {}).sort()).toEqual(
+        ['cursor', 'goal_id', 'limit', 'project_id', 'series_id', 'subtask_id', 'task_id'],
+      );
+    } finally {
+      await h.close();
+    }
   });
 });
 

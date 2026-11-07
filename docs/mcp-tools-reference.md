@@ -1,7 +1,8 @@
 # dayGLANCE MCP Tool Reference
 
 The complete tool and resource surface of the dayGLANCE MCP server, as registered by
-`electron/mcpServer.ts` (per-request factory) and `electron/mcpWriteTools.ts`, with the read
+`electron/mcpServer.ts` (per-request factory), `electron/mcpWriteTools.ts` and
+`electron/mcpJournalRead.ts` (the write journal read back), with the read
 tools and resources from `@glance-apps/dayglance-mcp` (`packages/dayglance-mcp`: `readTools.js`,
 `resources.js`, answered by its read model). This is the practical companion to the design spec (`mcp-server-spec.md` §5):
 the spec explains *why*; this lists *what* — every tool, every parameter, every typed error.
@@ -38,7 +39,8 @@ directly (`claude mcp add --transport http`).
 - **Undo**: every successful write lands in the session write journal, reversible per entity
   (task, goal or project) or in bulk from the bolt button in the app (and the macOS tray). Undone
   task creates go to the recycle bin; an undone goal or project create is removed with the same
-  sync tombstone the app's own delete writes.
+  sync tombstone the app's own delete writes. `dayglance_list_mcp_writes` reads the journal back
+  (this session's MCP writes only, not the app's own edits).
 - **No deletes, no archiving** (owner, 2026-10-04): the surface has no delete tool for anything,
   and `status` on goals and projects accepts `active` or `completed` only. Archiving and deleting
   stay the user's own step in dayGLANCE. The one way an assistant's creation leaves the store is
@@ -233,6 +235,52 @@ most 40 per call. Tasks carry `project_id`, so `dayglance_get_day` and
 The areas of life a goal can belong to, as `{ id, name }`, in the user's order. Use the id as
 `area_id` on `dayglance_create_goal` and `dayglance_update_goal`. Areas are managed in dayGLANCE
 and cannot be created over MCP.
+
+### `dayglance_list_mcp_writes`
+The changes MCP clients made through this server **since dayGLANCE last started**, newest first:
+what this assistant, or another one, already changed this session. It is the session write journal
+(§4.3 of the spec, the list the bolt button shows) read back. **It is not a task's history**: edits
+made in the dayGLANCE app, on other devices or by sync, and anything before the last restart, are
+not in it, and a write the user has undone from the bolt button leaves it. A read: available in
+read-only mode, on the dayGLANCE-data read tier; the renderer is not asked.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `task_id` | string | no | Only writes that touched this task (a block's id is its task's). A recurring occurrence id (`recurring-<series>-<date>`) lists that date's completions. |
+| `subtask_id` | string | no | Only writes that touched this subtask. |
+| `series_id` | string | no | Only writes that touched this repeating series, its occurrences' completions included. |
+| `goal_id` | string | no | Only writes that touched this goal. |
+| `project_id` | string | no | Only writes that touched this project itself. A task added to a project is listed under its `task_id`. |
+| `limit` | integer | no | Page size 1–200. Default 50. |
+| `cursor` | string | no | Opaque cursor from a previous response's `next_cursor`, bound to the filters it was issued under. |
+
+Every filter given must match. An id is the one the write used: a task the Obsidian integration
+re-keyed since is listed under its old id.
+
+Returns `{ items, total, truncated, next_cursor, timezone }`; `total` counts the filtered list,
+which is the whole session's (the journal is not trimmed, so nothing older is dropped). Each item:
+
+- `at`: when the write was made, as `{ date, time }` in the local zone, the convention of
+  `created_at`.
+- `tool`: the write tool, e.g. `dayglance_schedule_task`.
+- `summary`: what changed, in words, as the bolt button shows it.
+- the ids it touched, when set: `task_id`, `subtask_id`, `series_id`, `goal_id`, `project_id`.
+- `changes` (when dayGLANCE kept field-level before-state): `[{ field, before }]`, each field under
+  its read-tool name, holding the value it had **just before that write**, in the form the read
+  tools show it (`completed_at` as a stamp, `assignee_id` for a task, `assignee_ids` for a goal or
+  project, `null` where the field was unset). Present for edits of tasks, subtasks, goals and
+  projects (a linked note's `description` included), moves (`date`, `start_time`, `all_day`),
+  resizes (`duration_minutes`), completions (`completed`, `completed_at`) and scheduling (`date`
+  and `start_time` were unset, plus the `priority` and `deadline` the schedule dropped). Creates
+  carry none, and neither does a repeating-series edit (its undo snapshot holds every series field,
+  touched or not, so it cannot say which changed; the summary names them).
+
+There is **no `after`**. The journal keeps only what an undo needs, the value before; the current
+value is a read away, and reading it is the only way to get it right, since a later edit (in the
+app, on another device, or by another write) may have changed it again.
+
+Never in the output: the undo descriptor itself, its internal fields (bookkeeping keys, a linked
+note's path and hash), and the caller's `idempotency_key`.
 
 ---
 
