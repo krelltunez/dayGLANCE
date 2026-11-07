@@ -922,7 +922,7 @@ reopen it. Watch for that; do not re-open on library releases alone.
 >   the Data Layer hands it to the same queue the launcher's receiver
 >   (`LauncherIntentReceiver`) fills.
 > - **Launcher code that runs on a watch unchanged.** In
->   `krelltunez/dayGLANCE-launcher`, `data/provider/SnapshotParser.kt`,
+>   `krelltunez/GLANCElauncher`, `data/provider/SnapshotParser.kt`,
 >   `data/Models.kt` and `data/provider/Outbox.kt` are plain Kotlin plus
 >   `org.json`, about 900 lines.
 >   - They are needed only for task and routine lists the watch can act on,

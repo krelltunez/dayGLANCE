@@ -3,7 +3,7 @@
 // agenda-core's overnight.js is the authority on what a timed task that runs
 // past midnight leaves on the next date: the timelines, the Day Dial,
 // occupancy, the overdue list and the MCP read model all derive it there. The
-// GLANCElauncher (a separate repo, krelltunez/dayGLANCE-launcher) draws its
+// GLANCElauncher (a separate repo, krelltunez/GLANCElauncher) draws its
 // own dial and timeline from the launcher snapshot's plain task rows
 // (launcherSnapshot.js, docs/launcher-integration.md "Tasks that run past
 // midnight"), so it implements the same rule natively. This module evaluates
