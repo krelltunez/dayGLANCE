@@ -44,6 +44,7 @@ import { readInboxFilterPrefs, inboxCountOf } from './utils/inboxFilter.js';
 import { HIDDEN_PROJECTS_KEY, readHiddenProjects, calendarFilterDates } from './utils/calendarFilter.js';
 import useDayReads from './hooks/useDayReads.js';
 import { latestSyncedAt } from './utils/launcherHeartbeat.js';
+import { recordLauncherPromoFirstSeen } from './utils/launcherPromo.js';
 import { readLauncherLedger } from './intents/launcherWrites.js';
 import { runLauncherRefreshCycle } from './intents/launcherRefreshCycle.js';
 import { buildWidgetSnapshot, readCachedSteps } from './utils/widgetSnapshot.js';
@@ -1920,6 +1921,10 @@ const DayPlanner = () => {
     nativeTouchLauncherHeartbeat({ checkedAt: Date.now(), syncedAt: latestSyncedAt(fileTier, dbTier) });
   }, [cloudSyncConfig?.enabled]);
   touchLauncherHeartbeatRef.current = touchLauncherHeartbeat;
+  // When this device first ran the app (utils/launcherPromo.js): Settings'
+  // GLANCElauncher card waits a few days of use from here. The headless root
+  // does not stamp it: a headless run is not the user using the app.
+  useEffect(() => { if (isNativeAndroid()) recordLauncherPromoFirstSeen(); }, []);
   // One full pass of every configured tier, awaited, for the launcher's REFRESH.
   // One tier after the other (the headless root does the same, and says why).
   // Says when no cycle completed (launcherRefreshCycle.js), so the launcher
