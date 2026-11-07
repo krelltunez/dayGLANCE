@@ -791,7 +791,15 @@
     "aiNeedsKey": "Aggiungi una chiave API qui sopra per attivarle.",
     "binAutoEmpty": "Svuota automaticamente il cestino",
     "binAutoEmptyAfter": "Dopo {{days}} giorni",
-    "binAutoEmptyHint": "Le attività eliminate da più tempo vengono rimosse definitivamente su tutti i dispositivi che sincronizzi."
+    "binAutoEmptyHint": "Le attività eliminate da più tempo vengono rimosse definitivamente su tutti i dispositivi che sincronizzi.",
+    "launcherPromo": {
+      "title": "GLANCElauncher",
+      "body": "Un launcher per la schermata Home costruito attorno alla tua giornata: le tue attività e routine di dayGLANCE e le tue faccende e persone di lastGLANCE, proprio dove le vedrai quando sblocchi il dispositivo.",
+      "viewOnGithub": "Vedi su GitHub",
+      "getOnPlay": "Disponibile su Google Play",
+      "getIt": "Scarica",
+      "notNow": "Non ora"
+    }
   },
   "dailyNotes": {
     "quickNotes": "Note rapide",

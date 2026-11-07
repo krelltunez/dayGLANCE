@@ -791,7 +791,15 @@
     "aiNeedsKey": "请先在上方添加 API 密钥，才能开启这些功能。",
     "binAutoEmpty": "自动清空回收站",
     "binAutoEmptyAfter": "{{days}} 天后",
-    "binAutoEmptyHint": "删除时间超过此期限的任务将被永久移除，所有同步的设备都会生效。"
+    "binAutoEmptyHint": "删除时间超过此期限的任务将被永久移除，所有同步的设备都会生效。",
+    "launcherPromo": {
+      "title": "GLANCElauncher",
+      "body": "一款围绕你的一天打造的主屏幕启动器：你的 dayGLANCE 任务和日常流程，以及你的 lastGLANCE 家务和联系人，解锁设备时一眼就能看到。",
+      "viewOnGithub": "在 GitHub 上查看",
+      "getOnPlay": "在 Google Play 上获取",
+      "getIt": "获取",
+      "notNow": "以后再说"
+    }
   },
   "dailyNotes": {
     "quickNotes": "快速笔记",

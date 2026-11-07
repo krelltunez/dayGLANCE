@@ -810,7 +810,15 @@
     "aiNeedsKey": "Dodaj powyżej klucz API, aby je włączyć.",
     "binAutoEmpty": "Automatycznie opróżniaj kosz",
     "binAutoEmptyAfter": "Po {{days}} dniach",
-    "binAutoEmptyHint": "Zadania usunięte dawniej zostaną trwale usunięte na wszystkich synchronizowanych urządzeniach."
+    "binAutoEmptyHint": "Zadania usunięte dawniej zostaną trwale usunięte na wszystkich synchronizowanych urządzeniach.",
+    "launcherPromo": {
+      "title": "GLANCElauncher",
+      "body": "Launcher ekranu głównego zbudowany wokół Twojego dnia: zadania i rutyny z dayGLANCE oraz obowiązki i osoby z lastGLANCE, dokładnie tam, gdzie zobaczysz je po odblokowaniu urządzenia.",
+      "viewOnGithub": "Zobacz na GitHubie",
+      "getOnPlay": "Pobierz z Google Play",
+      "getIt": "Pobierz",
+      "notNow": "Nie teraz"
+    }
   },
   "dailyNotes": {
     "quickNotes": "Szybkie notatki",

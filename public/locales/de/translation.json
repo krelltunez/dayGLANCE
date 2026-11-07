@@ -791,7 +791,15 @@
     "aiNeedsKey": "Fügen Sie oben einen API-Schlüssel hinzu, um diese einzuschalten.",
     "binAutoEmpty": "Papierkorb automatisch leeren",
     "binAutoEmptyAfter": "Nach {{days}} Tagen",
-    "binAutoEmptyHint": "Aufgaben, die vor längerer Zeit gelöscht wurden, werden endgültig entfernt – auf allen Geräten, die du synchronisierst."
+    "binAutoEmptyHint": "Aufgaben, die vor längerer Zeit gelöscht wurden, werden endgültig entfernt – auf allen Geräten, die du synchronisierst.",
+    "launcherPromo": {
+      "title": "GLANCElauncher",
+      "body": "Ein Startbildschirm-Launcher rund um Ihren Tag: Ihre dayGLANCE-Aufgaben und -Routinen und Ihre lastGLANCE-Hausarbeiten und -Personen, genau dort, wo Sie sie sehen, wenn Sie Ihr Gerät entsperren.",
+      "viewOnGithub": "Auf GitHub ansehen",
+      "getOnPlay": "Jetzt bei Google Play",
+      "getIt": "Herunterladen",
+      "notNow": "Nicht jetzt"
+    }
   },
   "dailyNotes": {
     "quickNotes": "Kurznotizen",

@@ -23,7 +23,7 @@ export const TOPICS = [
   { id: 'sync', labelKey: 'settings.topics.sync', fallback: 'Sync',
     sections: ['cloudSync'] },
   { id: 'integrations', labelKey: 'settings.topics.integrations', fallback: 'Integrations',
-    sections: ['calendarSync', 'obsidian', 'todoist', 'trmnl', 'glanceIntegrations', 'localIntegrations', 'automationIntents'] },
+    sections: ['calendarSync', 'obsidian', 'todoist', 'trmnl', 'glanceIntegrations', 'glanceLauncher', 'localIntegrations', 'automationIntents'] },
   { id: 'notifications', labelKey: 'settings.notifications', fallback: 'Notifications',
     sections: ['notifications'] },
   { id: 'backup', labelKey: 'backup.title', fallback: 'Backup & Restore',

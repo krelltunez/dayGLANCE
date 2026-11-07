@@ -21,6 +21,7 @@ import { effectiveLaunchOnWrite } from '../../../utils/obsidianLaunchOnWrite.js'
 import UnportableVaultNamesPanel from '../../UnportableVaultNamesPanel.jsx';
 import BridgePairingPanel from '../../BridgePairingPanel.jsx';
 import BridgeStatusPanel from '../../BridgeStatusPanel.jsx';
+import { LauncherPromoEntry, useLauncherPromo } from '../../LauncherPromo.jsx';
 import { INTENT_CONFIG_KEY } from '../../../intents/useIntentPoller.js';
 import { isAvailable as isICloudAvailable } from '../../../intents/icloudFileTransport.js';
 import { getSyncPassphrase, setSyncPassphrase } from '../../../utils/crypto.js';
@@ -128,6 +129,7 @@ export default function useIntegrationsTopic({ intentForm, setIntentForm }) {
   // The Local Integrations dot: Stream Deck or MCP on, read from the main
   // process here rather than reported by the card's body, which only mounts
   // once the card is opened (so the dot used to wait for that).
+  const launcherPromo = useLauncherPromo();
   const localIntegrationsConfig = useMcpStatus().snapshot?.config;
   const localIntegrationsOn = !!(localIntegrationsConfig?.streamDeck?.enabled
     || (localIntegrationsConfig?.mcp?.readTier && localIntegrationsConfig.mcp.readTier !== 'off'));
@@ -1479,6 +1481,18 @@ export default function useIntegrationsTopic({ intentForm, setIntentForm }) {
             </div>
             </SettingsCard>
         </>
+      ),
+    },
+    // GLANCElauncher (utils/launcherPromo.js): wherever this device is offered
+    // it, always, so the link outlives the dismissed Settings card.
+    glanceLauncher: {
+      show: !!launcherPromo.url,
+      card: true,
+      node: (
+        <LauncherPromoEntry
+          url={launcherPromo.url}
+          darkMode={darkMode} textPrimary={textPrimary} textSecondary={textSecondary} borderClass={borderClass}
+        />
       ),
     },
     automationIntents: {
