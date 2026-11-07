@@ -221,6 +221,17 @@ export default function useNewTaskInput({ allTags, showAddTask, t, language, use
     return next;
   };
 
+  // A change to the title made by a control rather than by typing (the tag
+  // picker, #2308): `update` maps the title to the next one, and the NL layer
+  // re-reads it as it does a keystroke, so the spans the save strips by
+  // position follow the text that moved.
+  const editNewTaskTitle = (update) => {
+    setNewTask(prev => {
+      const title = update(prev.title ?? '');
+      return title === prev.title ? prev : applyNlLayer(prev, title);
+    });
+  };
+
   // Chip tap = undo that parse. Non-tag chips: remember the dismissal (the
   // phrase stays plain text) and revert the field. Tag chips: delete the #tag
   // token from the title itself.
@@ -409,5 +420,6 @@ export default function useNewTaskInput({ allTags, showAddTask, t, language, use
     handleNewTaskInputKeyDown,
     applySuggestionForNewTask,
     dismissNlChip,
+    editNewTaskTitle,
   };
 }

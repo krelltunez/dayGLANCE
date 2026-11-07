@@ -14,10 +14,13 @@ import { canFollowUp, resolveTaskRef } from '../utils/followUp.js';
 import { editedSeriesStart } from '../utils/recurrenceEngine.js';
 import { moveSubtaskTo } from '../utils/subtaskOrder.js';
 import { recordDeletedTaskTombstone } from '../utils/deletedTaskTombstones.js';
+import { removeTagFromTitle } from '../utils/tagManager.js';
 
-// Strip a specific tag (e.g. "#obsidian") from a title string.
+// Strip a specific tag (e.g. "#obsidian") from a title string, by the tag
+// manager's rule: the whole tag only, so `#obsidian/inbox` or `#obsidian-x`
+// is not cut down to `/inbox` or `-x`, and a web address is left whole.
 const stripTag = (title, tag) =>
-  title.replace(new RegExp(`#${tag}\\b`, 'gi'), '').replace(/\s+/g, ' ').trim();
+  removeTagFromTitle(title, tag).replace(/\s+/g, ' ').trim();
 
 // Pure local helpers (no state dependencies)
 const getNextQuarterHour = () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectTags, isTagEditable, normalizeTagInput, renameInTagList, rewriteTag, rewriteTagInList } from './tagManager.js';
+import { addTagToTitle, collectTags, isTagEditable, normalizeTagInput, removeTagFromTitle, renameInTagList, rewriteTag, rewriteTagInList, toggleTagInTitle } from './tagManager.js';
 
 // #2136: rename, merge and remove a tag across every task that carries it,
 // by rewriting titles.
@@ -34,6 +34,83 @@ describe('rewriteTag', () => {
 
   it('works for any script', () => {
     expect(rewriteTag('报告 #工作', '工作', '项目')).toBe('报告 #项目');
+  });
+
+  // #2308: the tag picker removes through this rule, so a removal must not
+  // leave the title mangled around the punctuation the tag sat next to.
+  it('removing a tag before punctuation takes the space before it, not the punctuation', () => {
+    expect(rewriteTag('Call Bob #work, then email', 'work', null)).toBe('Call Bob, then email');
+    expect(rewriteTag('Email the draft #work.', 'work', null)).toBe('Email the draft.');
+    expect(rewriteTag('Done #work!', 'work', null)).toBe('Done!');
+  });
+
+  it('removing a tag that opened the title takes its punctuation with it', () => {
+    expect(rewriteTag('#work: plan the week', 'work', null)).toBe('plan the week');
+    expect(rewriteTag('#work, #home tidy up', 'work', null)).toBe('#home tidy up');
+    expect(rewriteTag('Line one #home\n#work: line two', 'work', null)).toBe('Line one #home\nline two');
+  });
+
+  it('removing a tag drops the brackets it leaves empty, and only those', () => {
+    expect(rewriteTag('Buy milk (#errand)', 'errand', null)).toBe('Buy milk');
+    expect(rewriteTag('Buy (#errand) milk', 'errand', null)).toBe('Buy milk');
+    expect(rewriteTag('Buy milk (#errand #home)', 'errand', null)).toBe('Buy milk (#home)');
+    expect(rewriteTag('Buy milk (#home #errand)', 'errand', null)).toBe('Buy milk (#home)');
+    expect(rewriteTag('Buy milk [#errand]', 'errand', null)).toBe('Buy milk');
+  });
+
+  it('a removed tag between a word and punctuation glued to it is only the tag', () => {
+    expect(rewriteTag('Plan#work, then', 'work', null)).toBe('Plan, then');
+  });
+});
+
+describe('the tag picker\'s title edits (#2308)', () => {
+  it('adds a tag at the end with one space before it and none after', () => {
+    expect(addTagToTitle('Call Bob', 'work')).toBe('Call Bob #work');
+    expect(addTagToTitle('Call Bob   ', 'work')).toBe('Call Bob #work');
+    expect(addTagToTitle('Call Bob #home', 'work')).toBe('Call Bob #home #work');
+    expect(addTagToTitle('', 'work')).toBe('#work');
+    expect(addTagToTitle('   ', 'work')).toBe('#work');
+  });
+
+  it('adds a tag with the tag manager\'s normalisation, and nothing when it is not a tag', () => {
+    expect(addTagToTitle('Call Bob', '#Work')).toBe('Call Bob #work');
+    expect(addTagToTitle('Call Bob', 'two words')).toBe('Call Bob');
+    expect(addTagToTitle('Call Bob', '')).toBe('Call Bob');
+  });
+
+  it('adds nothing when the title already carries the tag, in any case', () => {
+    expect(addTagToTitle('Call Bob #Work', 'work')).toBe('Call Bob #Work');
+  });
+
+  it('a longer tag or a nested one is not the tag being added', () => {
+    expect(addTagToTitle('Plan #workshop', 'work')).toBe('Plan #workshop #work');
+    expect(addTagToTitle('Plan #work/deep', 'work')).toBe('Plan #work/deep #work');
+    expect(addTagToTitle('See https://x.test/a#work', 'work')).toBe('See https://x.test/a#work #work');
+  });
+
+  it('removes a tag at the start, in the middle and at the end', () => {
+    expect(removeTagFromTitle('#work Call Bob', 'work')).toBe('Call Bob');
+    expect(removeTagFromTitle('Call #work Bob', 'work')).toBe('Call Bob');
+    expect(removeTagFromTitle('Call Bob #work', 'work')).toBe('Call Bob');
+    expect(removeTagFromTitle('#work', 'work')).toBe('');
+  });
+
+  it('removes every occurrence, whatever its case, leaving no double space', () => {
+    expect(removeTagFromTitle('#Work Call #work Bob #WORK', 'work')).toBe('Call Bob');
+    expect(removeTagFromTitle('Call #work #work Bob', '#work')).toBe('Call Bob');
+  });
+
+  it('removing #work leaves #workshop, #work/deep, #work-life and a web address alone', () => {
+    const title = 'Plan #workshop #work/deep #work-life #work https://x.test/a#work';
+    expect(removeTagFromTitle(title, 'work')).toBe('Plan #workshop #work/deep #work-life https://x.test/a#work');
+    expect(removeTagFromTitle('Plan #workshop', 'work')).toBe('Plan #workshop');
+  });
+
+  it('toggles: adds what is missing, removes what is there', () => {
+    expect(toggleTagInTitle('Call Bob', 'work')).toBe('Call Bob #work');
+    expect(toggleTagInTitle('Call Bob #Work, today', 'work')).toBe('Call Bob, today');
+    expect(toggleTagInTitle('Call Bob #workshop', 'work')).toBe('Call Bob #workshop #work');
+    expect(toggleTagInTitle(toggleTagInTitle('Call Bob', 'work'), 'work')).toBe('Call Bob');
   });
 });
 
