@@ -6,6 +6,8 @@ import {
   continuationsFromPreviousDay,
   taskEnd,
   hasTaskEnded,
+  dayTimedBlocks,
+  nowAndNext,
 } from './overnight.js';
 import {
   computeOccupiedIntervals,
@@ -123,6 +125,72 @@ describe('taskEnd / hasTaskEnded: overdue by the real end', () => {
 
   it('crosses month and year boundaries by calendar arithmetic', () => {
     expect(taskEnd(T({ date: '2026-12-31' }))).toEqual({ date: '2027-01-01', minutes: 60 });
+  });
+});
+
+describe('nowAndNext: what runs now and what is next, across midnight', () => {
+  // The owner's scenario: a 23:00 task of two hours, looked at from the next
+  // date. The next date's own first task is at 09:00.
+  const night = T({ id: 'night', title: 'Two-Hour Task' });
+  const morning = { id: 'm', date: WED, startTime: '09:00', duration: 30 };
+
+  it('at 00:08 the night before’s task is running, as its piece from 00:00', () => {
+    const { current, next, ahead } = nowAndNext([morning], [night], 8);
+    expect(current.task).toBe(night);
+    expect(current).toMatchObject({ startMinutes: 0, endMinutes: 60, startTime: '00:00', duration: 60 });
+    expect(current.continuation).toMatchObject({ fromDate: TUE, minutes: 60 });
+    expect(next.task).toBe(morning);
+    expect(ahead.map((b) => b.task.id)).toEqual(['night', 'm']);
+  });
+
+  it('at 01:30 it is over: nothing runs, and the next is the date’s own first task', () => {
+    const { current, next, ahead } = nowAndNext([morning], [night], 90);
+    expect(current).toBeNull();
+    expect(next.task).toBe(morning);
+    expect(ahead.map((b) => b.task.id)).toEqual(['m']);
+  });
+
+  it('is over exactly at its end, 01:00', () => {
+    expect(nowAndNext([], [night], 59).current?.task).toBe(night);
+    expect(nowAndNext([], [night], 60).current).toBeNull();
+  });
+
+  it('only the after-midnight piece counts: the previous date’s other rows are not on this clock', () => {
+    const { blocks } = nowAndNext([], [T({ id: 'evening', startTime: '20:00', duration: 60 }), T({ id: 'at-24', duration: 60 })], 10);
+    expect(blocks).toEqual([]);
+  });
+
+  it('a date’s own row is judged by its own start and duration, past 24:00 included', () => {
+    const late = { id: 'late', date: TUE, startTime: '23:00', duration: 120 };
+    const { current } = nowAndNext([late], [], 23 * 60 + 30);
+    expect(current).toMatchObject({ task: late, startMinutes: 1380, endMinutes: 1500, startTime: '23:00', duration: 120, continuation: null });
+  });
+
+  it('a piece comes before an own row starting at 00:00, and wins "current"', () => {
+    const midnight = { id: 'mid', date: WED, startTime: '00:00', duration: 30 };
+    const blocks = dayTimedBlocks([midnight], [night]);
+    expect(blocks.map((b) => b.task.id)).toEqual(['night', 'mid']);
+    expect(nowAndNext([midnight], [night], 5).current.task).toBe(night);
+  });
+
+  it('leaves out all-day rows and unreadable starts; a missing duration takes defaultDuration', () => {
+    const rows = [
+      { id: 'allday', date: WED, isAllDay: true, startTime: '09:00', duration: 60 },
+      { id: 'bad', date: WED, startTime: 'soon', duration: 30 },
+      { id: 'point', date: WED, startTime: '10:00' },
+    ];
+    expect(dayTimedBlocks(rows, []).map((b) => [b.task.id, b.endMinutes])).toEqual([['point', 600]]);
+    expect(dayTimedBlocks(rows, [], { defaultDuration: 30 }).map((b) => [b.task.id, b.endMinutes])).toEqual([['point', 630]]);
+  });
+
+  it('a zero-length block is ahead until its start has passed, and never running', () => {
+    const point = { id: 'p', date: WED, startTime: '10:00', duration: 0 };
+    expect(nowAndNext([point], [], 600)).toMatchObject({ current: null, ahead: [{ task: point }] });
+    expect(nowAndNext([point], [], 601).ahead).toEqual([]);
+  });
+
+  it('tolerates absent lists', () => {
+    expect(nowAndNext(null, undefined, 0)).toEqual({ blocks: [], current: null, next: null, ahead: [] });
   });
 });
 

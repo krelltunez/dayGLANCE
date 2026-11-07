@@ -110,3 +110,71 @@ export function hasTaskEnded(task, { todayStr, nowMinutes, defaultDuration = 30 
   if (end.date !== todayStr) return end.date < todayStr;
   return end.minutes <= nowMinutes;
 }
+
+// ── What is running now, and what is next, across midnight ────────────────
+//
+// The surfaces that say what is happening NOW (the GLANCE agenda, the desktop
+// tray's NOW bar, the Stream Deck, the widgets' Up Next) used to look at the
+// date's own rows only, so a task still running from last night was not
+// running anywhere at 00:08. They judge it here, one rule: a date's timed
+// blocks are its own rows at [start, start + duration) and the previous
+// date's continuations at [00:00, spill), all on this date's clock.
+
+const hhmm = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
+/**
+ * A date's timed blocks on its own clock, across midnight: the previous
+ * date's after-midnight pieces from 00:00 (continuationsFromPreviousDay), and
+ * the date's own timed rows. In start order; a piece comes before a row of the
+ * date's own that starts at 00:00 too (it began the day before).
+ *
+ * @param dayTasks     The date's own rows, already filtered by the caller
+ *                     (all-day rows and rows without a readable start are
+ *                     left out here).
+ * @param prevDayTasks The previous date's rows, filtered the same way; only
+ *                     their after-midnight pieces count.
+ * @param opts.defaultDuration Stands in for a missing duration on the date's
+ *                     own rows (0: a point in time). A piece always has one.
+ * @returns {Array<{ task, startMinutes: number, endMinutes: number,
+ *                   startTime: string, duration: number, continuation }>}
+ *   `task` is the row itself: act on it. `startTime` and `duration` are the
+ *   block on THIS date's clock, for a reader that takes start + duration as
+ *   today's span ('00:00' and the piece's minutes for a continuation, the
+ *   row's own otherwise; an own row's end may lie past 24:00). `continuation`
+ *   is the continuationsFromPreviousDay entry, or null.
+ */
+export function dayTimedBlocks(dayTasks, prevDayTasks, { defaultDuration = 0 } = {}) {
+  const pieces = continuationsFromPreviousDay(prevDayTasks).map((c) => ({
+    task: c.task, startMinutes: 0, endMinutes: c.endMinutes,
+    startTime: hhmm(0), duration: c.minutes, continuation: c,
+  }));
+  const own = [];
+  for (const task of dayTasks || []) {
+    if (!task || task.isAllDay || !task.startTime) continue;
+    const start = startMinutesOf(task.startTime);
+    if (start === null) continue;
+    const duration = Number(task.duration) || defaultDuration;
+    own.push({ task, startMinutes: start, endMinutes: start + duration, startTime: task.startTime, duration, continuation: null });
+  }
+  // Stable: pieces first, then the date's own rows in their own order.
+  return [...pieces, ...own].sort((a, b) => a.startMinutes - b.startMinutes);
+}
+
+/**
+ * What is running at `nowMinutes` on a date and what comes next, across
+ * midnight (dayTimedBlocks).
+ *
+ * @returns {{ blocks, current, next, ahead }}
+ *   `current`: the first block (start order) running now, start <= now < end;
+ *   `next`: the first block that starts after now;
+ *   `ahead`: every block not over yet, running or to come, in start order (a
+ *   zero-length block counts until its start has passed).
+ *   Each is a dayTimedBlocks block, or null.
+ */
+export function nowAndNext(dayTasks, prevDayTasks, nowMinutes, { defaultDuration = 0 } = {}) {
+  const blocks = dayTimedBlocks(dayTasks, prevDayTasks, { defaultDuration });
+  const current = blocks.find((b) => b.startMinutes <= nowMinutes && nowMinutes < b.endMinutes) || null;
+  const next = blocks.find((b) => b.startMinutes > nowMinutes) || null;
+  const ahead = blocks.filter((b) => b.endMinutes > nowMinutes || (b.endMinutes === b.startMinutes && b.startMinutes >= nowMinutes));
+  return { blocks, current, next, ahead };
+}

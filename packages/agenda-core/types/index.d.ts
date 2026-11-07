@@ -229,6 +229,9 @@ export function overnightSpillMinutes(task: OvernightTaskLike | null | undefined
 export function continuationsFromPreviousDay<T extends OvernightTaskLike>(prevDayTasks: T[] | null | undefined): Continuation<T>[];
 export function taskEnd(task: OvernightTaskLike | null | undefined, opts?: { defaultDuration?: number }): { date: string; minutes: number } | null;
 export function hasTaskEnded(task: OvernightTaskLike | null | undefined, opts: { todayStr: string; nowMinutes: number; defaultDuration?: number }): boolean;
+export interface DayTimedBlock<T = OvernightTaskLike> { task: T; startMinutes: number; endMinutes: number; startTime: string; duration: number; continuation: Continuation<T> | null }
+export function dayTimedBlocks<T extends OvernightTaskLike>(dayTasks: T[] | null | undefined, prevDayTasks: T[] | null | undefined, opts?: { defaultDuration?: number }): DayTimedBlock<T>[];
+export function nowAndNext<T extends OvernightTaskLike>(dayTasks: T[] | null | undefined, prevDayTasks: T[] | null | undefined, nowMinutes: number, opts?: { defaultDuration?: number }): { blocks: DayTimedBlock<T>[]; current: DayTimedBlock<T> | null; next: DayTimedBlock<T> | null; ahead: DayTimedBlock<T>[] };
 
 // userScope.js: multi-user scoping. Tasks, goals and projects are broadcast
 // unless assigned (isTaskVisibleForUser); routines, habits and frames have one
