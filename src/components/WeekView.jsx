@@ -7,7 +7,8 @@ import * as Icons from 'lucide-react';
 import { Zap } from 'lucide-react';
 import { dateToString } from '../utils/taskUtils.js';
 import { splitChipTitleTag } from '../utils/textFormatting.jsx';
-import { columnTimeFromEvent, dragBlockRange } from '../utils/dragUtils.js';
+import { columnTimeFromEvent, dragBlockRange, dropClampMinutes } from '../utils/dragUtils.js';
+import { continuationLayoutRow, dragPreviewSpillFor } from '../utils/continuations.js';
 import DragBlockPreview from './DragBlockPreview.jsx';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import { PastDoDetails, pastDoChipStyle, pastDoColor } from './jobo/PastDoCard.jsx';
@@ -95,7 +96,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
   const { t } = useTranslation();
   const {
     darkMode, borderClass, cardBg,
-    getTasksForDate, getDayDisplayForDate, getTaskCalendarStyle,
+    getTasksForDate, getDayDisplayForDate, getContinuationsForDate, getTaskCalendarStyle,
     calculateConflictPosition,
     timeToMinutes,
     setTaskContextMenu, setTimelineContextMenu,
@@ -128,14 +129,16 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
     if (!draggedTask) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    const t = timeFromEvent(e, { taskDuration: draggedTask.duration || 0 });
+    // The cursor's time is the start; a task may run on past the window's end,
+    // and past midnight onto the next date (#2278).
+    const t = timeFromEvent(e, { taskDuration: dropClampMinutes(draggedTask.duration) });
     setDragPreviewTime(t);
     setDragPreviewDate(date);
   };
 
   const onColDrop = (e) => {
     if (!draggedTask) return;
-    const t = timeFromEvent(e, { taskDuration: draggedTask.duration || 0 });
+    const t = timeFromEvent(e, { taskDuration: dropClampMinutes(draggedTask.duration) });
     handleDropOnCalendar(e, date, t);
   };
 
@@ -159,6 +162,12 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
     if (projectFilter && t.projectId !== projectFilter) return false;
     return true;
   });
+  // The previous date's tasks running past midnight (#2278): chips from 00:00,
+  // packed with this date's own, but not among this date's tasks.
+  const continuations = (getContinuationsForDate ? getContinuationsForDate(date) : [])
+    .filter(c => !projectFilter || c.task.projectId === projectFilter);
+  const layoutTasks = continuations.length ? [...colTasks, ...continuations.map(continuationLayoutRow)] : colTasks;
+  const fromDayName = (fromDate) => formatLocalizedDate(new Date(`${fromDate}T12:00:00`), { weekday: 'short' });
 
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -299,13 +308,14 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
       <div className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none">
         {colTasks.map(task => {
           const taskStart = timeToMinutes(task.startTime || '0:00');
-          const duration = task.duration || 0;
+          // A chip stops at midnight; the next date draws the rest (#2278).
+          const duration = Math.min(task.duration || 0, 24 * 60 - taskStart);
           const rawH = duration * hourHeight / 60;
           const chipH = Math.max(22 * zoom, rawH);
           const chipTop = (taskStart - startMinute) * hourHeight / 60;
           // Same lane packing as MULTI and DAY: transitive overlap clusters
           // with first-fit columns, from the shared interval packer.
-          const conflictPos = calculateConflictPosition(task, colTasks);
+          const conflictPos = calculateConflictPosition(task, layoutTasks);
 
           const isImported = task.imported;
           const isCalendarEvent = isImported && !task.isTaskCalendar;
@@ -362,6 +372,68 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
                 {isRecurring && <Icons.RefreshCw size={8} className="shrink-0 opacity-70" />}
                 <span className="truncate min-w-0">{chipText}</span>
                 {chipTag && <span className="shrink-0 italic opacity-75">{chipTag}</span>}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* The previous night's tasks, from midnight (#2278): the task's chip
+            continued, a click shows the task, a drag moves the whole task. */}
+        {continuations.map(c => {
+          const { task } = c;
+          const row = continuationLayoutRow(c);
+          const chipTop = (0 - startMinute) * hourHeight / 60;
+          const chipH = Math.max(22 * zoom, c.minutes * hourHeight / 60);
+          const conflictPos = calculateConflictPosition(row, layoutTasks);
+          const isImported = task.imported;
+          const isCalendarEvent = isImported && !task.isTaskCalendar;
+          const chipDraggable = (!isImported || task.isTaskCalendar || !!task.nativeEventId) && !isTablet;
+          const [chipText, chipTag] = splitChipTitleTag(task.title);
+          return (
+            <div
+              key={`continuation-${task.id}`}
+              data-task-id={task.id}
+              data-continuation-from={c.fromDate || ''}
+              draggable={chipDraggable}
+              onDragStart={chipDraggable ? (e) => handleDragStart(task, 'calendar', e) : undefined}
+              onDragEnd={chipDraggable ? handleDragEnd : undefined}
+              className={`absolute pointer-events-auto rounded-b-sm overflow-hidden
+                ${chipDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
+                ${task.isTaskCalendar ? '' : task.color}
+                ${task.completed ? 'opacity-50' : ''}
+                ${activePopoverTaskId === task.id ? 'ring-2 ring-white/70 z-20' : 'z-10'}
+                hover:brightness-90
+              `}
+              style={{
+                top: `${chipTop}px`,
+                height: `${chipH}px`,
+                left: conflictPos.left, right: conflictPos.right, width: conflictPos.width,
+                ...(isCalendarEvent || task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}),
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTaskClick(task, e.currentTarget.getBoundingClientRect());
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setTaskContextMenu({
+                  x: e.clientX, y: e.clientY,
+                  taskId: task.id,
+                  isRecurring: typeof task.id === 'string' && task.id.startsWith('recurring-'),
+                  isImported: !!isImported,
+                  isAllDay: false,
+                  // The task lives on the date it started.
+                  dateStr: c.fromDate,
+                  supportsInlineNotes: false,
+                });
+              }}
+            >
+              <div className="absolute top-0 left-0 right-0 border-t-2 border-dashed border-white/60 pointer-events-none" />
+              <div className="flex items-center gap-0.5 text-white text-[11px] font-medium leading-tight px-1 py-0.5 min-w-0 overflow-hidden" style={zoom !== 1 ? { zoom } : undefined}>
+                <Icons.ChevronUp size={8} className="shrink-0 opacity-70" />
+                <span className={`truncate min-w-0 ${task.completed ? 'line-through' : ''}`}>{chipText}</span>
+                {chipTag && <span className="shrink-0 italic opacity-75">{chipTag}</span>}
+                {c.fromDate && <span className="shrink-0 opacity-75">{t('task.continuesFrom', { day: fromDayName(c.fromDate) })}</span>}
               </div>
             </div>
           );
@@ -488,6 +560,26 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
         );
       })()}
 
+      {/* The drag preview's part past midnight, on the next date (#2278) */}
+      {draggedTask && dragPreviewTime && dragPreviewDate && (() => {
+        const spill = dragPreviewSpillFor(
+          dragBlockRange(timeToMinutes(dragPreviewTime), draggedTask.duration),
+          dateToString(dragPreviewDate), dateStr,
+        );
+        const visible = Math.min(spill, endHour * 60) - startMinute;
+        if (!spill || visible <= 0) return null;
+        return (
+          <DragBlockPreview
+            top={0}
+            height={visible * hourHeight / 60}
+            label=""
+            darkMode={darkMode}
+            className="left-0 right-0 z-30"
+            showStart={false}
+          />
+        );
+      })()}
+
       {/* Overflow routine popover */}
       {overflowPopover && (() => {
         const { routines, rect } = overflowPopover;
@@ -528,7 +620,7 @@ const WeekView = () => {
     use24HourClock,
     cardBg,
     expandedNotesTaskId, setExpandedNotesTaskId,
-    getTasksForDate, getDayDisplayForDate,
+    getTasksForDate, getDayDisplayForDate, getContinuationsForDate,
     weekTimelineStartHour,
     weekTimelineEndHour,
   } = useDayPlannerCtx();
@@ -547,10 +639,14 @@ const WeekView = () => {
   // is hidden, and the counts are suppressed below instead of going stale.
   const clipped = useMemo(
     () => clippedCounts(
-      weekViewDates.flatMap((d) => (getDayDisplayForDate || getTasksForDate)(d)),
+      weekViewDates.flatMap((d) => [
+        ...(getDayDisplayForDate || getTasksForDate)(d),
+        // A continuation hidden above the window is hidden too (#2278).
+        ...(getContinuationsForDate ? getContinuationsForDate(d).map(continuationLayoutRow) : []),
+      ]),
       { startHour: weekTimelineStartHour, endHour: weekTimelineEndHour },
     ),
-    [weekViewDates, getTasksForDate, getDayDisplayForDate, weekTimelineStartHour, weekTimelineEndHour],
+    [weekViewDates, getTasksForDate, getDayDisplayForDate, getContinuationsForDate, weekTimelineStartHour, weekTimelineEndHour],
   );
 
   const baseHourHeight = useWeekViewHourHeight(calendarRef, stickyHeaderRef, visibleHours);

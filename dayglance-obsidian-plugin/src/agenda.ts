@@ -37,6 +37,7 @@ import {
   mintIntentId,
   BRIDGE_VAULT_APP,
   BRIDGE_ACTION_PREFIX,
+  BRIDGE_CREATE_ACTION_PREFIX,
   BRIDGE_PROJECTION_PREFIX,
 } from '@glance-apps/obsidian-format';
 import {
@@ -55,6 +56,10 @@ import {
 } from '@glance-apps/sync/src/dbCrypto.js';
 import type { BridgePairing } from './pairing';
 import { asText } from './text';
+import { buildTaskCreatePayload, type TaskCreateInput } from './addTask';
+import { deviceLocalStore } from './localState';
+import { AppCapabilities, APP_CAPABILITIES_KEY, pairingKeyOf, type AppSupport, type CapabilityCache } from './appCapabilities';
+import { SentCreates, SENT_CREATES_KEY, type SentCreate, type SentCreatesState } from './sentCreates';
 
 // The dayGLANCE sync engine's app id on the vault (its data plane).
 const DAYGLANCE_APP = 'dayglance';
@@ -76,8 +81,25 @@ const AGENDA_SINGLETONS = new Set(['routinesDate', 'routineCompletions']);
 // change behind it means nothing is consuming — show the box unchecked
 // again rather than lie indefinitely.
 const PENDING_TTL_MS = 15 * 60_000;
+// A create that fails on the network is tried again twice, a second and two
+// seconds later, under the same actionId (the row is an upsert).
+const CREATE_ATTEMPTS = 3;
+const CREATE_RETRY_MS = 1000;
 
 export type AgendaKeyState = 'unpaired' | 'no-key' | 'ready';
+
+/**
+ * The bridge transport's 429 brake and own-write record, shared with the
+ * action rows this store writes outside the transport: a create is not sent
+ * while the brake is on, a 429 arms it, and the row's ack is recorded so its
+ * SSE echo never wakes this copy's own drain.
+ */
+export interface BridgeWriteGate {
+  isRateLimited(): boolean;
+  reportRateLimit(): void;
+  reportRequestSuccess(): void;
+  recordOwnSeq(seq: number | null | undefined): void;
+}
 
 export interface AgendaHost {
   app: App;
@@ -90,6 +112,8 @@ export interface AgendaHost {
    * rules, applied at read time so a viewer change needs no re-fetch.
    */
   getViewer(): string | null;
+  /** The transport's brake (main.ts passes the transport); absent in older hosts. */
+  getWriteGate?(): BridgeWriteGate | null;
 }
 
 /** A synced dayGLANCE user, as the settings picker lists them. */
@@ -97,6 +121,9 @@ export interface AgendaUser { syncId: string; name: string }
 
 /** A project or goal the link picker can name (companion §4.3). */
 export interface LinkTarget { kind: 'project' | 'goal'; id: string; title: string; goalTitle?: string }
+
+/** An active project a task added from Obsidian can join (companion 4.2.1). */
+export interface ProjectChoice { id: string; title: string; goalTitle?: string }
 
 export interface AgendaStatus {
   key: AgendaKeyState;
@@ -110,6 +137,8 @@ export interface AgendaStatus {
   calendarAsOf: number | null;
   /** Per date, when the events shown for it were fetched (epoch ms) — from the publishers' caches. */
   calendarDayAsOf: Record<string, number>;
+  /** Tasks this copy sent to dayGLANCE that no app has picked up for over an hour (sentCreates.ts). */
+  waitingCreates: number;
 }
 
 interface TaskRow { id: string; [k: string]: unknown }
@@ -165,16 +194,32 @@ export class AgendaStore {
   private bridgeCursor = 0;
   private cursor = 0;
   private cursorAccount: string | null = null;
-  private status: AgendaStatus = { key: 'unpaired', refreshing: false, lastRefreshedAt: null, lastError: null, undecryptable: 0, calendarAsOf: null, calendarDayAsOf: {} };
+  private status: AgendaStatus = { key: 'unpaired', refreshing: false, lastRefreshedAt: null, lastError: null, undecryptable: 0, calendarAsOf: null, calendarDayAsOf: {}, waitingCreates: 0 };
   private pending = new Map<string, number>(); // item id → marked-at ms
   private listeners = new Set<() => void>();
   private refreshChain: Promise<void> = Promise.resolve();
   private subkey: CryptoKey | null = null;
   private subkeyFor: string | null = null;
   private disposed = false;
+  // What the app can receive (companion 4.2.2) and the creates still
+  // waiting for it (4.2.1): both in this copy's device-local store.
+  private caps: AppCapabilities;
+  private sent: SentCreates;
+  private sentCheck: Promise<void> | null = null;
 
   constructor(host: AgendaHost) {
     this.host = host;
+    const gate = () => this.host.getWriteGate?.() ?? null;
+    this.caps = new AppCapabilities({
+      getPairing: () => this.host.getPairing(),
+      getRow: (pairing, entityId) => this.client(pairing).getRow(BRIDGE_VAULT_APP, entityId, pairing.accountId),
+      subkeyOf: (pairing) => this.subkeyOf(pairing),
+      isRateLimited: () => gate()?.isRateLimited() ?? false,
+      reportRateLimit: () => gate()?.reportRateLimit(),
+      reportRequestSuccess: () => gate()?.reportRequestSuccess(),
+      store: deviceLocalStore<CapabilityCache>(host.app, APP_CAPABILITIES_KEY),
+    });
+    this.sent = new SentCreates(deviceLocalStore<SentCreatesState>(host.app, SENT_CREATES_KEY));
   }
 
   /** Restore a device-local root key (no passphrase needed once set up). */
@@ -204,7 +249,69 @@ export class AgendaStore {
 
   getStatus(): AgendaStatus {
     this.recomputeKeyState();
+    this.status.waitingCreates = this.waitingCreates();
     return { ...this.status };
+  }
+
+  // ── what dayGLANCE can receive, and what is waiting for it ──────────────
+
+  /**
+   * Whether at least one current dayGLANCE app on the account announces
+   * `name` (appCapabilities.ts). A positive answer is cached for this
+   * pairing; anything else is asked again on the next call.
+   */
+  appSupports(name: string): Promise<AppSupport> {
+    return this.caps.check(name);
+  }
+
+  /** A cached positive answer for `name`, without the network. */
+  appSupportKnown(name: string): boolean {
+    return this.caps.known(name);
+  }
+
+  /** The creates this copy sent that are still on the stream, as last checked. */
+  sentCreates(): SentCreate[] {
+    const pairing = this.host.getPairing();
+    return pairing ? this.sent.entries(pairingKeyOf(pairing)) : [];
+  }
+
+  private waitingCreates(): number {
+    const pairing = this.host.getPairing();
+    return pairing ? this.sent.waiting(pairingKeyOf(pairing), Date.now()) : 0;
+  }
+
+  /**
+   * The waiting indicator's tick (main.ts's 30-second interval): read the
+   * rows of a few sent creates (sentCreates.ts bounds and paces it), drop
+   * the ones the app consumed, and redraw when the waiting count changes,
+   * which it also does with no read at all once an entry turns an hour old.
+   */
+  checkSentCreates(): Promise<void> {
+    if (this.sentCheck) return this.sentCheck;
+    this.sentCheck = this.checkSentCreatesOnce().finally(() => { this.sentCheck = null; });
+    return this.sentCheck;
+  }
+
+  private async checkSentCreatesOnce(): Promise<void> {
+    const pairing = this.host.getPairing();
+    if (!pairing || this.disposed) return;
+    const before = this.status.waitingCreates;
+    const gate = this.host.getWriteGate?.() ?? null;
+    if (!gate?.isRateLimited()) {
+      const client = this.client(pairing);
+      await this.sent.checkSome(pairingKeyOf(pairing), async (actionId) => {
+        let row: { envelope?: unknown; deleted?: unknown } | null;
+        try {
+          row = await client.getRow(BRIDGE_VAULT_APP, `${BRIDGE_CREATE_ACTION_PREFIX}${actionId}`, pairing.accountId) as typeof row;
+        } catch (e) {
+          if (statusOf(e) === 429) gate?.reportRateLimit();
+          throw e;
+        }
+        return row && !row.deleted && row.envelope ? 'present' : 'gone';
+      }, Date.now());
+    }
+    this.status.waitingCreates = this.waitingCreates();
+    if (this.status.waitingCreates !== before) this.emit();
   }
 
   /** True when this item has an emitted, not-yet-mirrored completion. */
@@ -240,6 +347,25 @@ export class AgendaStore {
       out.push({ kind: 'project', id: String(p.id), title: asText(p.title), goalTitle: goalId ? goalTitle.get(asText(goalId)) : undefined });
     }
     for (const g of goals) out.push({ kind: 'goal', id: String(g.id), title: asText(g.title) });
+    return out.sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  /**
+   * The active projects the viewer can see, for "Add to dayGLANCE", or null
+   * when there is no mirror to read them from (no passphrase on this
+   * device): the field is then hidden. Tasks belong to projects, never to
+   * goals directly, so goals are not offered. Active is the app's own rule
+   * (neither archived nor completed). Title-sorted.
+   */
+  projectChoices(): ProjectChoice[] | null {
+    if (this.getStatus().key !== 'ready') return null;
+    const goalTitle = new Map([...this.goalRows.values()].map((g) => [String(g.id), asText(g.title)]));
+    const out: ProjectChoice[] = [];
+    for (const p of this.projectRows.values()) {
+      if (p.status === 'archived' || p.status === 'completed' || !this.visibleTask(p)) continue;
+      const goalId = (p as { goalId?: unknown }).goalId;
+      out.push({ id: String(p.id), title: asText(p.title), goalTitle: goalId ? goalTitle.get(asText(goalId)) : undefined });
+    }
     return out.sort((a, b) => a.title.localeCompare(b.title));
   }
 
@@ -521,6 +647,54 @@ export class AgendaStore {
       this.emit();
       return { ok: false, message: this.status.lastError };
     }
+  }
+
+  /**
+   * Emit a task_create action row (companion spec 4.2.1) for dayGLANCE to
+   * build the task from. Needs only the pairing. One actionId per call: a
+   * retry after a dropped connection rewrites the same row, never a second
+   * task. Held back while the transport's 429 brake is on; a 429 arms it.
+   */
+  async createTask(input: Omit<TaskCreateInput, 'actionId' | 'createdAt' | 'viewer'>): Promise<{ ok: boolean; message: string }> {
+    const pairing = this.host.getPairing();
+    if (!pairing) return { ok: false, message: 'Not paired with GLANCEvault.' };
+    const gate = this.host.getWriteGate?.() ?? null;
+    if (gate?.isRateLimited()) return { ok: false, message: 'GLANCEvault is rate-limiting; try again in a minute.' };
+    const actionId = mintIntentId();
+    const payload = buildTaskCreatePayload({
+      ...input, actionId, viewer: this.host.getViewer(), createdAt: localOffsetIso(),
+    });
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < CREATE_ATTEMPTS; attempt++) {
+      if (attempt > 0) await new Promise((r) => window.setTimeout(r, CREATE_RETRY_MS * attempt));
+      try {
+        const subkey = await this.subkeyOf(pairing);
+        const ack = await this.client(pairing).batch(BRIDGE_VAULT_APP, {
+          accountId: pairing.accountId,
+          rows: [{
+            entityId: `${BRIDGE_CREATE_ACTION_PREFIX}${actionId}`,
+            envelope: await sealBridgeEnvelope(subkey, payload, pairing.generation),
+            createdAt: Date.now(),
+          }],
+        }) as { maxSeq?: unknown } | null;
+        gate?.recordOwnSeq(Number(ack?.maxSeq));
+        gate?.reportRequestSuccess();
+        // Remembered until an app consumes the row (the waiting indicator).
+        this.sent.record(pairingKeyOf(pairing), { actionId, title: input.title, sentAt: Date.now() });
+        this.status.lastError = null;
+        this.emit();
+        // "Sent", not "added": the task exists once an app picks the row up.
+        return { ok: true, message: 'Sent to dayGLANCE. It appears there once dayGLANCE picks it up.' };
+      } catch (e) {
+        lastError = e;
+        const status = statusOf(e);
+        if (status === 429) { gate?.reportRateLimit(); break; }
+        if (status === 401 || status === 403) break;
+      }
+    }
+    this.status.lastError = describeError(lastError);
+    this.emit();
+    return { ok: false, message: `Not sent: ${this.status.lastError}` };
   }
 
   // ── internals ─────────────────────────────────────────────────────────────

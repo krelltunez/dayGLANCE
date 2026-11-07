@@ -1,0 +1,109 @@
+// The three Phase 4 read-only resources (spec §5.4), registered onto a
+// per-request McpServer instance by the server's factory, beside the read
+// tools (readTools.js). Formerly electron/mcpResources.ts.
+//
+// NO SUBSCRIPTIONS — deferred per §5.4: they would add a stateful session
+// dimension to the HTTP transport, and §3.7 keeps this transport sessionless.
+//
+// SAME READ PATH AS THE TOOLS: every resource goes over the same
+// bridge to the same pure read models (readModel.js) the Phase 2 tools
+// use — no second read path. §5.3 semantics: the server resolves today from
+// its own clock and timezone (never the client's), and every payload echoes
+// the resolved date and IANA timezone. _native device-calendar events ride
+// the same consent tier as the tools (deps.includeNativeEvents) and carry the
+// same distinct type flag, applied inside the shared model.
+//
+// ERRORS: a resource read has no isError content channel, so failures THROW
+// and surface as a JSON-RPC error whose message leads with the same §5.2 code
+// the tools use (e.g. "[renderer_unavailable] …"). Never empty contents — an
+// empty schedule payload is indistinguishable from an empty day (§3.3).
+
+import { localDateOf, dateEnvelope } from '@glance-apps/mcp-host';
+
+const MIME = 'application/json';
+
+function resourceError(code, message) {
+  return new Error(`[${code}] ${message}`);
+}
+
+/**
+ * @param {import('@modelcontextprotocol/server').McpServer} server
+ * @param {import('../types/index.js').ReadToolDeps} deps
+ */
+export function registerResources(server, deps) {
+  /** Shared fetch: bridge request → JSON contents, or a typed throw. */
+  const read = async (uri, method, params, envelope, timeoutMs) => {
+    const r = await deps.bridge.request(method, params, timeoutMs);
+    if (!r.ok) throw resourceError(r.error.code, r.error.message);
+    return {
+      contents: [{
+        uri,
+        mimeType: MIME,
+        text: JSON.stringify({ ...envelope, ...r.data }),
+      }],
+    };
+  };
+
+  server.registerResource(
+    'dayglance-schedule-today',
+    'dayglance://schedule/today',
+    {
+      title: "Today's schedule",
+      description:
+        "Today's dayGLANCE blocks and completion state. The date is resolved on the user's machine " +
+        '(local calendar date, §5.3) and echoed with the IANA timezone. Items with type ' +
+        '"device_calendar_event" or "calendar_event" are read-only calendar events. daily_note is the ' +
+        "user's note for the day, read-only. Items with type \"routine\" " +
+        'are routine blocks: they occupy the time they cover and are read-only over MCP. The ' +
+        '"frames" array carries the day\'s set-aside windows with their free slots, already net of ' +
+        'tasks, routines and elapsed time.',
+      mimeType: MIME,
+    },
+    async (uri) => {
+      const today = localDateOf(deps.now(), deps.timeZone());
+      return read(uri.href, 'get_day', {
+        date: today,
+        include_native: deps.includeNativeEvents(),
+      }, dateEnvelope(today, deps.timeZone()));
+    },
+  );
+
+  server.registerResource(
+    'dayglance-schedule-week-current',
+    'dayglance://schedule/week/current',
+    {
+      title: 'Current week',
+      description:
+        'The current calendar week of dayGLANCE blocks: the week containing today, starting on the ' +
+        "user's configured week-start day (echoed as week_start_day, 0=Sunday). Dates and times are " +
+        'local (§5.3); the resolved date and IANA timezone are echoed. Items with type ' +
+        '"device_calendar_event" and type "routine" are both read-only. Routine blocks occupy the ' +
+        'time they cover but exist only for the current day, so exactly one day of this week can ' +
+        'carry them and the other six showing none is expected, not missing data. Each day also ' +
+        'carries its "frames" with free slots, which is what makes this resource answer "when this ' +
+        'week could I fit two hours of deep work".',
+      mimeType: MIME,
+    },
+    async (uri) => {
+      const today = localDateOf(deps.now(), deps.timeZone());
+      return read(uri.href, 'get_week', {
+        date: today,
+        include_native: deps.includeNativeEvents(),
+      }, { resolved_date: today, timezone: deps.timeZone() });
+    },
+  );
+
+  server.registerResource(
+    'dayglance-goals-tree',
+    'dayglance://goals/tree',
+    {
+      title: 'Goals and projects',
+      description:
+        'The dayGLANCE goal and project hierarchy with duration-weighted progress (active goals and ' +
+        'projects, matching what the app shows). Same data as the dayglance_get_goal_progress tool.',
+      mimeType: MIME,
+    },
+    // Opens the linked notes for their descriptions, so it gets the longer timeout the tool gets.
+    async (uri) => read(uri.href, 'goal_progress', {}, { timezone: deps.timeZone() }, 8000),
+  );
+}

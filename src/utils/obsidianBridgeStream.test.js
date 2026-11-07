@@ -12,6 +12,8 @@ import {
   flushBridgeOutbox,
   getBridgePairingMeta,
   publishBridgeConfig,
+  publishBridgeCapabilities,
+  APP_BRIDGE_CAPABILITIES,
   __resetBridgeStreamForTests,
 } from './obsidianBridgeStream.js';
 
@@ -222,6 +224,95 @@ describe('emit + flush', () => {
     // Sealed under the NEW generation's subkey — the new stream can read it.
     const subkey2 = await deriveBridgeSubkey(getDbRootKey(), salt2);
     expect(await openBridgeEnvelope(subkey2, rows[1].rows[0].envelope)).toMatchObject({ kind: 'config', dailyNotesPath: 'Daily' });
+  });
+});
+
+describe('publishBridgeCapabilities (companion 4.2.2): one sealed row per capability, once per session per pairing generation', () => {
+  const capRows = () => globalThis.fetch.batches.flatMap((b) => b.rows).filter((r) => r.entityId.startsWith('meta:cap:'));
+  const repair = (fill) => {
+    const salt = new Uint8Array(16).fill(fill);
+    const b64 = btoa(String.fromCharCode(...salt));
+    localStorage.setItem('dayglance-bridge-pairing-meta', JSON.stringify({
+      meta: { v: 1, kind: 'pairing-meta', generation: b64, pairingSalt: b64, pairedAt: '2026-11-06T00:00:00Z' },
+      fetchedAt: Date.now(),
+    }));
+    return salt;
+  };
+
+  it('announces task_create as its own sealed meta:cap row, under the generation it is sealed with', async () => {
+    globalThis.fetch = makeFetch();
+    expect(APP_BRIDGE_CAPABILITIES).toContain('task_create');
+    expect(await publishBridgeCapabilities()).toBe(true);
+    const rows = capRows();
+    expect(rows.map((r) => r.entityId)).toEqual(['meta:cap:task_create']);
+    const subkey = await deriveBridgeSubkey(getDbRootKey(), SALT);
+    expect(await openBridgeEnvelope(subkey, rows[0].envelope)).toMatchObject({ v: 1, kind: 'capability', name: 'task_create' });
+  });
+
+  it('ONE ROW PER NAME: several names are several rows, never one combined list', async () => {
+    globalThis.fetch = makeFetch();
+    await publishBridgeCapabilities(['task_create', 'future_thing']);
+    expect(capRows().map((r) => r.entityId).sort()).toEqual(['meta:cap:future_thing', 'meta:cap:task_create']);
+  });
+
+  it('ONCE PER SESSION PER GENERATION: a second call writes nothing, a new session writes once more', async () => {
+    globalThis.fetch = makeFetch();
+    await publishBridgeCapabilities(['task_create']);
+    await publishBridgeCapabilities(['task_create']);
+    expect(capRows()).toHaveLength(1);
+    // Only a name not yet published is written.
+    await publishBridgeCapabilities(['task_create', 'future_thing']);
+    expect(capRows().map((r) => r.entityId)).toEqual(['meta:cap:task_create', 'meta:cap:future_thing']);
+    __resetBridgeStreamForTests();
+    await publishBridgeCapabilities(['task_create']);
+    expect(capRows()).toHaveLength(3);
+  });
+
+  it('A RE-PAIR REPUBLISHES under the new generation, readable with the rotated subkey', async () => {
+    globalThis.fetch = makeFetch();
+    await publishBridgeCapabilities(['task_create']);
+    const salt2 = repair(6);
+    await publishBridgeCapabilities(['task_create']);
+    const rows = capRows();
+    expect(rows).toHaveLength(2);
+    const subkey2 = await deriveBridgeSubkey(getDbRootKey(), salt2);
+    expect(await openBridgeEnvelope(subkey2, rows[1].envelope)).toMatchObject({ kind: 'capability', name: 'task_create' });
+    expect(await openBridgeEnvelope(subkey2, rows[0].envelope)).toBe(null);
+  });
+
+  it('unpaired, or without the vault: nothing is written, and the name stays due', async () => {
+    globalThis.fetch = makeFetch({ meta: null });
+    localStorage.removeItem('dayglance-bridge-pairing-meta');
+    expect(await publishBridgeCapabilities(['task_create'])).toBe(false);
+    expect(capRows()).toHaveLength(0);
+    localStorage.setItem('dayglance-bridge-pairing-meta', JSON.stringify({ meta: META, fetchedAt: Date.now() }));
+    localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify({ enabled: false, vaultUrl: 'https://vault.example', vaultToken: 'tok', accountId: 'acct-1' }));
+    expect(await publishBridgeCapabilities(['task_create'])).toBe(false);
+    expect(capRows()).toHaveLength(0);
+  });
+
+  it('a failed write is retried by the next call; the BRAKE holds every call back until it lifts', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-06T12:00:00.000Z'));
+    try {
+      localStorage.setItem('dayglance-bridge-pairing-meta', JSON.stringify({ meta: META, fetchedAt: Date.now() }));
+      globalThis.fetch = makeFetch({ failBatch: true });
+      expect(await publishBridgeCapabilities(['task_create'])).toBe(false);
+      // A 429 arms the brake: not a single request until it lifts.
+      let calls = 0;
+      globalThis.fetch = async () => { calls += 1; return { ok: false, status: 429, json: async () => ({}) }; };
+      expect(await publishBridgeCapabilities(['task_create'])).toBe(false);
+      expect(calls).toBe(1);
+      globalThis.fetch = makeFetch();
+      expect(await publishBridgeCapabilities(['task_create'])).toBe(false);
+      expect(capRows()).toHaveLength(0);
+      vi.setSystemTime(new Date('2026-11-06T12:00:31.000Z'));
+      localStorage.setItem('dayglance-bridge-pairing-meta', JSON.stringify({ meta: META, fetchedAt: Date.now() }));
+      expect(await publishBridgeCapabilities(['task_create'])).toBe(true);
+      expect(capRows()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

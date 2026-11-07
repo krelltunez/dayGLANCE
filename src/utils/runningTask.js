@@ -1,3 +1,4 @@
+import { overnightSpillMinutes, shiftDateStr } from '@glance-apps/agenda-core';
 import { dateToString } from './taskUtils.js';
 
 // Which timed task, if any, is running right now — the source of truth behind
@@ -30,10 +31,14 @@ const timeToMinutes = (time) => {
  */
 export const findRunningTask = (tasks, now = new Date()) => {
   const todayStr = dateToString(now);
+  const yesterdayStr = shiftDateStr(todayStr, -1);
   const nowMin = now.getHours() * 60 + now.getMinutes();
   return tasks.find((task) => {
-    if (task.date !== todayStr || task.isAllDay || task.completed) return false;
+    if (task.isAllDay || task.completed) return false;
     if (task.imported && !task.isTaskCalendar) return false;
+    // Last night's task still running after midnight (#2278).
+    if (task.date === yesterdayStr) return nowMin < overnightSpillMinutes(task);
+    if (task.date !== todayStr) return false;
     const start = timeToMinutes(task.startTime);
     return nowMin >= start && nowMin < start + (task.duration || 0);
   });

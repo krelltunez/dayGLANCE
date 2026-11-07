@@ -17,7 +17,7 @@
 // (deadline, notes, assignee); naming a required field like title, or any
 // field outside the editable set, is a typed validation error.
 
-import { isValidLocalDate } from './mcpDates.js';
+import { isValidLocalDate } from '@glance-apps/mcp-host';
 
 export interface UpdateTaskArgs {
   task_id?: unknown;

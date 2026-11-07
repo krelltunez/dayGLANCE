@@ -6,7 +6,7 @@ import {
   migrateDayWindows,
   mergeDayWindowMaps,
   resolveDayWindow,
-} from '../sync/dayWindowSync.js';
+} from '@glance-apps/dayglance-vault';
 
 // Per-day START/STOP markers for the timeline — the user's declared day window,
 // set directly on the timeline (via the summary strip's day-window menu) rather
@@ -21,7 +21,7 @@ import {
 //
 // SYNCED: the map rides the sync payload as `dayWindows` — merged per-entry
 // LWW on the file tier (mergeSync.js) and as a vault singleton bundle
-// (dbAdapter.js), all through the shared primitives in sync/dayWindowSync.js.
+// (dbAdapter.js), all through the shared primitives in packages/dayglance-vault/src/dayWindowSync.js.
 // Shape, migration from the phase-A device-local format, and resolution live
 // there too. iOS/Android inherit automatically: they run this same App tree.
 

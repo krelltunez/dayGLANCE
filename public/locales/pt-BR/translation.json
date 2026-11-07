@@ -813,6 +813,13 @@
     "wikiNoteNotFound": "Nota não encontrada no cofre: verifique se o cofre está configurado e se a nota existe.",
     "wikiNoteLoadFailed": "Não foi possível carregar a nota: {{error}}",
     "wikiNoteChanged": "Esta nota mudou no Obsidian desde que você a abriu. O texto mais recente foi carregado, com o seu texto não salvo abaixo; confira e salve de novo.",
+    "wikiNoteNotSetUp": "A nota desta tarefa está no Obsidian. Configure a integração com o Obsidian para vê-la aqui.",
+    "wikiNoteOpenObsidianSettings": "Abrir configurações do Obsidian",
+    "wikiNoteNotShared": "Este dispositivo não consegue ler a pasta do seu cofre, e esta nota não é uma das que o plugin do Obsidian compartilha.",
+    "wikiNoteNewNotesFolderNotShared": "As notas que o dayGLANCE cria vão para a pasta \"{{folder}}\", que não está no escopo de tarefas do plugin. Adicione essa pasta ao escopo nas configurações do plugin para ver essas notas aqui.",
+    "wikiNoteAmbiguous": "Há mais de uma nota no seu cofre chamada \"{{name}}\", então este dispositivo não consegue saber a qual esta tarefa se refere. Vincule-a com a pasta, como [[Pasta/{{name}}]], para vê-la aqui.",
+    "wikiNoteDeleted": "O Obsidian informa que esta nota foi excluída.",
+    "wikiNoteUnreachable": "Este dispositivo não consegue ler a pasta do seu cofre, e o relato do Obsidian sobre esta nota não pôde ser obtido agora. Tente novamente mais tarde.",
     "emptyWikiNotePlaceholder": "Nota vazia: comece a digitar para criá-la no seu cofre",
     "editWikiNote": "Editar “{{name}}”",
     "notesFormattingPlaceholder": "Adicione notas... (**negrito**, *itálico*, __sublinhado__, URLs, @@ para vincular uma tarefa) — Shift+Enter para visualizar",
@@ -946,7 +953,9 @@
     "deferredTimes_other": "Adiada {{count}} vezes",
     "movedVia": "Adiamentos recentes",
     "earlierMoves": "+1 anterior",
-    "earlierMoves_other": "+{{count}} anteriores"
+    "earlierMoves_other": "+{{count}} anteriores",
+    "continuesFrom": "desde {{day}}",
+    "continuesFromLabel": "{{title}}, continua de {{day}}"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}",
@@ -2130,6 +2139,7 @@
     "notesLoadFailed": "Não foi possível ler a nota vinculada: {{error}}",
     "notesNoteMissing": "A nota vinculada não foi encontrada no vault. Confira o nome da nota ou crie a nota no Obsidian.",
     "notesChanged": "A nota mudou no Obsidian desde que você a abriu. O texto mais recente foi carregado, com o seu texto não salvo abaixo; confira e salve de novo.",
+    "notesReportedByObsidian": "Conforme informado pelo Obsidian, {{when}}.",
     "scheduled": "Agendadas",
     "nothingScheduledYet": "Nada agendado ainda.",
     "noUnscheduledTasks": "Sem tarefas não agendadas.",

@@ -11,7 +11,7 @@ import { applyRecurringInstanceEdit } from '../utils/recurringInstanceEdit.js';
 import { recurringTaskInstance } from '../utils/expandRecurringTasks.js';
 import { mergeSyncData } from '../mergeSync.js';
 import { createVault, createDevice, syncToConvergence } from './dbVaultSim.js';
-import { shredState } from './dbAdapter.js';
+import { shredState } from '@glance-apps/dayglance-vault';
 
 vi.mock('../utils/nativeCalendar.js', () => ({ hasNativeCalendar: () => false }));
 

@@ -39,6 +39,12 @@ import {
   noteKeyForPath,
   BRIDGE_COPY_PREFIX,
   decodePlainBridgeRow,
+  observationEntityId,
+  openNoteObservations,
+  noteDescriptionFromObservations,
+  latestNoteObservation,
+  noteTextHash,
+  normalizeNotePath,
 } from '@glance-apps/obsidian-format';
 import {
   buildExistingObsidianTaskContext,
@@ -49,6 +55,7 @@ import { getBridgePairingMeta, bridgeRateLimited, bridgeVaultClientFor } from '.
 import { BRIDGE_COPIES_KEY, rememberBridgeCopies } from './bridgeFleet.js';
 import { resolveProjectRef } from './obsidianProjectNotes.js';
 import { getStoredDailyNotes } from './dailyNotesStore.js';
+import { observationPathReport, reportedNoteIndexKey } from './reportedNotePaths.js';
 
 const OBS_HWM_KEY = 'dayglance-bridge-obs-hwm';
 
@@ -91,34 +98,52 @@ let lastInboundFailure = null;
 export function lastBridgeInboundFailure() { return lastInboundFailure; }
 const fail = (reason) => { lastInboundFailure = reason; return null; };
 
+// The gates every listing of the stream passes, and what it reads with:
+// { cfg, meta, client, subkey }, or { fail: reason } (the reasons
+// lastBridgeInboundFailure reports). May throw on a failed request; the
+// caller's catch decides what that means.
+async function openBridgeStream() {
+  // The client's realm-wide brake (@glance-apps/sync 1.11.0): while the
+  // server is rate-limiting, sit the whole cycle out pre-flight — the
+  // cursor hasn't advanced, so nothing is lost, and the next cycle
+  // retries. (A braked client call would throw RATE_LIMITED anyway; this
+  // read just skips the ceremony for a multi-request cycle.)
+  if (bridgeRateLimited()) return { fail: 'rate-limited' };
+  const cfg = getVaultConfig();
+  if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return { fail: 'unconfigured' };
+  // The root key loads asynchronously after launch; a configured vault
+  // whose key is not in memory yet is a HOLD, not a dead stream. The first
+  // cycle after every launch used to land here and raise the dead-stream
+  // error on every open (the phone showed it on each foreground).
+  if (!hasDbRootKey()) return { fail: 'key-pending' };
+  const meta = await getBridgePairingMeta();
+  if (!meta) return { fail: 'unpaired' };
+  const client = bridgeVaultClientFor(cfg);
+  // A key not yet proven against the account is the same hold: opening
+  // rows under it would read nothing (bridgeKeyGate.js).
+  const rootKey = await verifiedBridgeRootKey(client, cfg.accountId);
+  if (!rootKey) return { fail: 'key-pending' };
+  const salt = Uint8Array.from(atob(meta.pairingSalt), (c) => c.charCodeAt(0));
+  const subkey = await deriveBridgeSubkey(rootKey, salt);
+  return { cfg, meta, client, subkey };
+}
+
 export async function fetchBridgeObservations() {
   try {
-    // The client's realm-wide brake (@glance-apps/sync 1.11.0): while the
-    // server is rate-limiting, sit the whole cycle out pre-flight — the
-    // cursor hasn't advanced, so nothing is lost, and the next cycle
-    // retries. (A braked client call would throw RATE_LIMITED anyway; this
-    // read just skips the ceremony for a multi-request cycle.)
-    if (bridgeRateLimited()) return fail('rate-limited');
-    const cfg = getVaultConfig();
-    if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return fail('unconfigured');
-    // The root key loads asynchronously after launch; a configured vault
-    // whose key is not in memory yet is a HOLD, not a dead stream. The first
-    // cycle after every launch used to land here and raise the dead-stream
-    // error on every open (the phone showed it on each foreground).
-    if (!hasDbRootKey()) return fail('key-pending');
-    const meta = await getBridgePairingMeta();
-    if (!meta) return fail('unpaired');
-    const client = bridgeVaultClientFor(cfg);
-    // A key not yet proven against the account is the same hold: opening
-    // rows under it would read nothing (bridgeKeyGate.js).
-    const rootKey = await verifiedBridgeRootKey(client, cfg.accountId);
-    if (!rootKey) return fail('key-pending');
-    const salt = Uint8Array.from(atob(meta.pairingSalt), (c) => c.charCodeAt(0));
-    const subkey = await deriveBridgeSubkey(rootKey, salt);
+    const access = await openBridgeStream();
+    if (access.fail) return fail(access.fail);
+    const { cfg, meta, client, subkey } = access;
 
     let since = 0;
     try { since = Number(localStorage.getItem(OBS_HWM_KEY)) || 0; } catch { /* fresh cursor */ }
+    const fromSeq = since;
     const byPath = new Map();
+    // What the batch says about which notes exist, for the index of
+    // reported note paths (utils/reportedNotePaths.js): the paths only,
+    // with each row's seq. The index keeps its own cursor and applies this
+    // only where it continues it (utils/reportedNoteIndexStore.js).
+    const pathReports = [];
+    let listedWhole = true;
     // Copy status rows (bridgeFleet.js): plaintext, one per plugin copy,
     // remembered here as they pass so every app instance can show the
     // fleet. A tombstone (the copy unpaired) forgets the copy.
@@ -148,18 +173,246 @@ export async function fetchBridgeObservations() {
         // Keyed by the ROW, not the path: a note's observation row and a
         // project-note LINK row (companion §4.3) can name the same path.
         byPath.set(String(row.entityId), payload);
+        const report = observationPathReport(payload, seq);
+        if (report) pathReports.push(report);
       }
-      if (!page.rows?.length) break;
+      if (!page.rows?.length) { listedWhole = !hasMore; break; }
     }
     if (copyUpdates.length) {
       try { localStorage.setItem(BRIDGE_COPIES_KEY, JSON.stringify(rememberBridgeCopies(readBridgeCopies(), copyUpdates))); } catch { /* storage unavailable */ }
     }
     lastInboundFailure = null;
-    return { observations: [...byPath.values()], maxSeq };
+    return {
+      observations: [...byPath.values()], maxSeq,
+      // A listing from cursor zero is a FULL one: it completes the index on
+      // its own. One whose pages ran out early is not handed to the index.
+      pathListing: listedWhole
+        ? { key: reportedNoteIndexKey(cfg, meta), since: fromSeq, maxSeq, reports: pathReports, full: fromSeq === 0 }
+        : null,
+    };
   } catch {
     // Rate-limited (the client armed the brake itself) or unreachable —
     // the unadvanced cursor retries next cycle either way.
     return fail(bridgeRateLimited() ? 'rate-limited' : 'unreachable');
+  }
+}
+
+/**
+ * Every observation row above `since`, read for the PATHS it reports (the
+ * index of reported note paths, utils/reportedNotePaths.js): { key, since,
+ * maxSeq, reports, full }, where `full` means it listed from zero and read
+ * every page, or null when any gate or page failed (a partial listing is
+ * never handed out as a whole one).
+ *
+ * The index's own lister, beside the cycle's fetch rather than through it:
+ * it reads from the INDEX's cursor (zero for the one bootstrap listing),
+ * never the cycle's, and it leaves everything the cycle owns alone: the
+ * persisted cursor (commitBridgeObservationCursor), the probe's held page,
+ * the copy status rows, and lastBridgeInboundFailure. No content is kept,
+ * and nothing here is applied to tasks or notes.
+ */
+export async function listReportedNotePaths({ since = 0 } = {}) {
+  try {
+    const access = await openBridgeStream();
+    if (access.fail) return null;
+    const { cfg, meta, client, subkey } = access;
+    const from = Math.max(0, Number(since) || 0);
+    let cursor = from;
+    let maxSeq = from;
+    const reports = [];
+    let hasMore = true;
+    while (hasMore) {
+      const page = await client.list(BRIDGE_VAULT_APP, { accountId: cfg.accountId, since: cursor });
+      hasMore = !!page?.hasMore;
+      const rows = page?.rows || [];
+      // A page that says more follow but carries none cannot be paged past:
+      // the listing is not whole, so it is not handed out at all.
+      if (!rows.length) { if (hasMore) return null; break; }
+      for (const row of rows) {
+        const seq = Number(row.seq) || 0;
+        if (seq > maxSeq) maxSeq = seq;
+        if (seq > cursor) cursor = seq;
+        if (row.deleted || !row.envelope || !String(row.entityId || '').startsWith(BRIDGE_OBSERVATION_PREFIX)) continue;
+        // Unreadable (a rotated-away generation, tamper): says nothing.
+        const report = observationPathReport(await openBridgeEnvelope(subkey, row.envelope), seq);
+        if (report) reports.push(report);
+      }
+    }
+    return { key: reportedNoteIndexKey(cfg, meta), since: from, maxSeq, reports, full: from === 0 };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A linked note's description as the plugin last reported the note (#2291),
+ * for a device that cannot read the note from a vault folder, or whose copy
+ * may be behind. Read ON DEMAND, one note at a time: the observation row is
+ * upserted per path under a stable id (observationEntityId), so one GET of
+ * that row is the note's latest reported state. Nothing is kept: the
+ * cycle's incremental fetch above never holds rows (its cursor has long
+ * passed a note that has not changed), and the text has no second home
+ * (owner ruling 2026-10-03). The same gates as the cycle's fetch: a
+ * configured GLANCEvault, a paired vault, and a root key proven against the
+ * account (bridgeKeyGate.js).
+ *
+ * Resolves to what the shared reader (noteDescriptionFromObservations)
+ * returns: { text, base, observedAt, lastModified }, { notFound: true } for
+ * a deleted or withdrawn note, or null, which is NO INFORMATION: unpaired,
+ * no key yet, unreachable, braked, or the plugin never reported the path.
+ * Never throws, and never waits longer than the budget: a report slower
+ * than that is no information this time (the next read asks again), so a
+ * slow GLANCEvault holds neither a folder's own reading nor the MCP's
+ * per-read budget (DESCRIPTION_READ_BUDGET_MS, 2 s) hostage.
+ */
+export const REPORTED_NOTE_READ_BUDGET_MS = 1500;
+/**
+ * At most this many report reads at once. An MCP goal tree asks for up to 40
+ * linked descriptions together, each one or two row reads; unchecked, that
+ * burst could draw a 429 from a self-hosted GLANCEvault, and the vault
+ * client's brake would then pause ALL vault traffic, sync included.
+ */
+export const REPORTED_NOTE_READ_CONCURRENCY = 4;
+
+/**
+ * A limiter for async jobs: at most `max` run at once, the rest wait in
+ * order. `run(job, { isCancelled })` resolves to the job's result, or to
+ * undefined without running it when isCancelled() is true by the time a
+ * slot frees (its caller already gave up), so a read whose budget ran out
+ * while it queued never reaches the vault.
+ */
+export function createReadLimiter(max) {
+  let active = 0;
+  const waiting = [];
+  const release = () => {
+    const next = waiting.shift();
+    if (next) next(); else active -= 1;
+  };
+  const acquire = () => {
+    if (active < max) { active += 1; return Promise.resolve(); }
+    return new Promise((resolve) => waiting.push(resolve));
+  };
+  return {
+    async run(job, { isCancelled = () => false } = {}) {
+      await acquire();
+      if (isCancelled()) { release(); return undefined; }
+      try { return await job(); } finally { release(); }
+    },
+    stats: () => ({ active, waiting: waiting.length }),
+  };
+}
+const reportedReads = createReadLimiter(REPORTED_NOTE_READ_CONCURRENCY);
+
+// One budgeted, limited read of a note's latest report (the gates and the
+// row read in readReportedNoteObservation). Resolves to that reader's answer,
+// or to null once the budget runs out, never later.
+function budgetedReportRead(path, budgetMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => { done = true; resolve(null); }, budgetMs);
+    reportedReads.run(() => readReportedNoteObservation(path), { isCancelled: () => done })
+      .then((r) => { if (done) return; done = true; clearTimeout(timer); resolve(r ?? null); });
+  });
+}
+
+export function fetchReportedNoteDescription(path, { budgetMs = REPORTED_NOTE_READ_BUDGET_MS } = {}) {
+  return budgetedReportRead(path, budgetMs).then((r) => (r?.observation
+    ? noteDescriptionFromObservations([r.observation], r.path)
+    : null));
+}
+
+/**
+ * A WHOLE note as the plugin last reported it (#2291 follow-up: a task's
+ * linked note, which the task panel shows whole), through the same gates,
+ * limiter and budget as fetchReportedNoteDescription. Nothing is kept. The
+ * answer is typed, because a task's note is found by name and the caller
+ * has to tell "never reported" from "could not ask":
+ *
+ *   { status: 'note', path, text, base, lastModified, observedAt }
+ *                       path is Obsidian's own (the report's), text the
+ *                       whole content, base its noteTextHash (the hash a
+ *                       wiki_note_write carries back)
+ *   { status: 'deleted' }     the latest report says the note is gone
+ *   { status: 'withdrawn' }   it left the plugin's scope: it exists, and is
+ *                             no longer reported
+ *   { status: 'never' }       no report of the path: no information
+ *   { status: 'unavailable' } the report could not be asked for (unpaired,
+ *                             no key yet, unreachable, braked, out of budget)
+ */
+export function fetchReportedNote(path, { budgetMs = REPORTED_NOTE_READ_BUDGET_MS } = {}) {
+  return budgetedReportRead(path, budgetMs).then((r) => {
+    if (!r) return { status: 'unavailable' };
+    const obs = r.observation;
+    if (!obs) return { status: 'never' };
+    if (obs.deleted) return { status: 'deleted' };
+    if (obs.withdrawn) return { status: 'withdrawn' };
+    if (typeof obs.content !== 'string') return { status: 'deleted' };
+    const mtime = obs.mtime != null ? new Date(obs.mtime) : null;
+    return {
+      status: 'note',
+      path: typeof obs.path === 'string' && obs.path ? obs.path : r.path,
+      text: obs.content,
+      base: noteTextHash(obs.content),
+      lastModified: mtime && Number.isFinite(mtime.getTime()) ? mtime.toISOString() : null,
+      observedAt: typeof obs.observedAt === 'string' ? obs.observedAt : null,
+    };
+  });
+}
+
+/**
+ * Can this device read the plugin's reports at all, and what does the plugin
+ * share? Cheap: the vault config, the key, and the pairing meta
+ * (getBridgePairingMeta, TTL-cached). 'unpaired' is no GLANCEvault or no
+ * paired vault on it; 'locked' a paired vault whose key is not in memory
+ * yet; 'ready' otherwise. `scope` is the task scope the plugin published on
+ * the pairing meta (folders and tags), or null when it published none.
+ */
+export async function reportedNotesAvailability() {
+  try {
+    const cfg = getVaultConfig();
+    if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return { status: 'unpaired', scope: null };
+    const meta = await getBridgePairingMeta();
+    if (!meta?.pairingSalt) return { status: 'unpaired', scope: null };
+    const scope = meta.scope && typeof meta.scope === 'object' ? meta.scope : null;
+    if (!hasDbRootKey()) return { status: 'locked', scope };
+    return { status: 'ready', scope };
+  } catch {
+    return { status: 'unpaired', scope: null };
+  }
+}
+
+// The latest observation of a path: { path, observation } (observation null
+// when the plugin never reported it), or null when the report could not be
+// asked for (the gates, a failed request).
+async function readReportedNoteObservation(path) {
+  try {
+    const notePath = normalizeNotePath(path);
+    if (!notePath) return null;
+    if (bridgeRateLimited()) return null;
+    const cfg = getVaultConfig();
+    if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return null;
+    if (!hasDbRootKey()) return null;
+    const meta = await getBridgePairingMeta();
+    if (!meta?.pairingSalt) return null;
+    const client = bridgeVaultClientFor(cfg);
+    const rootKey = await verifiedBridgeRootKey(client, cfg.accountId);
+    if (!rootKey) return null;
+    const salt = Uint8Array.from(atob(meta.pairingSalt), (c) => c.charCodeAt(0));
+    const subkey = await deriveBridgeSubkey(rootKey, salt);
+    // The plugin keys the row on Obsidian's own path. The link's path is
+    // NFC-normalized (noteKeyForPath); a file named in decomposed form (a
+    // macOS-created accented name) has the other row id, so both are asked
+    // for when they differ, and the shared reader picks the latest report.
+    const variants = [...new Set([notePath, notePath.normalize('NFD')])];
+    const rows = await Promise.all(variants.map(async (p) => {
+      const entityId = await observationEntityId(p);
+      const row = await client.getRow(BRIDGE_VAULT_APP, entityId, cfg.accountId);
+      return row ? { ...row, entityId: row.entityId ?? entityId } : null;
+    }));
+    const observations = await openNoteObservations(rows.filter(Boolean), subkey);
+    return { path: notePath, observation: latestNoteObservation(observations, notePath) };
+  } catch {
+    return null;
   }
 }
 

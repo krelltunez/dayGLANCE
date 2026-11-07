@@ -55,8 +55,8 @@
 // Real deletions (tombstoned) and real moves (id survives elsewhere) are unaffected
 // and still propagate exactly as before.
 
-import { TOMBSTONE_BUNDLE_KEYS } from './tombstoneRetention.js';
-import { getEntityLastModified, TASK_KINDS } from './dbAdapter.js';
+import { TOMBSTONE_BUNDLE_KEYS } from '@glance-apps/dayglance-vault';
+import { getEntityLastModified, TASK_KINDS } from '@glance-apps/dayglance-vault';
 import { resolveRetirement } from '../utils/retiredTaskIds.js';
 
 // Tolerance for the tombstone-vs-lastModified comparison. Delete-path audit

@@ -1,0 +1,97 @@
+// OWN-WRITE ACK REGISTRY — the identity half of own-echo SSE damping
+// (#1455, second instance: the reconcile war of 2026-08-30).
+//
+// Moved verbatim from the dayGLANCE app's src/sync/ownWrites.js (#2280) with
+// the coalescer it feeds (vaultEvents.js), so a host suppresses its own
+// echoes by the same rule: wrap the vault client the engine writes through
+// with withOwnAckRecording and give the coalescer isOwnSeq: isOwnWriteSeq.
+//
+// The vault emits one SSE nudge per content write, carrying THE WRITING
+// OPERATION'S OWN resulting seq (`emit(accountId, {seq: result.maxSeq})` in
+// glance-vault routes/sync.ts — verified, not assumed). Seqs are unique and
+// monotonic per account, so "is this nudge the echo of a write THIS device
+// made?" is answerable by EXACT IDENTITY: record every maxSeq our writers
+// get acked; a nudge whose seq is in the set is provably our own echo and
+// nothing else. This is deliberately NOT a comparison heuristic
+// (`seq <= lastAck` would swallow a peer write that landed between our pull
+// and our push — the freshness trap #1450 avoided by choosing dedup over
+// suppression). A peer's nudge carries the PEER's acked seq, which is never
+// in this set, so it always drains.
+//
+// Scope: one registry per running app (module state), fed by every writer
+// in this realm — the DB engine's push, the bridge outbox flush and config
+// publish, and the db-intents batch. The Obsidian plugin is a different
+// process with different purposes: its writes are peer writes here, and we
+// WANT their nudges (that's how observations arrive).
+//
+// Bounded IN TIME (the cycles-versus-wall-clock sweep's second leftover,
+// re-denominated 2026-09-05): an ack matters only while its echo can still
+// be in flight, which is a matter of seconds on a live stream and never
+// longer than a reconnect (the server replays nothing; a `ready` frame is
+// seq-only). A 64-entry ring stood in for that window and could evict live
+// acks under a bulk delete of more than 64 rows. Seqs are unique, so a
+// remembered ack can never match a peer's nudge — keeping one longer costs
+// only memory, which a large capacity backstop bounds without being the
+// guard.
+export const OWN_ACK_TTL_MS = 10 * 60_000;
+const MEMORY_CAP = 4096;
+const ring = []; // { seq, at }, insertion order
+const set = new Set();
+const prune = (nowMs) => {
+  while (ring.length && (nowMs - ring[0].at > OWN_ACK_TTL_MS || ring.length > MEMORY_CAP)) set.delete(ring.shift().seq);
+};
+
+/** Record a write ack's maxSeq as ours. Ignores non-numbers. */
+export function recordOwnWriteSeq(seq, nowMs = Date.now()) {
+  if (typeof seq !== 'number' || !Number.isFinite(seq) || seq <= 0) return;
+  prune(nowMs);
+  if (set.has(seq)) return;
+  ring.push({ seq, at: nowMs });
+  set.add(seq);
+  prune(nowMs);
+}
+
+/** True when `seq` is the ack of a write this device made within the TTL. */
+export function isOwnWriteSeq(seq, nowMs = Date.now()) {
+  prune(nowMs);
+  return set.has(seq);
+}
+
+/**
+ * Wrap a vault client so every content write's ack lands in the registry AT
+ * THE SOURCE (audit M13, 2026-09-03). The server emits one nudge per `batch`
+ * (carrying the BATCH's maxSeq) and one per `deleteRow` (carrying that
+ * delete's seq). pushDirtyRows folds all of them into the single maxSeq it
+ * returns, so recording only the folded value leaves every non-max ack
+ * looking foreign: a mixed upsert+delete push (deletes follow the batch, so
+ * the batch's maxSeq is below the fold) leaked its batch nudge as one
+ * spurious self-drain per push — dormant while SSE nudge consumption is
+ * gated off, live the moment it returns. Wrapping both writers records each
+ * ack exactly, which is the only thing the exact-identity ring can use.
+ * Other methods pass through untouched; an injected test client is never
+ * wrapped (the caller decides), so live-swapped spies keep working.
+ */
+export function withOwnAckRecording(inner, record = recordOwnWriteSeq) {
+  if (!inner || typeof inner !== 'object') return inner;
+  const recordAck = (r) => {
+    if (!r || typeof r !== 'object') return;
+    if (typeof r.seq === 'number') record(r.seq);
+    if (typeof r.maxSeq === 'number') record(r.maxSeq);
+  };
+  const wrapped = { ...inner };
+  for (const method of ['batch', 'deleteRow']) {
+    if (typeof inner[method] !== 'function') continue;
+    wrapped[method] = async (...args) => {
+      const r = await inner[method](...args);
+      recordAck(r);
+      return r;
+    };
+  }
+  return wrapped;
+}
+
+/** Test seam. */
+export function __resetOwnWritesForTests() {
+  ring.length = 0;
+  set.clear();
+}

@@ -6,12 +6,16 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { startMcpServer, MCP_ENDPOINT_PATH } from './mcpServer.js';
-import type { RendererBridge, RendererResult } from './mcpRendererBridge.js';
-import type { ReadToolDeps } from './mcpReadTools.js';
+import {
+  createWriteGate,
+  createIdempotencyStore,
+  generateMcpToken,
+  type HostBridge as RendererBridge,
+  type BridgeResult as RendererResult,
+} from '@glance-apps/mcp-host';
+import type { ReadToolDeps } from '@glance-apps/dayglance-mcp';
+import { buildMcpReadState, handleMcpRequest } from '@glance-apps/dayglance-mcp/model';
 import type { WriteToolDeps } from './mcpWriteTools.js';
-import { createWriteGate } from './mcpWriteGate.js';
-import { createIdempotencyStore } from './mcpIdempotency.js';
-import { generateMcpToken } from './mcpAuth.js';
 
 // The seam the unit tests cannot see (2026-10-04). Every layer below the
 // listener has its own tests: argument parsers, the write gate, the replay
@@ -506,6 +510,100 @@ describe('repeating tasks over the wire (#2066)', () => {
       expect(body(seriesOnly)).toMatchObject({ error: { code: 'validation', message: expect.stringMatching(/belongs to the whole series by design/) } });
       expect(calls).toHaveLength(1);
     }));
+});
+
+// #2278: a task that runs past midnight is the previous date's; the next
+// date's get_day carries the part after midnight as a block marked
+// continues_from, and the frames there are net of it. The renderer here
+// answers with the real read model over a fixture state, so what crosses the
+// wire is what the app would send.
+describe('a task running past midnight, over the wire (#2278)', () => {
+  const YESTERDAY = '2026-10-03';
+  const state = buildMcpReadState({
+    tasks: [
+      { id: 'night', title: 'Night shift', date: YESTERDAY, startTime: '23:00', duration: 120, completed: false, isAllDay: false },
+      { id: 'breakfast', title: 'Breakfast', date: TODAY, startTime: '08:00', duration: 30, completed: false, isAllDay: false },
+    ],
+    gtdFrames: [{ id: 'f1', label: 'Early', enabled: true, days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '03:00', bufferMinutes: 0 }],
+    // Read at 00:00, so the frame's hours have not yet elapsed.
+  }, { now: Date.parse(`${TODAY}T00:00:00Z`), timeZone: TZ });
+  let h: Harness;
+  let bridge: ReturnType<typeof fakeBridge>;
+  beforeAll(async () => {
+    bridge = fakeBridge({ get_day: (params) => handleMcpRequest(state, { method: 'get_day', params }) as RendererResult });
+    h = await start({ readDeps: readDeps(bridge.bridge) });
+  });
+  afterAll(() => h.close());
+
+  it('get_today carries the continuation from 00:00, marked continues_from, and frames net of it', async () => {
+    const client = await h.connect();
+    const r = await client.callTool({ name: 'dayglance_get_today', arguments: {} });
+    expect(r.isError).toBeFalsy();
+    const data = body(r) as { blocks: Array<Record<string, unknown>>; frames: Array<Record<string, unknown>> };
+    expect(data.blocks.map((b) => [b.id, b.start_time, b.duration_minutes, b.continues_from])).toEqual([
+      ['night', '00:00', 60, YESTERDAY],
+      ['breakfast', '08:00', 30, undefined],
+    ]);
+    expect(data.blocks[0]).toMatchObject({ type: 'task', title: 'Night shift', date: TODAY });
+    expect(data.frames[0]).toMatchObject({ available_minutes: 120, available_slots: [{ start: '01:00', end: '03:00', minutes: 120 }] });
+  });
+
+  it('get_day on the start date reports the task once, with its full duration', async () => {
+    const client = await h.connect();
+    const r = await client.callTool({ name: 'dayglance_get_day', arguments: { date: YESTERDAY } });
+    const data = body(r) as { blocks: Array<Record<string, unknown>> };
+    expect(data.blocks).toEqual([expect.objectContaining({ id: 'night', date: YESTERDAY, start_time: '23:00', duration_minutes: 120 })]);
+    expect(data.blocks[0]).not.toHaveProperty('continues_from');
+  });
+
+  it('the day tools tell the model what continues_from means', async () => {
+    const client = await h.connect();
+    const tools = (await client.listTools()).tools;
+    for (const name of ['dayglance_get_today', 'dayglance_get_day']) {
+      expect(tools.find((t) => t.name === name)!.description).toContain('continues_from');
+    }
+    // And the reference documents the field the server sends.
+    expect(reference).toContain('`continues_from`');
+  });
+});
+
+// #2278, phase 1 gaps: frame availability counts what get_day lists as
+// blocks, recurring occurrences included (a recurring meeting in a frame used
+// to read as free time), and the night before's occurrence still running
+// after midnight. Through the real read model, as above.
+describe('frames net of recurring occurrences, over the wire (#2278)', () => {
+  const YESTERDAY = '2026-10-03';
+  const state = buildMcpReadState({
+    tasks: [],
+    recurringTasks: [{
+      id: 's1', title: 'Backup', startTime: '01:30', duration: 30, isAllDay: false,
+      recurrence: { type: 'daily', startDate: '2026-09-01' },
+      // Last night's ran late, into today.
+      exceptions: { [YESTERDAY]: { startTime: '23:30', duration: 60 } },
+    }],
+    gtdFrames: [{ id: 'f1', label: 'Early', enabled: true, days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '03:00', bufferMinutes: 0 }],
+  }, { now: Date.parse(`${TODAY}T00:00:00Z`), timeZone: TZ });
+  let h: Harness;
+  beforeAll(async () => {
+    const bridge = fakeBridge({ get_day: (params) => handleMcpRequest(state, { method: 'get_day', params }) as RendererResult });
+    h = await start({ readDeps: readDeps(bridge.bridge) });
+  });
+  afterAll(() => h.close());
+
+  it('get_today\'s frame is net of today\'s occurrence and of last night\'s piece', async () => {
+    const client = await h.connect();
+    const data = body(await client.callTool({ name: 'dayglance_get_today', arguments: {} })) as {
+      blocks: Array<Record<string, unknown>>; frames: Array<Record<string, unknown>>;
+    };
+    expect(data.blocks.map((b) => [b.id, b.start_time, b.duration_minutes, b.continues_from])).toEqual([
+      [`recurring-s1-${YESTERDAY}`, '00:00', 30, YESTERDAY],
+      [`recurring-s1-${TODAY}`, '01:30', 30, undefined],
+    ]);
+    expect(data.frames[0]).toMatchObject({
+      available_minutes: 120,
+      available_slots: [{ start: '00:30', end: '01:30', minutes: 60 }, { start: '02:00', end: '03:00', minutes: 60 }],
+    });
+  });
 });
 
 describe('the listener itself', () => {

@@ -40,12 +40,12 @@ import {
   getLocalEntity as adapterGetLocalEntity,
   applyRemoteEntity as adapterApplyRemoteEntity,
   applyRemoteDelete as adapterApplyRemoteDelete,
-  isInsertOnly,
-  getEntityLastModified,
   reconcileCrossList,
   carryAbsentCollections,
-} from './dbAdapter.js';
-import { pruneAllTombstones, tombstoneCutoff } from './tombstoneRetention.js';
+  vaultEngineCallbacks,
+  pruneAllTombstones,
+  tombstoneCutoff,
+} from '@glance-apps/dayglance-vault';
 import { partitionSnapshotDeletes, reassertPropagatedDeletes } from './snapshotDeleteGuard.js';
 import { isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusions.js';
 import { shredHashes, hashMapsEqual, hashEntity, mergeMidCycleEdits } from './commitMerge.js';
@@ -56,7 +56,7 @@ import {
   shouldSuppressRetirementHeal, consumeRetirementHealTripped,
   isDeletePropagationLatched, recordDeletePropagation, consumeDeletePropagationTripped,
 } from './retirementHealBreaker.js';
-import { recordOwnWriteSeq, withOwnAckRecording } from './ownWrites.js';
+import { recordOwnWriteSeq, withOwnAckRecording } from '@glance-apps/dayglance-vault';
 import { isObsidianTombstoned } from '../utils/obsidianDeletions.js';
 import { ghostSuccessorId, persistDerivedGhostRetirements } from '../utils/obsidianGhostRows.js';
 import { createIdbKeyValue } from '../utils/idbKeyValue.js';
@@ -465,6 +465,11 @@ export function createDbEngine(callbacks = {}) {
   // Per-cycle data mirror the adapter callbacks operate on. Seeded from getData
   // at the start of each cycle and committed at the end.
   let mirror = {};
+  // The adapter bound to the mirror, as the package builds it for every
+  // GLANCEvault client of this data (a host passes it to the engine as it is);
+  // the engine callbacks below wrap its apply and delete in this wrapper's
+  // guards and bookkeeping.
+  const adapter = vaultEngineCallbacks(() => mirror, (id) => engine.markDirty(id));
 
   // OWN-ACK COVERAGE FOR ENGINE WRITES (2026-08-31 war commission; audit M13
   // closed 2026-09-03): the server emits ONE nudge per batch — carrying the
@@ -502,7 +507,7 @@ export function createDbEngine(callbacks = {}) {
     vaultClient,
     nativeGetSyncKey,
     nativeStoreSyncKey,
-    getLocalEntity: (entityId) => adapterGetLocalEntity(mirror, entityId),
+    getLocalEntity: adapter.getLocalEntity,
     applyRemoteEntity: (entityId, entity) => {
       // TEMP diagnostic (gated on dayglance-debug-push): a remote row that revives
       // a row this device had dropped is the "re-created" half of a delete↔create
@@ -567,8 +572,8 @@ export function createDbEngine(callbacks = {}) {
       }
       ackedDeletes.delete(entityId);
       // Bundle merges may leave us richer than the clobbered vault row; re-push
-      // the superset so it converges at the vault (see dbAdapter / stage-2 doc).
-      for (const id of adapterApplyRemoteEntity(mirror, entity)) engine.markDirty(id);
+      // the superset so it converges at the vault (see the adapter / stage-2 doc).
+      adapter.applyRemoteEntity(entityId, entity);
       // The ack survives only if the vault still holds exactly what we acked
       // (audit fix M5). A push never advances the pull cursor, so this
       // device's OWN pushed rows re-list on the next pull; invalidating the
@@ -594,10 +599,10 @@ export function createDbEngine(callbacks = {}) {
       // doesn't re-send an identical soft-delete every cycle.
       ackedDeletes.add(entityId);
       ackedUpsertHashes.delete(entityId);
-      return adapterApplyRemoteDelete(mirror, entityId);
+      return adapter.applyRemoteDelete(entityId);
     },
-    isInsertOnly,
-    getEntityLastModified,
+    isInsertOnly: adapter.isInsertOnly,
+    getEntityLastModified: adapter.getEntityLastModified,
     onStatusChange: callbacks.onStatusChange,
     onError: callbacks.onError,
   });
@@ -1159,7 +1164,7 @@ export function createDbEngine(callbacks = {}) {
         // delete/resupply war, not a resolution — suppress and brake below.
         shouldSuppressReconcileDelete,
       );
-      // Age tombstones out at the fixed 60-day window (src/sync/tombstoneRetention.js).
+      // Age tombstones out at the fixed 60-day window (packages/dayglance-vault/src/tombstoneRetention.js).
       // The vault bundle merge is grow-only (dbAdapter unionNewerIso), so a pull
       // re-adds every tombstone a peer still holds; without this the mirror would
       // never shed old tombstones and would disagree with the file-tier merge
@@ -1211,7 +1216,7 @@ export function createDbEngine(callbacks = {}) {
       if (pushRes) {
         for (const { entityId, reason } of propagatedDeletes) recordDeletePropagation(entityId, reason);
       }
-      // Own-echo damping (#1455, sync/ownWrites.js): a push that WROTE gets a
+      // Own-echo damping (#1455, @glance-apps/dayglance-vault's ownWrites.js): a push that WROTE gets a
       // nudge back carrying exactly this maxSeq — record it so the SSE
       // coalescer can suppress our own echo by identity. Only on an actual
       // write: a no-op push returns the stale push-ack, which is not an

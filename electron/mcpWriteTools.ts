@@ -1,7 +1,8 @@
 // The Phase 3 write tools (spec §5.1) plus update_task, registered onto a per-request
-// McpServer instance by the mcpServer.ts factory. §3.7 discipline as in
-// mcpReadTools.ts: this module holds no state — the write gate, replay store,
-// consent tier, and renderer bridge all arrive as deps owned by main.ts.
+// McpServer instance by the mcpServer.ts factory. §3.7 discipline as in the
+// read tools (@glance-apps/dayglance-mcp): this module holds no state — the
+// write gate, replay store, consent tier, and renderer bridge all arrive as
+// deps owned by main.ts.
 //
 // PER-WRITE PIPELINE, in order:
 //   1. consent tier (read-write, §6.3) — off means a read_only_mode error
@@ -24,16 +25,19 @@
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/server';
-import type { RendererBridge } from './mcpRendererBridge.js';
-import { isValidLocalDate, localDateOf, dateEnvelope } from './mcpDates.js';
-import { validateStartTime, validateDurationMinutes } from './mcpLocalTime.js';
-import type { createWriteGate } from './mcpWriteGate.js';
 import {
-  createIdempotencyStore,
+  isValidLocalDate,
+  localDateOf,
+  dateEnvelope,
+  validateStartTime,
   isValidIdempotencyKey,
   makeStoreKey,
-  deterministicTaskIdFromSeed,
-} from './mcpIdempotency.js';
+  type HostBridge,
+  type WriteGate,
+  type IdempotencyStore,
+} from '@glance-apps/mcp-host';
+import { validateDurationMinutes } from './mcpLocalTime.js';
+import { deterministicTaskIdFromSeed } from './mcpIdempotency.js';
 import { planCreateTask } from './mcpCreateArgs.js';
 import { planUpdateTask } from './mcpUpdateArgs.js';
 import { planUpdateRecurringTask } from './mcpRecurringArgs.js';
@@ -58,9 +62,9 @@ function isUndoDescriptor(v: unknown): v is UndoDescriptor {
 }
 
 export interface WriteToolDeps {
-  bridge: RendererBridge;
-  gate: ReturnType<typeof createWriteGate>;
-  store: ReturnType<typeof createIdempotencyStore<StoredResult>>;
+  bridge: HostBridge;
+  gate: WriteGate;
+  store: IdempotencyStore<StoredResult>;
   /** The bearer token — the gate/replay key (no sessions, §3.7). */
   token: () => string;
   /** Read-write consent tier (§6.3). Env-sourced in Phase 3; Phase 5 swaps the source. */
@@ -217,7 +221,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
    * journal — it is main-process metadata and must never reach tool output.
    */
   const fromRenderer = (
-    r: Awaited<ReturnType<RendererBridge['request']>>,
+    r: Awaited<ReturnType<HostBridge['request']>>,
     envelope: Record<string, unknown>,
     capture?: UndoCapture,
   ): ToolResult => {

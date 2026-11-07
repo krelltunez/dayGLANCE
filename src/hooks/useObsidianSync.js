@@ -25,7 +25,7 @@ import { applyLateObservationGate, dropTasksOfSkippedNotes } from '../utils/late
 import { detectObsidianDeletions, addObsidianTombstones, commitObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
-import { vaultPosture, isStreamPosture } from '../utils/obsidianVaultPosture.js';
+import { vaultPosture, isStreamPosture, isPluginPosture } from '../utils/obsidianVaultPosture.js';
 import { isStalePairing } from '../utils/bridgeStatus.js';
 import { deriveBridgeFleet } from '../utils/bridgeFleet.js';
 import { inboundFailureNotice } from '../utils/bridgeInboundPolicy.js';
@@ -55,8 +55,12 @@ import { writebackTargetFor } from '../utils/obsidianWritebackTarget.js';
 // note over a few passes; a vault-wide burst of line writes is the shape
 // that has started wars (the declined-backfill cost record).
 const PLACEMENT_PER_PASS = 25;
-import { noteTaskId, withScheduledMetadata, withProjectMetadata, noteTextHash, extractNoteDescription, replaceNoteDescription, mergeNoteDescription } from '@glance-apps/obsidian-format';
-import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations, lastBridgeInboundFailure, readBridgeCopies } from '../utils/obsidianBridgeInbound.js';
+import { noteTaskId, withScheduledMetadata, withProjectMetadata, noteTextHash, replaceNoteDescription, mergeNoteDescription, normalizeScope } from '@glance-apps/obsidian-format';
+import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations, lastBridgeInboundFailure, readBridgeCopies, fetchReportedNoteDescription, fetchReportedNote, reportedNotesAvailability } from '../utils/obsidianBridgeInbound.js';
+import { parseTaskNoteLink, knownTaskNotePaths, taskNoteCandidates, resolveReportedTaskNote, indexedTaskNote, newestTaskNote, newNotesFolderOutsideScope } from '../utils/taskNoteSources.js';
+import { resolveIndexedTaskNote } from '../utils/reportedNotePaths.js';
+import { reportedNoteIndexForRead, noteCyclePathListing } from '../utils/reportedNoteIndexStore.js';
+import { fileNoteDescription, newestNoteDescription, isReportedDescription } from '../utils/linkedNoteDescription.js';
 import {
   fetchBridgeActions, planBridgeActions, applyActionsToTasks, applyActionsToRecurring,
   deleteBridgeActions, commitBridgeActionCursor,
@@ -319,24 +323,59 @@ export default function useObsidianSync({
   // its extension on the way in or the file looked for is "Note.md.md" (the
   // 2026-10-04 field report: a linked project's planner said its note was
   // not found).
-  const loadNoteDescription = useCallback(async (path) => {
-    const note = await loadWikiNote(noteDisplayName(normalizeNotePath(path)));
-    if (!note) return null;
-    if (note.notFound) return { notFound: true };
-    const text = extractNoteDescription(note.text ?? '');
-    return { text, base: noteTextHash(text), lastModified: note.lastModified ?? null };
+  //
+  // TWO SOURCES (#2291): the vault file as this device reads it, and the
+  // note as the plugin last reported it on the bridge's observation stream
+  // (obsidianBridgeInbound.js fetchReportedNoteDescription, one row read on
+  // demand, nothing kept). A device without the folder shows the reported
+  // section; a device with both shows the newer, file mtime to file mtime;
+  // a reported deletion is not found. The rule is utils/linkedNoteDescription.js.
+  // A reported section carries `source: 'report'` and its `observedAt`.
+  const readNoteDescriptionSources = useCallback(async (notePath) => {
+    // With Obsidian running here (the 'plugin' posture) the folder IS the
+    // live note, so a readable file answers alone: no GLANCEvault request per
+    // box, or per linked entity in an MCP goal tree (up to 40 at once), on the
+    // device that needs it least. Elsewhere (holding, no folder) both are read
+    // and the newer wins.
+    if (isPluginPosture(bridgeHeartbeatRef.current)) {
+      const note = await loadWikiNote(noteDisplayName(notePath));
+      const fromFile = fileNoteDescription(note);
+      if (fromFile && !fromFile.notFound) return { note, shown: fromFile };
+      return { note, shown: newestNoteDescription(fromFile, await fetchReportedNoteDescription(notePath)) };
+    }
+    const [note, reported] = await Promise.all([
+      loadWikiNote(noteDisplayName(notePath)),
+      fetchReportedNoteDescription(notePath),
+    ]);
+    return { note, shown: newestNoteDescription(fileNoteDescription(note), reported) };
   }, [loadWikiNote]);
+  const loadNoteDescription = useCallback(async (path) => {
+    const notePath = normalizeNotePath(path);
+    if (!notePath) return null;
+    return (await readNoteDescriptionSources(notePath)).shown;
+  }, [readNoteDescriptionSources]);
   const saveNoteDescription = useCallback(async (kind, id, path, content, { base = null } = {}) => {
     const notePath = normalizeNotePath(path);
     if (!notePath) return { ok: false };
     const noteName = noteDisplayName(notePath);
-    const current = await loadWikiNote(noteName);
-    if (current && !current.notFound && typeof current.text === 'string') {
-      const section = extractNoteDescription(current.text);
-      if (base && noteTextHash(section) !== base) return { refused: 'changed', text: section, lastModified: current.lastModified ?? null };
+    // Refuse on change against the section as it would be SHOWN now, by the
+    // same newest-source rule the box loaded it under: a text the user
+    // edited from the plugin's report is checked against the report, not
+    // against a copy here that is behind it.
+    const { note: current, shown } = await readNoteDescriptionSources(notePath);
+    if (base && shown && !shown.notFound && typeof shown.text === 'string' && shown.base !== base) {
+      return {
+        refused: 'changed', text: shown.text, lastModified: shown.lastModified ?? null,
+        ...(isReportedDescription(shown) ? { source: 'report', observedAt: shown.observedAt ?? null } : {}),
+      };
     }
     const at = new Date().toISOString().slice(0, 16).replace('T', ' ');
-    if (isStreamPosture(bridgeHeartbeatRef.current)) {
+    // The stream carries the write in stream posture, and also on a device
+    // that read the section only from the plugin's report (no folder here,
+    // or a copy without the note): the plugin applies it inside Obsidian
+    // and refuses there if the note moved since `base`.
+    const fileReadable = !!current && !current.notFound && typeof current.text === 'string';
+    if (isStreamPosture(bridgeHeartbeatRef.current) || (!fileReadable && isReportedDescription(shown))) {
       const queued = emitBridgeIntent('project_note_description', {
         path: notePath, targetId: String(id), content, mode: 'replace', ...(base ? { base } : {}), at,
       });
@@ -345,7 +384,7 @@ export default function useObsidianSync({
         setObsidianSyncStatus('error');
         return { ok: false };
       }
-      return { ok: true };
+      return { ok: true, mode: 'queued' };
     }
     // Direct access (an unpaired vault): the whole note, with its section
     // replaced; the note must exist (a link names an existing note).
@@ -353,13 +392,150 @@ export default function useObsidianSync({
     if (!handle || handle === 'native' || !current || current.notFound) return { ok: false };
     try {
       await writeWikiNote(handle, noteName, replaceNoteDescription(current.text, content), obsidianConfig?.newNotesFolder ?? 'dayGLANCE');
-      return { ok: true };
+      return { ok: true, mode: 'written' };
     } catch (err) {
       setObsidianSyncError(err.message);
       setObsidianSyncStatus('error');
       return { ok: false };
     }
-  }, [obsidianConfig?.newNotesFolder, obsidianVaultHandleRef, setObsidianSyncError, setObsidianSyncStatus, loadWikiNote]);
+  }, [obsidianConfig?.newNotesFolder, obsidianVaultHandleRef, setObsidianSyncError, setObsidianSyncStatus, readNoteDescriptionSources]);
+
+  // ── A task's linked note (#2291 follow-up: task notes) ──────────────────
+  // The task panel's loader: the whole note a task's [[wikilink]] names,
+  // from the vault folder or, where this device cannot read it or its copy
+  // is behind, from the plugin's report of it (utils/taskNoteSources.js has
+  // the name-to-path resolution and the newest-source rule). Answers:
+  //   { text, lastModified, source: 'file' }         the folder's note
+  //   { text, base, lastModified, observedAt, path, source: 'report' }
+  //   { notFound: true }  a reachable folder without the note: the panel's
+  //                       empty editor whose save creates it (unchanged)
+  //   { unavailable: reason, … }  why nothing can be shown: 'not_set_up'
+  //       (no folder, no paired vault), 'not_shared' (paired, but the note
+  //       is not one the plugin reports; `newNotesFolderOutsideScope` when
+  //       the folder dayGLANCE creates notes in is not shared), 'ambiguous',
+  //       'deleted', 'unreachable' (the report could not be asked for), or
+  //       'read_failed' (a folder whose read failed, the report no help).
+  // loadWikiNote keeps its own contract for every other caller; the panel
+  // asks for this one through it ({ taskPanel: true }).
+  // THE NAME, RESOLVED ON THE STREAM: against the index of reported note
+  // paths (utils/reportedNotePaths.js) once it is complete, brought up to
+  // the stream first within a budget; a link that matches nothing in an
+  // index that could not be brought up just now is also read at its own
+  // path, in case the note was reported since. Until the index is complete,
+  // the likely homes and known paths are guessed (taskNoteCandidates), as
+  // before it existed.
+  const reportedTaskNoteByName = useCallback(async (link, availability) => {
+    if (availability.status === 'unpaired') return { unavailable: 'not_set_up' };
+    if (availability.status !== 'ready') return { unavailable: 'unreachable' };
+    const newNotesFolder = obsidianConfig?.newNotesFolder ?? 'dayGLANCE';
+    const scope = normalizeScope(availability.scope);
+    let resolved;
+    const { index, fresh } = await reportedNoteIndexForRead();
+    if (index?.complete) {
+      const match = resolveIndexedTaskNote(link, index);
+      const path = match.path ?? (match.none && !fresh ? link.path : null);
+      resolved = indexedTaskNote(match, path ? await fetchReportedNote(path) : null);
+    } else {
+      const plan = taskNoteCandidates(link, {
+        knownPaths: knownTaskNotePaths({
+          tasks: [...(obsidianTasksRef.current || []), ...(obsidianInboxRef.current || []), ...(recurringTasksRef.current || [])],
+          projects: projectsRef.current || [], goals: goalsRef.current || [],
+        }),
+        newNotesFolder,
+        dailyNotesFolder: obsidianConfig?.dailyNotesPath || '',
+        scopeFolders: scope.folders,
+      });
+      const readings = plan.ambiguous ? [] : await Promise.all(plan.paths.map((p) => fetchReportedNote(p)));
+      resolved = resolveReportedTaskNote(plan, readings);
+    }
+    if (resolved.unavailable === 'not_shared' && newNotesFolderOutsideScope(link, newNotesFolder, scope)) {
+      return { ...resolved, newNotesFolderOutsideScope: true, newNotesFolder: String(newNotesFolder).replace(/^\/+|\/+$/g, '') };
+    }
+    return resolved;
+  }, [obsidianConfig?.newNotesFolder, obsidianConfig?.dailyNotesPath, obsidianTasksRef, obsidianInboxRef]);
+  const loadTaskNote = useCallback(async (noteName) => {
+    const link = parseTaskNoteLink(noteName);
+    if (!link) return { unavailable: 'read_failed' };
+    if (!obsidianVaultHandleRef.current) {
+      // No folder here: the plugin's report, or why there is none.
+      return reportedTaskNoteByName(link, await reportedNotesAvailability());
+    }
+    const note = await loadWikiNote(noteName);
+    const fileReadable = !!note && !note.notFound && typeof note.text === 'string';
+    // Obsidian runs here (the 'plugin' posture): the folder IS the live
+    // vault, so it answers alone, found or not (the create editor for a new
+    // link appears without a GLANCEvault round trip).
+    if (isPluginPosture(bridgeHeartbeatRef.current) && (fileReadable || note?.notFound)) {
+      return fileReadable ? { ...note, source: 'file' } : { notFound: true };
+    }
+    const availability = await reportedNotesAvailability();
+    if (fileReadable) {
+      // The report of THE SAME note: the path the folder read (exact for a
+      // link with a folder; where the search found a bare name). A native
+      // vault does not say where it found a bare name: its file stands.
+      const path = link.qualified ? link.path : (typeof note.path === 'string' ? normalizeNotePath(note.path) : null);
+      if (!path || availability.status !== 'ready') return { ...note, source: 'file' };
+      return newestTaskNote(note, await fetchReportedNote(path));
+    }
+    // The folder lacks the note, or could not read it: the report, when the
+    // name finds one. Otherwise the folder's own answer (the create editor,
+    // or today's "not found"), unless the stream knows better.
+    const fromStream = availability.status === 'unpaired' ? null : await reportedTaskNoteByName(link, availability);
+    if (fromStream?.source === 'report') return fromStream;
+    if (fromStream?.unavailable === 'ambiguous') return fromStream;
+    if (note?.notFound) return { notFound: true };
+    if (fromStream?.unavailable === 'deleted') return fromStream;
+    return { unavailable: 'read_failed' };
+  }, [loadWikiNote, obsidianVaultHandleRef, reportedTaskNoteByName]);
+
+  // The task panel's save: refuse on change against the note as it would be
+  // SHOWN now, by the same newest-source rule the panel loaded it under, so
+  // a text edited from the plugin's report is checked against the report.
+  // A note shown from a report goes out as the wiki_note_write intent under
+  // the PATH the report named (the plugin resolves an existing path first,
+  // so it writes the note that was shown) and the shown text's base (the
+  // plugin refuses there if the note moved meanwhile). Everything else is
+  // saveWikiNote, as before.
+  const saveTaskNote = useCallback(async (noteName, content, { base = null } = {}) => {
+    const shown = await loadTaskNote(noteName);
+    const shownText = !!shown && typeof shown.text === 'string';
+    if (base && shownText && noteTextHash(shown.text) !== base) {
+      return {
+        refused: 'changed', text: shown.text, lastModified: shown.lastModified ?? null,
+        ...(shown.source === 'report' ? { source: 'report', observedAt: shown.observedAt ?? null } : {}),
+      };
+    }
+    if (shown?.source === 'report') {
+      const queued = emitBridgeIntent('wiki_note_write', {
+        noteName: String(shown.path).replace(/\.md$/i, ''), content,
+        newNotesFolder: obsidianConfig?.newNotesFolder ?? 'dayGLANCE',
+        ...(base ? { base } : {}),
+      });
+      if (!queued) {
+        setObsidianSyncError(`Note "${noteName}" was not written: the bridge queue is unavailable.`);
+        setObsidianSyncStatus('error');
+        return { ok: false };
+      }
+      return { ok: true, mode: 'queued' };
+    }
+    if (shown?.unavailable && shown.unavailable !== 'read_failed') {
+      // Nothing this device can check the edit against (the report could
+      // not be read now, or the note is gone or not shared): not written.
+      if (!obsidianVaultHandleRef.current || shown.unavailable === 'deleted') {
+        setObsidianSyncError(`Note "${noteName}" was not written: this device could not read the note to check it has not changed in Obsidian.`);
+        setObsidianSyncStatus('error');
+      }
+      return { ok: false, unavailable: shown.unavailable };
+    }
+    return saveWikiNote(noteName, content, { base });
+  }, [loadTaskNote, saveWikiNote, obsidianConfig?.newNotesFolder, obsidianVaultHandleRef, setObsidianSyncError, setObsidianSyncStatus]);
+
+  // What the sync context hands every task panel: loadWikiNote and
+  // saveWikiNote unchanged, or the task-note pair when the panel asks.
+  const loadWikiNoteFor = useCallback((noteName, opts) => (opts?.taskPanel ? loadTaskNote(noteName) : loadWikiNote(noteName)), [loadTaskNote, loadWikiNote]);
+  const saveWikiNoteFor = useCallback((noteName, content, opts) => (opts?.taskPanel
+    ? saveTaskNote(noteName, content, opts)
+    : saveWikiNote(noteName, content, opts)), [saveTaskNote, saveWikiNote]);
 
   // The one-time move of the notes box into the section, on direct access
   // (the stream's twin is the `merge` intent): the note as this device
@@ -619,8 +795,15 @@ export default function useObsidianSync({
   const openInObsidian = useCallback((noteName) => {
     const handle = obsidianVaultHandleRef.current;
     if (!handle) return;
+    // obsidian://open names a FILE: a heading or block part (`Note#^abc1`,
+    // which a task added from Obsidian with "Link to the exact paragraph"
+    // carries) would be read as part of the file name and match nothing.
+    // The note opens; the Electron main process strips it the same way
+    // (electron/obsidianUri.ts).
+    const fileName = String(noteName ?? '').split('#')[0].trim();
+    if (!fileName) return;
     if (handle === 'native') {
-      nativeOpenNote(noteName);
+      nativeOpenNote(fileName);
       return;
     }
     // Electron: hand the note name to the main process, which builds the
@@ -637,7 +820,7 @@ export default function useObsidianSync({
     const vaultName = handle.name;
     if (vaultName) {
       window.open(
-        `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(noteName)}`,
+        `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(fileName)}`,
         '_blank',
       );
     }
@@ -953,6 +1136,13 @@ export default function useObsidianSync({
         await surfaceBridgeFleet();
         if (fetched) {
           inboundFailuresRef.current = 0;
+          // The index of reported note paths (utils/reportedNoteIndexStore.js)
+          // takes the paths this pull already decrypted, under its own
+          // cursor: the commit below is not touched, and the cycle does not
+          // wait. Holding, where a task panel reads the index, an index this
+          // pull does not continue (or one never completed) lists from its
+          // own seq, once from zero.
+          void noteCyclePathListing(fetched.pathListing, { catchUp: holding });
           const applied = fetched.observations.length
             ? applyBridgeObservations(fetched.observations, {
                 existingTasks: currentTasks,
@@ -1737,7 +1927,7 @@ export default function useObsidianSync({
     // theirs except the shim below.) The deletion DETECTOR still never infers
     // a deletion from a rename (the scanned-keys hints see to that): this is
     // the commit asserting a fact it holds. Entries prune at the shared 60-day
-    // retention (sync/tombstoneRetention.js).
+    // retention (packages/dayglance-vault/src/tombstoneRetention.js).
     //
     // RETIRED_ID_DUAL_WRITE (legacy-fleet shim — sunset condition documented
     // at the flag in utils/retiredTaskIds.js): the v4.7.x fleet's file-tier
@@ -2530,5 +2720,5 @@ export default function useObsidianSync({
     return queued;
   }, [updateProject, updateGoal]);
 
-  return { performObsidianSync, nudgeObsidianObservations, loadWikiNote, saveWikiNote, loadNoteDescription, saveNoteDescription, openInObsidian, notifyNativeReady, bridgeHeartbeatRef, linkProjectNote, unlinkProjectNote, createProjectNote };
+  return { performObsidianSync, nudgeObsidianObservations, loadWikiNote: loadWikiNoteFor, saveWikiNote: saveWikiNoteFor, loadTaskNote, saveTaskNote, loadNoteDescription, saveNoteDescription, openInObsidian, notifyNativeReady, bridgeHeartbeatRef, linkProjectNote, unlinkProjectNote, createProjectNote };
 }

@@ -15,7 +15,12 @@ What lives here: line identity (`^dg-` block ids, deterministic derivation,
 legacy content hashing), decorations (completion markers, Tasks-plugin
 metadata, creation frontmatter), line building and rewriting (prefixes, the
 section sort, `updateTaskLines`), note naming (daily-note filename patterns,
-portability validators), and the task-line parser.
+portability validators), and the task-line parser. The bridge stream's wire
+format lives here too (sealed envelopes, intents, observations), with the
+reading of it a consumer without a vault needs: a note's latest reported
+state, and a linked note's description section from it
+(`noteObservations.js`: `noteDescriptionFromObservations`,
+`bridgeNoteDescriptionLoader`), as current as the plugin's last report.
 
 What must never live here: transports (File System Access, Electron IPC, the
 Android/iOS bridges), sync and merge logic, and every ownership rule — who

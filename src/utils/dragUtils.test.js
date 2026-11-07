@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   columnTimeFromEvent, dragBlockRange, anchorDragImageAtTop, DRAG_BLOCK_FALLBACK_MINUTES,
+  dropClampMinutes,
 } from './dragUtils.js';
 
 // #2277: while a task is dragged, the timeline shows the block it becomes if
@@ -10,14 +11,28 @@ import {
 describe('dragBlockRange', () => {
   it('runs from the preview start for the item\'s duration', () => {
     expect(dragBlockRange(9 * 60, 45)).toEqual({
-      startMinute: 540, endMinute: 585, startTime: '09:00', endTime: '09:45',
+      startMinute: 540, endMinute: 585, overflowMinutes: 0, startTime: '09:00', endTime: '09:45',
     });
   });
 
-  it('clamps the start as the drop does, so the block ends by midnight', () => {
-    // MULTI's drop: getTimeFromCursorPosition(e, { maxMinutes: 24 * 60, taskDuration })
-    expect(dragBlockRange(23 * 60 + 30, 60)).toMatchObject({ startMinute: 23 * 60, endMinute: 24 * 60 });
+  // #2278: a timed task may run past midnight, so the drop keeps the cursor's
+  // time as the start (as late as 23:45) instead of pulling the task back to
+  // end by midnight. The block is drawn to midnight, the rest is overflow
+  // (the next date draws it), and the label says the real end.
+  it('clamps the start as the drop does: as late as 23:45, the rest running past midnight', () => {
+    // MULTI's drop: getTimeFromCursorPosition(e, { maxMinutes: 24 * 60, taskDuration: dropClampMinutes(d) })
+    expect(dragBlockRange(23 * 60 + 30, 60)).toMatchObject({
+      startMinute: 23 * 60 + 30, endMinute: 24 * 60, overflowMinutes: 30, startTime: '23:30', endTime: '00:30',
+    });
+    expect(dragBlockRange(24 * 60, 60)).toMatchObject({ startMinute: 23 * 60 + 45, overflowMinutes: 45 });
     expect(dragBlockRange(-15, 30)).toMatchObject({ startMinute: 0, endMinute: 30 });
+  });
+
+  it('dropClampMinutes keeps a quarter-hour (or the item\'s shorter length) on the column', () => {
+    expect(dropClampMinutes(120)).toBe(15);
+    expect(dropClampMinutes(15)).toBe(15);
+    expect(dropClampMinutes(5)).toBe(5);
+    for (const d of [0, undefined, null, NaN, -5]) expect(dropClampMinutes(d)).toBe(0);
   });
 
   it('labels a block ending at the end of the day as midnight', () => {
@@ -26,19 +41,20 @@ describe('dragBlockRange', () => {
 
   it('clamps to a window (WEEK\'s visible hours, a DAY column)', () => {
     const win = { minMinute: 8 * 60, maxMinute: 16 * 60 };
-    expect(dragBlockRange(15 * 60 + 45, 60, win)).toMatchObject({ startMinute: 15 * 60, endMinute: 16 * 60 });
+    expect(dragBlockRange(15 * 60 + 45, 60, win)).toMatchObject({ startMinute: 15 * 60 + 45, endMinute: 16 * 60, overflowMinutes: 45 });
+    expect(dragBlockRange(16 * 60, 60, win)).toMatchObject({ startMinute: 15 * 60 + 45 });
     expect(dragBlockRange(7 * 60, 30, win)).toMatchObject({ startMinute: 8 * 60, endMinute: 8 * 60 + 30 });
   });
 
-  it('an item longer than the window starts at its top and is clipped at its bottom', () => {
+  it('an item longer than the window starts at the cursor and is clipped at the window\'s bottom', () => {
     expect(dragBlockRange(10 * 60, 10 * 60, { minMinute: 8 * 60, maxMinute: 16 * 60 }))
-      .toMatchObject({ startMinute: 8 * 60, endMinute: 16 * 60 });
+      .toMatchObject({ startMinute: 10 * 60, endMinute: 16 * 60, overflowMinutes: 4 * 60 });
   });
 
   it('is a no-op on a start the column handler already clamped', () => {
     // The same handler sets the preview and computes the drop.
     const colEl = { getBoundingClientRect: () => ({ top: 0 }) };
-    const opts = { startMinute: 8 * 60, hourHeight: 60, maxMinute: 16 * 60, taskDuration: 90 };
+    const opts = { startMinute: 8 * 60, hourHeight: 60, maxMinute: 16 * 60, taskDuration: dropClampMinutes(90) };
     for (const clientY of [0, 100, 410, 470, 479]) {
       const [h, m] = columnTimeFromEvent({ clientY }, colEl, opts).split(':').map(Number);
       const start = h * 60 + m;
@@ -50,7 +66,7 @@ describe('dragBlockRange', () => {
     // The drop clamps such an item with a duration of 0; so does the block.
     for (const duration of [undefined, null, 0, NaN, -5]) {
       expect(dragBlockRange(23 * 60 + 45, duration)).toEqual({
-        startMinute: 23 * 60 + 45, endMinute: 24 * 60, startTime: '23:45', endTime: '00:00',
+        startMinute: 23 * 60 + 45, endMinute: 24 * 60, overflowMinutes: 0, startTime: '23:45', endTime: '00:15',
       });
       expect(dragBlockRange(600, duration).endMinute).toBe(600 + DRAG_BLOCK_FALLBACK_MINUTES);
     }

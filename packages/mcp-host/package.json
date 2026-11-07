@@ -1,0 +1,44 @@
+{
+  "name": "@glance-apps/mcp-host",
+  "version": "0.1.0",
+  "description": "The transport-and-safety layer for a GLANCE app's MCP server: the HTTP listener and its path, Host, Origin and bearer-token guards, port policy, write gate, idempotent replay, pagination, write journal, and local date rules.",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./dates": {
+      "types": "./types/dates.d.ts",
+      "default": "./src/dates.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "types",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/node": "^2.1.1",
+    "@modelcontextprotocol/server": "^2.3.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krelltunez/dayGLANCE.git",
+    "directory": "packages/mcp-host"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

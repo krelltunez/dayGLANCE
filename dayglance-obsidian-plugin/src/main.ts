@@ -34,7 +34,7 @@
 // offer at `.dayglance/pairing`, the user types the displayed code here,
 // the credentials are verified against GLANCEvault and stored in data.json.
 
-import { Notice, Platform, Plugin, normalizePath } from 'obsidian';
+import { Notice, Platform, Plugin, normalizePath, type Editor } from 'obsidian';
 // The shared vault-format core — the SAME package dayGLANCE consumes, so the
 // heartbeat's writer and its readers can never drift apart (the first proof
 // the format-package boundary works in both directions). Bundled into
@@ -51,6 +51,8 @@ import { normalizeScope, scopeIsActive, normalizeProjectNoteSettings, type Vault
 import { localDateStr } from '@glance-apps/agenda-core';
 import { AgendaView, AGENDA_VIEW_TYPE } from './agendaView';
 import { LinkTargetModal } from './linkModal';
+import { AddTaskModal } from './addTaskModal';
+import { addSelectionAsTask, addTaskSource, TASK_CREATE_CAPABILITY } from './addTask';
 import { NoteBlockWriter } from './noteBlocks';
 import { applyEditorHidingSettings, clearEditorHidingSettings, editorHidingExtension, markCompletedInReadingView, refreshEditorHiding, type EditorHidingHost } from './editorHiding';
 import { normalizeEditorHidingSettings, type EditorHidingSettings } from './editorHidingRules';
@@ -92,6 +94,10 @@ interface BridgeData {
   // Editor hiding (display only, editorHiding.ts): dayGLANCE's own block
   // ids off the cursor line, and checked lines in linked notes.
   editorHiding?: Partial<EditorHidingSettings>;
+  // "Add to dayGLANCE" (companion 4.2.1): link a task to the exact block
+  // holding the selection (adding a block id when it has none) rather than
+  // to the note. Off by default: it edits the note.
+  addTask?: { linkToBlock?: boolean };
 }
 
 const mintDeviceId = (): string => {
@@ -168,6 +174,8 @@ export default class DayGlanceBridgePlugin extends Plugin {
       app: this.app,
       getPairing: () => this.data.pairing,
       getViewer: () => this.viewer(),
+      // Built just below; read at write time.
+      getWriteGate: () => this.transport ?? null,
     });
     void this.agenda.init();
 
@@ -267,6 +275,31 @@ export default class DayGlanceBridgePlugin extends Plugin {
       },
     });
 
+    // "Add to dayGLANCE" (companion 4.2.1): the selection becomes one inbox
+    // task. The editor's context menu offers it while text is selected, and
+    // a command (so it can take a hotkey) is available only then too. Both
+    // exist on mobile, where the context menu is the long-press menu.
+    this.registerEvent(this.app.workspace.on('editor-menu', (menu, editor, info) => {
+      const file = info.file;
+      if (!editor.somethingSelected() || !file) return;
+      menu.addItem((item) => item
+        .setTitle('Add to dayGLANCE')
+        .setIcon('list-plus')
+        .onClick(() => this.openAddTask(editor, file)));
+    }));
+    // Always available in an editor (the selection, or the cursor's line):
+    // a command that required a selection was missing from the mobile
+    // toolbar's picker, and on a phone the command is the only way in
+    // (addTaskSource). The id is unchanged, so hotkeys keep working.
+    this.addCommand({
+      id: 'add-selection-to-dayglance',
+      name: 'Add selection or current line to dayGLANCE as a task',
+      editorCallback: (editor, ctx) => {
+        const file = ctx.file;
+        if (file) this.openAddTask(editor, file);
+      },
+    });
+
     // Full ids in the palette: dayglance-bridge:<id> (Obsidian prefixes the
     // manifest id). Sync now = drain pending intents + refresh the beat.
     this.addCommand({
@@ -331,6 +364,11 @@ export default class DayGlanceBridgePlugin extends Plugin {
       },
       templateStatus: () => this.transport.templateStatus(),
       stalePairing: () => this.transport.stalePairingInfo(),
+      getLinkToBlock: () => this.data.addTask?.linkToBlock === true,
+      setLinkToBlock: async (on) => {
+        this.data.addTask = { ...this.data.addTask, linkToBlock: on };
+        await this.saveData(this.data);
+      },
       getEditorHiding: () => this.editorHiding(),
       setEditorHiding: async (s) => {
         this.data.editorHiding = normalizeEditorHidingSettings(s);
@@ -390,6 +428,8 @@ export default class DayGlanceBridgePlugin extends Plugin {
         this.transport.adoptTick();
         this.transport.linkTick();
         void this.noteBlocks.tick();
+        // The waiting indicator: a few sent creates' rows per tick.
+        void this.agenda.checkSentCreates();
       }, HEARTBEAT_INTERVAL_MS),
     );
   }
@@ -521,6 +561,32 @@ export default class DayGlanceBridgePlugin extends Plugin {
   private viewer(): string | null {
     if (this.data.viewer) return this.data.viewer.userSyncId;
     return this.data.pairing?.userSyncId ?? null;
+  }
+
+  // The "Add to dayGLANCE" form for the editor's selection. The selection is
+  // read when the form opens; the block id (when the setting asks for one) is
+  // decided on Add, against the editor as it is then. The form opens whether
+  // or not an app can receive the task yet (so the feature can be found) and
+  // explains when none can (companion spec 4.2.2).
+  private openAddTask(editor: Editor, file: TFile): void {
+    if (!this.data.pairing) { new Notice('dayGLANCE bridge: not paired.'); return; }
+    const { title, from, to } = addTaskSource(editor);
+    new AddTaskModal(this.app, {
+      title,
+      projects: this.agenda.projectChoices(),
+      appKnown: this.agenda.appSupportKnown(TASK_CREATE_CAPABILITY),
+      checkApp: () => this.agenda.appSupports(TASK_CREATE_CAPABILITY),
+      onSubmit: async (values) => {
+        const r = await addSelectionAsTask({
+          app: this.app, editor, file, from, to, values,
+          linkToBlock: this.data.addTask?.linkToBlock === true,
+          ready: () => this.agenda.appSupports(TASK_CREATE_CAPABILITY),
+          emit: (input) => this.agenda.createTask(input),
+        });
+        new Notice(`dayGLANCE bridge: ${r.message}`);
+        return r.ok;
+      },
+    }).open();
   }
 
   // Reveal (or create, in the right sidebar) the agenda view, landing on

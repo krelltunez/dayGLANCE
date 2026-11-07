@@ -20,6 +20,12 @@
 // carry-forward would lose a count made offline. Max is the best estimate either
 // device can offer and needs no coordination. That property is worth protecting:
 // anything that could lower the number breaks the merge.
+//
+// The merge itself, mergeDeferrals, lives in @glance-apps/dayglance-vault
+// (#2280) beside the vault adapter that applies it; imported back here.
+import { mergeDeferrals } from '@glance-apps/dayglance-vault';
+
+export { mergeDeferrals };
 
 // "HH:MM" to minutes. Parsed here rather than imported: the only exported copy
 // lives in streamDeckPayload.js, which pulls in the Electron protocol, and a
@@ -82,19 +88,6 @@ export function stampDeferrals(currentTasks, prevTasks, now = new Date(), todayS
     return { ...task, deferrals: (Number(task.deferrals) || 0) + 1 };
   });
   return changed ? out : currentTasks;
-}
-
-/**
- * Merge two counts. Max rather than sum, because both devices may have watched
- * the same slip; max rather than last-writer-wins, because a device that never
- * carried the field would otherwise erase a real count. Absent reads as zero,
- * which makes this subsume the carry-forward the other sticky fields need.
- */
-export function mergeDeferrals(a, b) {
-  const left = Number(a) || 0;
-  const right = Number(b) || 0;
-  const merged = Math.max(left, right);
-  return merged > 0 ? merged : undefined;
 }
 
 /**

@@ -498,6 +498,240 @@ veto. The veto lapsed unexercised: the owner verified the passphrase, used the
 view daily, and commissioned three features on top of it (routines, calendar
 projections, the viewer). The design is settled.
 
+### 4.2.1 Add to dayGLANCE: a selection becomes an inbox task (owner-approved, 2026-11-06)
+
+Text selected in a note becomes ONE dayGLANCE inbox task, titled with the
+selection and linked back to the note. Like the sidebar's completion it is
+an ACTION, applied by dayGLANCE; the plugin still never writes the data
+plane.
+
+**Plugin side.** The editor's context menu (`editor-menu`) offers **Add to
+dayGLANCE** while text is selected. On Obsidian mobile a long press shows the
+system's text menu, never the editor menu, so the command is the way in
+there: **Add selection or current line to dayGLANCE as a task** is an `editorCallback`, always available in an editor (a
+command that needed a selection was missing from the mobile toolbar's
+picker, which lists commands with none in hand), and starts from the
+selection or, with none, the cursor's line (`addTaskSource`). A form prefills
+the title from that text (one line; list, checkbox, heading and quote syntax and a
+trailing block id dropped; editable; an empty title is refused) and offers
+the app's inbox fields: an optional deadline (`YYYY-MM-DD`, the app's
+`deadline`), the app's priority (0 none, 1 low, 2 medium, 3 high) and, when
+the mirror can list them (the passphrase is set on this device), the
+viewer's active projects (neither archived nor completed; goals do not own
+tasks, so they are not offered). As in the app's form, priority is off for a
+project task. The title becomes `<title> [[<link>]]`, the link being
+Obsidian's own link text for the note (`metadataCache.fileToLinktext(file,
+'', true)`: a bare name while unique, a path otherwise), always a wikilink
+whatever the markdown-link setting.
+
+**Only when an app can receive it** (owner ruling, 2026-11-06; the
+mechanism is §4.2.2). The form opens whatever the fleet runs, so the
+feature can be found, and asks the stream whether some current app
+announces `task_create`. Until one does it explains instead of sending:
+"This needs a newer version of dayGLANCE on at least one of your devices.
+Update dayGLANCE, then try again." Add is disabled, Enter in the title is
+refused the same way, nothing is emitted, and with "Link to the exact
+paragraph" on no block id is written either: the check runs before
+anything touches the note (`addSelectionAsTask` refuses first, whoever
+calls it). A row sealed under another pairing generation says the app has
+not yet seen this pairing ("Open dayGLANCE on one of your devices, then
+try again."). A row that cannot be read (offline, a 429, the brake, a
+rejected credential) refuses too, saying GLANCEvault could not be reached:
+the send would meet the same wall. A sent task is reported as "Sent to
+dayGLANCE. It appears there once dayGLANCE picks it up.", not "added",
+since the task exists once an app applies the row.
+
+*Why.* Users update in any order, and the plugin often updates before the
+Play Store delivers the app. Before this check a new plugin with only old
+apps said "Added" and nothing appeared for days; each retry became a
+separate task once an app updated; and after 60 days the waiting rows were
+consumed unapplied, silently.
+
+**The waiting indicator.** The plugin remembers each create it sent
+(`actionId`, title, `sentAt`) in this copy's device-local store, never
+`data.json`, per account and pairing generation. On its 30-second tick it
+reads a few of those rows by id (at most three a tick, the
+longest-unchecked first; every five minutes while an entry is under a day
+old, hourly up to a week, then every six hours) and drops an entry whose
+row is gone: an app consumed it. An entry still on the stream an hour after
+it was sent is counted, and the agenda sidebar shows "1 task waiting for
+dayGLANCE. Open or update dayGLANCE on one of your devices to bring it in."
+under its status line (in the passphrase prompt too, since sending needs
+only the pairing). Entries older than the app's 60-day cutoff are dropped
+unread; the list is capped at 200.
+
+**Link to the exact paragraph** (a setting, off by default). The link names
+the block holding the selection's start, `[[<link>#^<id>]]`:
+
+- an id of the user's already at the end of that block is reused. A
+  dayGLANCE task line, stamped or not, links to the note instead: an
+  unstamped one must not gain an id (the parser would fold it into the
+  title, the stamper would refuse the line), and a link never names a
+  `^dg-` stamp, because a title holding `^dg-` is one the writeback refuses
+  to stamp, so a task put into its project's linked note would land there
+  unstamped and could be imported twice;
+- otherwise six random lowercase letters and digits (Obsidian's shape) are
+  added at the end of the paragraph or list item, through the editor
+  (`replaceRange`, selections restored), so undo works and the open buffer
+  is not overwritten. Never a `^dg-` id: the plugin reads `^dg-` content as
+  a dayGLANCE note;
+- never an id on an UNSTAMPED task line (or its continuation): dayGLANCE's
+  parser keeps a block id it does not own as part of the task's title
+  (`splitBlockId`), and the stamper refuses a line ending in one
+  (`hasForeignBlockId`, `planStampInsertions`), so the id would retitle the
+  task and keep its line unstamped for good. That selection links to the
+  note, and the notice says why;
+- frontmatter, headings, code, math, tables and quotes link to the note.
+
+A non-task paragraph with a new id changes nothing the parsers read: the
+harness re-parses the note after the id is added and gets the same tasks.
+
+**The row.** `act-create:<actionId>` (`BRIDGE_CREATE_ACTION_PREFIX`), sealed
+under the pairing subkey: `{v:1, kind:'action', type:'task_create',
+actionId, title, notePath, deadline?, priority?, projectId?, viewer?,
+createdAt}`. `actionId` is `mintIntentId()`; `createdAt` is local-offset
+ISO (the app's `createdAt` form); `viewer` is the plugin's viewer (decision
+9). Emitting needs only the pairing. The write honours the transport's 429
+brake (held back while it is on, armed by a 429), records its ack as the
+copy's own write so its SSE echo does not wake the drain, and is retried
+twice on a network failure under the same actionId (an upsert of one row).
+
+*Why not `act:`.* An app built before this feature runs `planBridgeActions`
+on every `act:` row: an unknown type is consumed as stale AT ONCE (not after
+`ACTION_STALE_MS`) and the row is deleted on that device's next Obsidian
+cycle, which the `act:` row itself wakes within seconds through the SSE
+probe. Any older folder device online would eat every create before a
+current device saw it. No older reader lists `act-create:` (each filters its
+own prefix: `obs:`, `act:`, `proj:`, `int:`, `meta:`), so the row waits for
+a current app. An old plugin never emits the type.
+
+**App side** (`src/utils/obsidianBridgeCreates.js`,
+`src/hooks/useBridgeTaskCreates.js`).
+
+- *Who consumes.* Any paired device with the account key, folder or not:
+  the gates are `fetchBridgeActionRows`' own (vault on, the pairing meta,
+  the verified key). Not inside `performObsidianSync`, which returns before
+  anything on a device without the folder handle. The pass runs at load,
+  every five minutes, on visibility, on the bridge-namespace SSE nudge
+  (leading-edge, at most one pass per 20 s), and as a follow-up ten seconds
+  after a pass that created something. The headless refresh root does not
+  compose it.
+- *Two consumers, one stream.* Creates are read under their own cursor
+  (`dayglance-bridge-act-create-hwm`) and their own prefix; completions keep
+  `ACT_HWM_KEY` and `act:`. Neither consumer lists, holds, deletes or
+  advances past the other's rows on the other's behalf, so a folderless
+  device consuming creates cannot skip a completion a folder device has yet
+  to apply, and the folder device's completion pass cannot drop a create.
+  `task_complete` is consumed where it was.
+- *One task per action.* The task's id is `bridge-add-<actionId>`: devices
+  racing one row build the same id and the same row, and sync merges them.
+  Never `obsidian-…`, so nothing that parses an Obsidian-import id
+  (`obsidian-<date>-`, `obsidian-dg-`) reads it as one.
+- *A plain app task.* No `importSource`, `obsidianBlockId`,
+  `obsidianNotePath` or `obsidianFileDate`: the note-scoped deletion
+  inference, the vault writeback and the Obsidian merges treat it as a task
+  typed into the app (a project task with a linked note is placed in that
+  note by the writeback, as any app-born project task is). The `#obsidian`
+  tag is stripped from the title outside the links: in dayGLANCE it means
+  "write this line to today's daily note", which selecting text did not ask
+  for. A stray `^dg-` token outside the links is stripped too. The path never
+  goes through `addTask`, so no vault write follows.
+- *The row* is the app's inbox task: title, `duration` 30, the default
+  colour, `priority` (0 unless 1-3), `deadline` when a real date, `projectId`
+  only when that project exists and is active (otherwise dropped, the task
+  still created), `assignedUserSyncIds: [viewer]` when multi-user is on and
+  the viewer is a live member (decision 10: a vault is one person's capture
+  surface), `createdAt` from the action, and `lastModified` at the action's
+  instant (never later than now). No new task field.
+- *No resurrection.* A tombstoned id (`deletedTaskIds`, the Obsidian
+  deletion keys), one in the recycle bin, one retired onto a successor, or
+  one present in any list is never created again; the row is consumed. The
+  stamp at the action's instant closes the remaining gap: a device that
+  applies the row late, before it hears of a deletion made since, builds a
+  copy older than the tombstone, which `dropResurrectedTasks` and the merge
+  drop everywhere. A row older than the tombstone window (60 days) is
+  consumed unapplied, since a deletion that old is no longer remembered.
+- *Delete after save.* A pass adds the task to state and HOLDS the row (the
+  cursor stops below it). A later pass deletes it only once the task reads
+  back from the saved task lists (`day-planner-unscheduled` and the other
+  task keys), so a crash between the apply and the persist pass replays the
+  create. The follow-up pass runs after the push-on-write debounce (3 s), so
+  the task has normally been pushed too; if that push failed, the task is
+  still saved locally and goes with the next cycle.
+- *Opening the note.* The task panel finds the note from the link
+  (`parseTaskNoteLink` drops `#…`; a path link resolves by path, a bare name
+  by the index of reported paths). "Open in Obsidian" names the file
+  without the block part on every platform (`obsidian://open` reads a `#`
+  as part of the file name), so it opens the note, not the paragraph.
+
+**Older versions.** An old app never sees the row (above), and does not
+announce `task_create`, so a current plugin whose apps are all older sends
+nothing and says why. An old plugin never writes a create, and ignores the
+capability row. A current app with an older plugin simply has nothing to
+consume.
+
+Tests: `src/utils/obsidianBridgeCreates.test.js` (the planner, the row, the
+two cursors, delete after save), `src/hooks/useBridgeTaskCreates.test.js`
+(the cadence, the announcement), `dayglance-obsidian-plugin/test/addTask.test.ts`
+(title, link, block rules), `appCapabilities.test.ts` and
+`sentCreates.test.ts` (the check and the waiting list), and the bridge
+harness's `dayglance-obsidian-plugin/test/addTask.scenarios.test.ts`
+(scenarios 8 to 12 open the real form and the real sidebar view).
+
+### 4.2.2 App capabilities: what the plugin may send (owner-approved, 2026-11-06)
+
+A plugin feature whose rows only a current app reads must not send them
+into a stream nothing reads. Every current app therefore announces, on the
+bridge stream, each kind of row it consumes; the plugin reads the
+announcement before it sends. `task_create` (§4.2.1) is the first; a later
+feature adds its name.
+
+**The rows.** One per capability: `meta:cap:<name>`
+(`bridgeCapabilityId`, `BRIDGE_CAPABILITY_PREFIX`), sealed under the
+pairing subkey like `meta:config`, tagged with the generation:
+`{v:1, kind:'capability', name, since}` (`since`: when the writing app
+published it). NEVER one combined row: a list would need read-modify-write,
+and an app that knows fewer names (an older build, or one racing a newer
+one) would drop the names it lacks. A row per name has nothing to drop.
+
+**Never erased.** No reader old or new lists `meta:cap:` (checked on both
+sides, back to the oldest history in the repository): the app's observation
+fetch matches `obs:` and `meta:copy:`, the completion and create consumers
+`act:` and `act-create:`, the SSE probe `obs:` and `act:`, the reported-path
+listing `obs:`; the plugin's drain matches the exact ids `meta:applier`,
+`meta:pairing` and `meta:config` and `int:`, skipping everything else
+without a delete (tombstones are cursor movement only), and its agenda
+matches `proj:`. The only meta rows anything deletes are the plugin's own
+`meta:pairing` and `meta:copy:<deviceId>` on unpair. Older apps never write
+the row; a current app writes only the names it lists and never deletes one.
+So once written, a capability is not withdrawn by any app's absence:
+retiring one would take an explicit row of its own.
+
+**The writer** (`publishBridgeCapabilities(names)` in
+`src/utils/obsidianBridgeStream.js`, names from `APP_BRIDGE_CAPABILITIES`).
+Once per name per app SESSION per pairing GENERATION, the `meta:config`
+guard's shape: a re-pair rotates the subkey, and a row sealed under the old
+one reads as nothing to the new stream, so the next pass after the app's
+pairing cache turns over (five minutes) rewrites it; a fresh session
+rewrites once, the reachable recovery lever. It sits the 429 brake out,
+records its ack as an own write, and is fail-silent (a name not written
+stays due). It runs at the head of every create-consumer pass
+(`useBridgeTaskCreates`), so the devices that announce are exactly those
+that can apply a create: any paired device holding the verified account
+key, folder or not, never the tray or the headless root.
+
+**The reader** (`dayglance-obsidian-plugin/src/appCapabilities.ts`,
+`AgendaStore.appSupports(name)`). `getRow` by id with the pairing subkey; no
+passphrase. Yes: the row opens and names the capability; cached in memory
+and in the copy's device-local store (never `data.json`) under
+`<accountId>|<generation>`, so a reload does not ask again and a re-pair or
+another account does. No: no row, a deleted one, or one that does not open;
+reason `pairing` when its clear generation tag differs from the copy's
+(the app has not seen this pairing yet), else `absent`; never cached, asked
+again each time the form opens. Unknown: the read failed (offline,
+rejected, a 429, which arms the brake, or the brake already on, which makes
+no request). A caller sends only on yes.
+
 ---
 
 ### 4.3 Project and goal notes
@@ -966,11 +1200,13 @@ round trip, the same-title suffix, the quiet second pass), the
 
 - **At creation**, `project_note_create` carries the notes box as `description`; the plugin puts it in the description slot of the default note, and a user template may place it with `{{description}}` beside `{{title}}`, `{{date}}` and `{{goal}}`. The record empties on enqueue, the body journaled (the sent-notes journal, keyed `project:<id>` or `goal:<id>`).
 - **On link**, and on the first authoritative pass for an entity linked before this ruling, the notes box is merged into the section by a `project_note_description` intent in `merge` mode: a blank or placeholder section is replaced; text the user already has stays, the dayGLANCE text goes below it; a body already present as whole blocks changes nothing. The record empties on enqueue, journaled.
-- **From then on the box is the section.** Opening the project planner, or the goal form, loads the section from the vault through the same reader the task panel uses; the user edits it in place; saving writes it back by `project_note_description` in `replace` mode. The rest of the note is never touched by this write. Beside the box: the note's name and Open in Obsidian. A device that cannot read the vault shows "Notes live in the linked note in Obsidian" and leaves the record alone.
+- **From then on the box is the section.** Opening the project planner, or the goal form, loads the section from the vault through the same reader the task panel uses; the user edits it in place; saving writes it back by `project_note_description` in `replace` mode. The rest of the note is never touched by this write. Beside the box: the note's name and Open in Obsidian. A device that cannot read the vault shows "Notes live in the linked note in Obsidian" and leaves the record alone, unless the plugin has reported the note (below).
 - **Refuse on change** (ruled with the shape, and extended to task notes). The save carries `base`, the hash of the section (for task notes, of the whole note) as loaded. dayGLANCE reads the note again before sending and, when the text moved, writes nothing: the newer text is loaded into the editor with the unsaved text below it, and the panel says so. The applier checks the same hash at apply time; a section that moved since is kept and the dayGLANCE text appended beneath it as a dated `[!note]` callout, never overwritten and never dropped; a whole task note that moved is left as it is, said in the console. The unmount flush writes without a base, as the task panel always has.
 - **Direct access** gets the same editor over the file where a link exists (the write replaces the section in a whole-note write). Links on direct access are made by the user, per the next section.
+- **Without the folder, from the plugin's report** (owner, #2291). The plugin already reports every linked note as an observation row with its content and file mtime; a paired device reads the one row for the note's path on demand (`fetchReportedNoteDescription`, behind the same key gate as the stream) and the shared reader (`noteObservations.js`) extracts and hashes the section exactly as a file read does. Nothing is stored: no copy of the text, nothing on the record. The rules: with no folder, or a read that fails or finds nothing, the box shows the reported section and says when Obsidian reported it; with both, the newer wins, the report's file mtime against the local file's (a copy behind the report, the holding posture, shows the report; a tie, or a time missing on either side, keeps the file); a report that the note was deleted or withdrawn is not found, over a copy that still has it; a path never reported is no information, so the box keeps "Notes live in the linked note in Obsidian". The save re-reads by the same rule before sending, so a text edited from the report is checked against the report, and goes out as the `replace` intent under the base of the shown text, also on a device with no folder whose posture was never recorded; the applier's check stands behind it. An unpaired device without the folder is unchanged. The MCP's goal tree reads through the same loader (`description_reported_at` marks a reported section). Rule: `src/utils/linkedNoteDescription.js`.
+- **A task's linked note without the folder** (#2291 follow-up). The task panel shows the whole note a task's `[[wikilink]]` names, so it reads the plugin's report of the note (`fetchReportedNote`, the same gates, limiter and budget) when it cannot read the folder. A link names a note by NAME and reports are keyed by a hash of the PATH, so the stream cannot be asked which notes exist; the device keeps an **index of reported note paths** instead (`src/utils/reportedNotePaths.js`, stored by `src/utils/reportedNoteIndexStore.js`): the paths only, never content, with each row's seq and whether it is a note, deleted or withdrawn. It is device-local (IndexedDB, localStorage where there is none), not synced, not in the payload or a task, and keyed to the pairing (server, account, generation, salt), so a re-pair rebuilds it. It keeps a cursor of its own: the cycle hands it the paths its pull already decrypted (applied only where they continue the index; the cycle's cursor and commit are untouched), and its own lister (`listReportedNotePaths`) reads from the index's seq, or once from zero while it has never been completed, when the panel resolves a name (a device without the folder runs no cycle) and, holding, from the cycle. It is complete only after a listing from zero read every page; an unreadable or foreign stored value is incomplete, never empty. Against a complete index a link resolves as Obsidian resolves it, case-insensitive and NFC-folded: a link with a folder is that path when reported, else the reported notes whose path ends with it on a segment boundary (`[[Alpha/Plan]]` finds `Work/Alpha/Plan.md`); a bare name is matched by basename among every reported note, so a note shared by a scope tag in any folder, a daily note and a linked note are all found. One note found is shown; two or more are **ambiguous** and none is shown, which is exact among shared notes; a deleted or withdrawn path does not count, and with no note found it says deleted or not shared. When the index could not be brought up within its budget, the link's own path is also read directly. Until the index is complete the name is guessed as before: a link with a folder is that path alone; a bare name is matched among the paths synced state says exist (imported tasks' notes, migration targets, linked project and goal notes) and at most eight likely homes asked for directly (the vault root, the new-notes folder, the daily-notes folder, the scope folders the pairing meta publishes), where a request that failed leaves it unknown. A note the plugin does not report cannot be seen; a save goes out under the PATH that was shown, so it writes the note the user saw. A scoped note moved within the scope has its old path reported gone (`deleted`, `moved`, deliberately not `scoped`, so the note-scoped deletion inference never sees it and the merge leaves it unapplied), so the index does not see it twice. With a folder, the report weighed is the one for the path the folder read (a native vault does not say where it found a bare name, so its file stands), by the newest-wins rule above; in the `plugin` posture the folder answers alone, found or not. A deletion report is deleted, over a copy too; a withdrawal (the note left the scope) is not shared, never "not found", since the note still exists. The save re-reads by the same rule and sends `wiki_note_write` under the reported path and the shown text's base; the applier refuses there if the note moved. Where nothing can be shown the panel says why: the integration is not set up here; this device cannot read the folder and the plugin does not share the note (and, when the new-notes folder is outside the scope, that notes dayGLANCE creates land there); ambiguous; deleted; or the report could not be fetched. A folder that is there keeps "Note not found in vault" and its create-on-type editor. No note text is stored.
 
-Pure halves in `noteDescription.js` (split, extract, replace, merge, the conflict callout, the hash); pinned by its unit tests, the applier tests in `bridgeStream.test.js`, the hook tests in `useObsidianSync.noteDescription.test.js`, and `projectNotes.scenarios.test.ts` 22 to 24.
+Pure halves in `noteDescription.js` (split, extract, replace, merge, the conflict callout, the hash); pinned by its unit tests, the applier tests in `bridgeStream.test.js`, the hook tests in `useObsidianSync.noteDescription.test.js`, and `projectNotes.scenarios.test.ts` 22 to 24 (26 to 28 for the report, 29 for a task's note).
 
 #### An existing project or goal can have its note created from the note row (owner, 2026-10-19)
 
@@ -1446,7 +1682,11 @@ the window applied to scoped notes only; observations of scoped notes carry
 `scoped: true`, deletions of reported scoped paths report; adoption walks
 the metadata cache once per scope change and reports three notes per 30s
 tick, the adopted set persisted beside the cursor so a reload does not
-re-emit; a note leaving scope emits `withdrawn: true` (ruling C).
+re-emit; a note leaving scope emits `withdrawn: true` (ruling C). (Since
+#2291's task notes: a scoped note moved WITHIN the scope replaces its old
+path's row with `deleted: true, moved: true` and no `scoped` flag, so the
+app's merge leaves it unapplied and the index of reported note paths no
+longer sees the note at the old path.)
 
 **Step 3 record (2026-09-02, built).** App import: `applyBridgeObservations`
 parses a `scoped` observation under its path with the completion window
@@ -1483,6 +1723,56 @@ so a note that reappears anywhere in the scope is evidence as of its
 arrival. Daily notes are untouched. *Remaining gap, recorded:* an arrival is
 memory-only, so a note moved back while the plugin is closed and then left
 unedited reports its old mtime after the reload; an edit revives it.
+
+**Tag-removal record (2026-11-05, built; owner ruling).** Removing the
+scope tag from a note in scope only by that tag withdrew nothing: the
+metadata-change handler reconciled the project link and no more, so the
+note stayed adopted and its tasks stayed in dayGLANCE, frozen, while every
+other way of leaving (a settings change, a move out, a link removed)
+withdrew under ruling C. Now a note's own metadata change re-classifies its
+scope. Entering (a scope tag added) adopts it on the spot. Leaving withdraws
+it through the same withdrawal, **after a hold**: only once it has been out
+of scope continuously for two minutes, re-checked when the hold runs out;
+coming back in (a later change, or an observation that finds it scoped)
+cancels the hold, and a second removal starts a fresh one. *Why the hold:*
+Obsidian re-parses tags as the user types (renaming `#work` to
+`#work-projects` passes through `#wor`, and a half-typed frontmatter edit
+parses as no tags at all), and a withdrawal drops the note's tasks on every
+device, so a transient must never cause one. What still keeps a note in
+scope is unchanged: a folder or a project/goal link (`scopedNote`); daily
+notes are never withdrawn. A deleted note is reported deleted, never
+withdrawn, and its adoption goes with it, so a new note at the path inherits
+nothing; a rename's own re-classification decides both paths. The holds are
+memory-only: the first adoption walk after a load arms one for every adopted
+note found out of scope (a hold, never a withdrawal on the spot), and a note
+whose metadata is not parsed yet waits rather than reading as untagged.
+The settings path is held to the same standard: the plugin calls
+`scopeChanged` on every synced data.json change, most of which leave the
+scope as it was, and it used to withdraw every adopted note that looked out
+of scope at that moment, a tag mid-retype or a note whose metadata Obsidian
+had not parsed yet (startup) included, with no hold. It now acts only when
+the scope itself changed, and even then a note with unparsed metadata waits
+out the hold rather than reading as untagged.
+**The sticky withdrawal (owner ruling, 2026-11-06).** A note that keeps
+its `^dg-` stamps after leaving the scope is still reported on every edit
+(the observe path admits it by content), and that unflagged report replaced
+its withdrawal row: a device that had not pulled in between never saw the
+withdrawal and kept the tasks. Now the plugin remembers the notes it
+withdrew (`withdrawnScope`, persisted beside the adopted set, per copy), and
+while one stays out of scope every report of it goes out as the withdrawal
+again, through the normal report's send, so the row keeps saying
+"withdrawn" whatever order devices pull in, and the index of reported note
+paths reads it as not shared. A path is remembered only while a note is at
+it (a move out leaves nothing there to report), never for a daily note.
+Re-entry (any way: its tag, a link, the scope setting, a move in) reports it
+scoped and forgets it; so does a deletion, and a rename forgets the old path
+without carrying the withdrawal to the new one, so no note at either path
+inherits it. On the app a repeated withdrawal tombstones nothing new; it
+only re-stamps the device-local withdrawn-notes time. Scenarios T1 to T17 in
+`scope.scenarios.test.ts`. *Gaps, recorded:* a withdrawal row is still
+best-effort when no later report follows it (the same for every way of
+leaving). A scope cleared while Obsidian was closed still withdraws nothing
+until the settings next change.
 
 **The scenario harness (2026-09-04, built).** The field-test checklist is
 now scripted: `dayglance-obsidian-plugin/test/` holds a stub of the

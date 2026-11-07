@@ -149,7 +149,7 @@ it costs a re-sync. The ledger is original user data. A single value merges
 as a single value, so two devices each holding a different attempt would
 overwrite each other's whole ledger.
 
-**A collection kind in the sync layer.** Chosen. `src/sync/dbAdapter.js`
+**A collection kind in the sync layer.** Chosen. The vault adapter (then `src/sync/dbAdapter.js`, now `packages/dayglance-vault/src/adapter.js`)
 already defines exactly this shape:
 
 ```js
@@ -245,7 +245,7 @@ importer all go through it.
   delete. That holds on the PUSH side as well as the apply side: the
   engine's snapshot diff carries an omitted collection kind's previous
   snapshot entries forward untouched (`carryAbsentCollections` in
-  `dbAdapter.js`), so the launch cycle that runs before the strict read
+  the vault adapter, `packages/dayglance-vault/src/adapter.js`), so the launch cycle that runs before the strict read
   completes proposes no upserts and no deletes for the ledger, and the saved
   snapshot keeps the rows so the cycle after the load diffs clean. Before
   that carry, the first push after every launch read the omitted key as an
@@ -294,13 +294,13 @@ exact tie, lower `observedAt` wins; on a tie there too, the smaller canonical
 JSON. Order-independent and idempotent, so either tier may apply it twice and
 in either order. Why a shared rule rather than each tier's own LWW: both
 tiers today resolve an exact timestamp tie as "remote wins" (`>=` in
-`dbAdapter.js` and in the file-tier merge). For tasks that is harmless,
+the vault adapter and in the file-tier merge). For tasks that is harmless,
 because two devices almost never share a `lastModified`. For ledger records
 it is the normal case (see "Identity"), and "remote wins" is order-dependent:
 device A would keep B's copy and device B would keep A's, and they would never
 converge.
 
-**Vault tier (`src/sync/dbAdapter.js`).** One line in `COLLECTION_KINDS`,
+**Vault tier (`packages/dayglance-vault/src/adapter.js`, formerly `src/sync/dbAdapter.js`).** One line in `COLLECTION_KINDS`,
 plus the pick hook, the way recurring templates already get a custom apply.
 No sticky-field carry is needed, because the record is the unit: a newer copy
 of a record is a newer copy of that record, not a task that might be missing

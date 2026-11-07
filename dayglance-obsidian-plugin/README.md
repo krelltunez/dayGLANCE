@@ -27,6 +27,19 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
   tasks made in dayGLANCE are written into the right note. When the same
   vault is open on several computers, only one of them writes at a time, and
   the others receive the result through Obsidian Sync.
+- **Add to dayGLANCE.** Select text in any note and choose **Add to
+  dayGLANCE** from the editor's context menu, or run the **Add selection or current line to dayGLANCE as a task** command
+  (with nothing selected, it starts from the line the cursor is on). On a
+  phone or tablet, a long press shows the system's copy menu instead of
+  Obsidian's, so use the command: add it to the mobile toolbar (Settings,
+  Toolbar) for one tap. The text becomes one dayGLANCE inbox task, with an optional deadline, priority and project,
+  linked back to the note with a `[[wikilink]]`. Any paired dayGLANCE device
+  adds it, including a phone without access to the vault folder. The task is
+  sent to dayGLANCE and appears there once dayGLANCE picks it up on one of
+  your devices. This needs a recent dayGLANCE on at least one device: until
+  one has run, the form says so and sends nothing (and does not touch the
+  note). If a task you sent has not been picked up after an hour, the agenda
+  sidebar says so, with a hint to open or update dayGLANCE.
 - **Tidy editor.** Optionally hide the `^dg-…` ids dayGLANCE adds to task
   lines, and hide completed tasks in linked project and goal notes. Both are
   display only and never change a note.
@@ -63,6 +76,22 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
 - **Open agenda**
 - **Link current note to a dayGLANCE project or goal**
 - **Unlink current note from dayGLANCE**
+- **Add selection or current line to dayGLANCE as a task**: the selection, or the line the cursor is on; give it a hotkey,
+  or a button in the mobile toolbar. The same form as the context-menu item. The
+  project list appears once the sync passphrase is entered on this device.
+  The form checks that a dayGLANCE app new enough to receive the task has
+  run on one of your devices; until then (or while GLANCEvault cannot be
+  reached) it explains why and **Add** stays disabled. A sent task reads
+  "Sent to dayGLANCE".
+
+## Settings for Add to dayGLANCE
+
+- **Link to the exact paragraph** (off by default): link the task to the
+  paragraph or list item the selection starts in, as `[[Note#^id]]`, instead
+  of the whole note. A block id already at the end of that block is reused;
+  otherwise the plugin adds a short one there, which edits the note (undo
+  removes it). A dayGLANCE task line, headings, code, quotes and tables link
+  to the note.
 
 ## Privacy, network use and what the plugin stores
 
@@ -94,8 +123,10 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
     deletes it after use.
   - Your notes: task lines, daily notes and project or goal notes the plugin
     writes on dayGLANCE's behalf, a `^dg-…` id at the end of each task line it
-    tracks, and the `dayglance-id` and `dayglance:` frontmatter keys on linked
-    notes. Nothing outside the vault is read or written.
+    tracks, the `dayglance-id` and `dayglance:` frontmatter keys on linked
+    notes, and, with **Link to the exact paragraph** on, a block id at the end
+    of a paragraph you add to dayGLANCE. Nothing outside the vault is read or
+    written.
 - **Settings and keys.**
   - The pairing (server address, device token and an encryption key) and your
     settings are stored in the plugin's `data.json`, which Obsidian Sync
@@ -104,6 +135,10 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
   - The account key derived from your passphrase stays on the device that
     entered it, in the plugin's IndexedDB store. Neither the passphrase nor
     the key is written to `data.json`.
+  - Per device, outside `data.json` (Obsidian's device-local storage): the
+    plugin's sync position, whether your dayGLANCE apps can receive tasks
+    added from Obsidian, and the tasks this device sent that dayGLANCE has
+    not picked up yet (their titles and when they were sent), until it does.
 - **No ads and no payments.** The plugin is free and open source (MIT).
 
 ## Development

@@ -27,7 +27,7 @@ import {
   isInsertOnly,
   getEntityLastModified,
   reconcileCrossList,
-} from './dbAdapter.js';
+} from '@glance-apps/dayglance-vault';
 
 const clone = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x)));
 const tsNum = (v) => {

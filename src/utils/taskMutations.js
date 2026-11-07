@@ -22,7 +22,7 @@
 // rejects _native explicitly — and none of this module touches localStorage,
 // so no day-planner-native-time-overrides entry can ever be written from it.
 
-import { parseRoutineBlockId, routineBlockId } from './mcpRoutines.js';
+import { parseRoutineBlockId, routineBlockId } from '@glance-apps/agenda-core';
 import { findRoutineConflict, minutesToTime } from './dayOccupancy.js';
 import { completionTimestamp } from './taskUtils.js';
 import { createdTimestamp } from './createdAt.js';
@@ -854,7 +854,7 @@ export function applyUpdateSubtask(state, { taskId, subtaskId, set = {}, nowIso 
 
 /**
  * BULK UNDO (§4.3): apply a list of reversal ops produced by the main
- * process's write journal (electron/mcpJournal.ts buildUndoPlan). Ops arrive
+ * process's write journal (buildUndoPlan in @glance-apps/mcp-host). Ops arrive
  * in REVERSE chronological order, so compound histories unwind correctly:
  * create → schedule → move undoes as restore-fields → restore-to-inbox →
  * remove-created, each op finding exactly the state its write produced.

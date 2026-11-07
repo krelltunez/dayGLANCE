@@ -2,8 +2,10 @@ import React, { useRef } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { formatHourLabel } from '../utils/timeFormatting.jsx';
 import { dateToString } from '../utils/taskUtils.js';
-import { columnTimeFromEvent, dragBlockRange } from '../utils/dragUtils.js';
+import { columnTimeFromEvent, dragBlockRange, dropClampMinutes } from '../utils/dragUtils.js';
 import DragBlockPreview from './DragBlockPreview.jsx';
+import ContinuationCard from './ContinuationCard.jsx';
+import { continuationLayoutRow, dragPreviewSpillFor, resizePreviewForDate } from '../utils/continuations.js';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import PastDoCard from './jobo/PastDoCard.jsx';
 import DayWindowMarkers from './DayWindowMarkers.jsx';
@@ -59,7 +61,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
     borderClass, textSecondary,
     expandedNotesTaskId,
     taskContextMenu, setTaskContextMenu,
-    getTasksForDate, getDayDisplayForDate,
+    getTasksForDate, getDayDisplayForDate, getContinuationsForDate,
     getTaskCalendarStyle,
     taskWidths, setTaskRef,
     calculateConflictPosition,
@@ -136,6 +138,12 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
     const end = start + (t.duration || 0);
     return end > col.startHour * 60 && start < col.endHour * 60;
   });
+  // The previous date's tasks running past midnight (#2278): drawn from 00:00
+  // in the columns their piece reaches, packed into lanes with this date's
+  // own cards, but not among this date's tasks.
+  const colContinuations = (getContinuationsForDate ? getContinuationsForDate(col.date, true, { asPlanned: planOnly }) : [])
+    .filter(c => (!projectFilter || c.task.projectId === projectFilter) && c.minutes > colStartMin);
+  const layoutTasks = colContinuations.length ? [...colTasks, ...colContinuations.map(continuationLayoutRow)] : colTasks;
 
   const hours = Array.from({ length: col.endHour - col.startHour }, (_, i) => col.startHour + i);
   const altRow = darkMode ? 'bg-white/[0.04]' : 'bg-stone-100/50';
@@ -154,14 +162,17 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
     if (!draggedTask) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    const t = timeFromEvent(e, { taskDuration: draggedTask.duration || 0 });
+    // The cursor's time is the start, as late as a quarter-hour before the
+    // column's end: the rest runs into the next column, or past midnight
+    // onto the next date (#2278).
+    const t = timeFromEvent(e, { taskDuration: dropClampMinutes(draggedTask.duration) });
     setDragPreviewTime(t);
     setDragPreviewDate(col.date);
   };
 
   const onColDrop = (e) => {
     if (!draggedTask) return;
-    const t = timeFromEvent(e, { taskDuration: draggedTask.duration || 0 });
+    const t = timeFromEvent(e, { taskDuration: dropClampMinutes(draggedTask.duration) });
     handleDropOnCalendar(e, col.date, t);
   };
 
@@ -268,9 +279,9 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
         )}
 
         {/* Resize guides - start and end of the block being resized (#2273) */}
-        {resizePreview && resizePreview.dateStr === col.dateStr && (
+        {resizePreviewForDate(resizePreview, col.dateStr) && (
           <ResizeGuides
-            preview={resizePreview}
+            preview={resizePreviewForDate(resizePreview, col.dateStr)}
             minToTop={(m) => (m - colStartMin) * hourHeight / 60}
             clipStartMin={colStartMin}
             clipEndMin={colEndMin}
@@ -383,7 +394,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
             // Same lane packing as MULTI (TimeGrid): transitive overlap
             // clusters with first-fit columns and MULTI's 2px card margins,
             // instead of the per-task neighbour count DAY used to compute.
-            const conflictPos = calculateConflictPosition(task, colTasks);
+            const conflictPos = calculateConflictPosition(task, layoutTasks);
 
             if (task.joboDo) {
               return (
@@ -525,6 +536,28 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
             );
           })}
 
+          {/* The previous night's tasks, from midnight (#2278) */}
+          {colContinuations.map(c => {
+            const row = continuationLayoutRow(c);
+            const slice = getTaskSlice(row, col, hourHeight, timeToMinutes, zoom);
+            if (!slice) return null;
+            const pos = calculateConflictPosition(row, layoutTasks);
+            return (
+              <ContinuationCard
+                key={`continuation-${c.task.id}-${col.startHour}`}
+                continuation={c}
+                dateStr={col.dateStr}
+                top={slice.top}
+                height={slice.height}
+                positionStyle={{ left: pos.left, right: pos.right, width: pos.width }}
+                hourHeight={hourHeight}
+                zoom={zoom}
+                showHeader={!slice.clippedTop}
+                showResize={!slice.clippedBottom}
+              />
+            );
+          })}
+
           {/* Timeline routine pills (today only) */}
           {routinesEnabled && col.dateStr === dateToString(new Date()) && (() => {
             const timedRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime);
@@ -631,6 +664,28 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
                 {formatTime(hoverPreviewTime)}
               </div>
             </div>
+          );
+        })()}
+
+        {/* The drag preview's part past midnight, on the next date's column
+            (#2278): the dropped task would continue here. */}
+        {draggedTask && dragPreviewTime && dragPreviewDate && (() => {
+          const spill = dragPreviewSpillFor(
+            dragBlockRange(timeToMinutes(dragPreviewTime), draggedTask.duration),
+            dateToString(dragPreviewDate), col.dateStr,
+          );
+          if (!spill) return null;
+          const slice = getTaskSlice({ startTime: '00:00', duration: spill }, col, hourHeight, timeToMinutes, zoom);
+          if (!slice) return null;
+          return (
+            <DragBlockPreview
+              top={slice.top}
+              height={slice.height}
+              label=""
+              darkMode={darkMode}
+              className="left-16 right-0 z-20"
+              showStart={false}
+            />
           );
         })()}
 

@@ -813,6 +813,13 @@
     "wikiNoteNotFound": "Nota non trovata nel vault. Verifica che il vault sia configurato e che la nota esista.",
     "wikiNoteLoadFailed": "Impossibile caricare la nota: {{error}}",
     "wikiNoteChanged": "Questa nota è cambiata in Obsidian da quando l'hai aperta. È stato caricato il testo più recente, con il tuo testo non salvato sotto; controlla e salva di nuovo.",
+    "wikiNoteNotSetUp": "La nota di questa attività è in Obsidian. Configura l'integrazione con Obsidian per vederla qui.",
+    "wikiNoteOpenObsidianSettings": "Apri le impostazioni di Obsidian",
+    "wikiNoteNotShared": "Questo dispositivo non può leggere la cartella del tuo vault, e questa nota non è tra quelle che il plugin di Obsidian condivide.",
+    "wikiNoteNewNotesFolderNotShared": "Le note create da dayGLANCE finiscono nella cartella «{{folder}}», che non rientra nell'ambito delle attività del plugin. Aggiungi quella cartella all'ambito nelle impostazioni del plugin per vedere qui quelle note.",
+    "wikiNoteAmbiguous": "Più di una nota nel tuo vault si chiama «{{name}}», quindi questo dispositivo non può sapere a quale rimanda questa attività. Collegala con la sua cartella, come [[Cartella/{{name}}]], per vederla qui.",
+    "wikiNoteDeleted": "Obsidian segnala che questa nota è stata eliminata.",
+    "wikiNoteUnreachable": "Questo dispositivo non può leggere la cartella del tuo vault, e al momento non è stato possibile recuperare il resoconto di Obsidian su questa nota. Riprova più tardi.",
     "emptyWikiNotePlaceholder": "Nota vuota: inizia a scrivere per crearla nel vault",
     "editWikiNote": "Modifica “{{name}}”",
     "notesFormattingPlaceholder": "Aggiungi note... (**grassetto**, *corsivo*, __sottolineato__, URL, @@ per collegare un’attività) — Maiusc+Invio per l’anteprima",
@@ -946,7 +953,9 @@
     "deferredTimes_other": "Rinviata {{count}} volte",
     "movedVia": "Spostamenti recenti",
     "earlierMoves": "+1 precedente",
-    "earlierMoves_other": "+{{count}} precedenti"
+    "earlierMoves_other": "+{{count}} precedenti",
+    "continuesFrom": "da {{day}}",
+    "continuesFromLabel": "{{title}}, continua da {{day}}"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}",
@@ -2132,6 +2141,7 @@
     "notesLoadFailed": "Impossibile leggere la nota collegata: {{error}}",
     "notesNoteMissing": "La nota collegata non è stata trovata nel vault. Controlla il nome della nota o crea la nota in Obsidian.",
     "notesChanged": "La nota è cambiata in Obsidian da quando l'hai aperta. È stato caricato il testo più recente, con il tuo testo non salvato sotto; controlla e salva di nuovo.",
+    "notesReportedByObsidian": "Come riportato da Obsidian, {{when}}.",
     "scheduled": "Programmate",
     "nothingScheduledYet": "Ancora niente in programma.",
     "noUnscheduledTasks": "Nessuna attività non programmata.",

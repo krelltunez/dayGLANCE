@@ -4,6 +4,9 @@ import com.dayglance.app.data.CalendarRepository.CalEvent
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeParseException
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 /**
@@ -113,10 +116,7 @@ object LauncherDeviceEvents {
         val multiDay = e.allDay && endDate > startDate
         val date = if (multiDay) maxOf(startDate, minOf(endDate, queryDate)) else startDate
         val startTime = if (e.allDay) null else e.start.substring(11, 16)
-        var duration = 60
-        if (!e.allDay && e.end.length >= 16) {
-            duration = maxOf(15, minutes(e.end.substring(11, 16)) - minutes(startTime))
-        }
+        val duration = if (e.allDay) 60 else eventDuration(e.start, e.end)
         return JSONObject()
             .put("id", "native-cal-${e.id}-$date")
             .put("title", e.title)
@@ -162,11 +162,27 @@ object LauncherDeviceEvents {
     fun energy(title: String): String =
         if (title.lowercase(Locale.ROOT).split(NON_LETTERS).any { it in RESTORE_KEYWORDS }) "restore" else "effort"
 
-    private fun minutes(time: String?): Int {
-        if (time.isNullOrEmpty()) return 0
-        val parts = time.split(":")
-        return (parts[0].toIntOrNull() ?: 0) * 60 + (parts.getOrNull(1)?.toIntOrNull() ?: 0)
+    /**
+     * A timed event's duration, nativeEventDuration in utils/nativeCalendar.js
+     * (#2278): from its full start to its full end, so one that runs past
+     * midnight is as long as it really is, at least 15 minutes and at most a
+     * whole day; 60 when there is no readable end. The strings are local wall
+     * times and LocalDateTime has no zone, so across a DST change the span is
+     * the wall-clock one, as the timeline draws it.
+     */
+    fun eventDuration(start: String, end: String): Int {
+        val from = civil(start) ?: return 60
+        val to = civil(end) ?: return 60
+        return ChronoUnit.MINUTES.between(from, to).coerceIn(15L, MAX_DURATION_MINUTES.toLong()).toInt()
     }
+
+    /** "YYYY-MM-DDTHH:MM" (seconds ignored), or null. */
+    private fun civil(str: String): LocalDateTime? =
+        if (str.length < 16) null
+        else try { LocalDateTime.parse(str.substring(0, 16)) } catch (_: DateTimeParseException) { null }
+
+    /** utils/taskDuration.js MAX_DURATION_MINUTES: no block is longer than a whole day. */
+    const val MAX_DURATION_MINUTES = 24 * 60
 
     private const val DEFAULT_COLOR = "#3b82f6"
 }

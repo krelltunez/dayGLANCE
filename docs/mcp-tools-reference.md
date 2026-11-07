@@ -1,12 +1,14 @@
 # dayGLANCE MCP Tool Reference
 
 The complete tool and resource surface of the dayGLANCE MCP server, as registered by
-`electron/mcpServer.ts` (per-request factory), `mcpReadTools.ts`, `mcpWriteTools.ts`, and
-`mcpResources.ts`. This is the practical companion to the design spec (`mcp-server-spec.md` §5):
+`electron/mcpServer.ts` (per-request factory) and `electron/mcpWriteTools.ts`, with the read
+tools and resources from `@glance-apps/dayglance-mcp` (`packages/dayglance-mcp`: `readTools.js`,
+`resources.js`, answered by its read model). This is the practical companion to the design spec (`mcp-server-spec.md` §5):
 the spec explains *why*; this lists *what* — every tool, every parameter, every typed error.
 
 Transport: Streamable HTTP at `http://127.0.0.1:7893/mcp` (port configurable in Settings →
-Local Integrations), bearer-token auth. Claude Desktop connects through
+Local Integrations), bearer-token auth; the listener is `@glance-apps/mcp-host`'s
+(`packages/mcp-host`). Claude Desktop connects through
 [`@glance-apps/mcp-bridge`](https://github.com/glance-apps/mcp-bridge); Claude Code connects
 directly (`claude mcp add --transport http`).
 
@@ -75,6 +77,27 @@ carries a `type`. All of them occupy the time they cover.
 | `routine` | A routine block placed on today's timeline, id `routine-<id>`. Carries `read_only: true`. | no |
 
 Branch on `read_only` rather than on `type`: more than one type carries it, and more may later.
+
+**`continues_from`: a task running past midnight.** A timed task belongs to the date it starts on,
+and its block there carries its full `duration_minutes` (up to 24 hours), so its end may lie on the
+next date. That next date's `blocks` then include the part after midnight as a block of its own,
+marked with `continues_from`:
+
+| Field | Meaning |
+|---|---|
+| `continues_from` | the `YYYY-MM-DD` the task started on (the previous date) |
+| `id`, `type`, `title`, `completed`, … | the task's own, unchanged: it is the **same** task, not a second one |
+| `date` | the date being read |
+| `start_time` | `"00:00"` |
+| `duration_minutes` | the minutes it still runs after midnight (never past this date's own midnight) |
+
+Treat that time as busy: the task occupies it, and every frame's `available_slots` on that date is
+already net of it. Do not count it as another task on that date, and do not write to it as one: a
+write takes the task's `id` as usual, and acts on the task on the date it started. A recurring
+occurrence's continuation keeps its `recurring-<series>-<date>` id, whose date is the one it started
+on, so completing it completes that occurrence. A task ending exactly at midnight has no
+continuation. Only one date ahead: an event longer than a day (an imported one) shows its first
+24 hours after midnight.
 A `task` with `source: "caldav_tasks"` comes from a CalDAV task calendar: it is a task, but
 editing and completing it need a CalDAV write MCP does not perform, so those are rejected.
 
@@ -102,7 +125,7 @@ user set aside FOR a kind of work, so it is reported separately and never appear
 |---|---|
 | `id` | `frame-<id>-<date>`: a frame recurs, so the id names the instance |
 | `start` / `end` | the window itself |
-| `available_slots` | free gaps, **already net** of tasks, routines, elapsed time (today), and the frame's buffer |
+| `available_slots` | free gaps, **already net** of every block the same read lists: tasks and recurring occurrences (including one still running from the night before, see `continues_from`), routines, elapsed time (today), and the frame's buffer. Device calendar events count only when `include_native` reads them |
 | `available_minutes` | the sum of those slots |
 | `tag_affinity` | the `#tags` this window is meant for |
 | `energy_level` | `low` / `medium` / `high`, as the user set it |
@@ -127,7 +150,9 @@ Today's schedule; resolves the current **local** calendar date on the user's mac
 this instead of guessing the date.
 No parameters. Returns `blocks`, `frames` and `daily_note` with local times, completion state, the
 resolved date, and the IANA timezone. Blocks include `routine` blocks (today only), imported
-`calendar_event` items, and, under the calendar consent tier, `device_calendar_event` items.
+`calendar_event` items, and, under the calendar consent tier, `device_calendar_event` items. A
+task from yesterday still running after midnight appears as a block with `continues_from` (see
+Block types).
 
 ### `dayglance_get_day`
 One local calendar date's schedule, in the same shape as `dayglance_get_today`: `blocks`, `frames`
@@ -194,8 +219,13 @@ Each goal: `id`, `title`, `status`, `description`, `start_date`, `target_date` (
 **A goal or project with `obsidian_note` keeps its description in that note's opening section**
 (companion spec §4.3). This tool reads it from the note: such an entity carries
 `description_source: "obsidian_note"` and `description_base`, the hash of the section as read, to
-pass back on a write. When this computer cannot read the vault (the vault folder was never chosen
-here), the pointer alone is returned and `description` is empty. Reads open the linked notes, at
+pass back on a write. When this computer cannot read the note from the vault folder (the folder was
+never chosen here, or the read fails), or its copy of the note is older than the one the bridge
+plugin last reported (file modification time against file modification time), the section is the
+plugin's report instead, and the entity also carries `description_reported_at`, when the plugin
+reported it: the text is as current as that report. A note the plugin reports deleted is not filled
+in. When neither is available (no folder, and the vault is not paired or the plugin has not reported
+the note), the pointer alone is returned and `description` is empty. Reads open the linked notes, at
 most 40 per call. Tasks carry `project_id`, so `dayglance_get_day` and
 `dayglance_list_unscheduled_tasks` give a project's tasks.
 
@@ -467,8 +497,10 @@ note is read again first and, when `description_base` was given and the section 
 written and the call fails with `note_changed` (read the entity again and retry with the new base).
 The rest of the note is never touched. The response carries `description_source`, the new
 `description_base`, and `note_write`: `"written"` when the file was written directly, `"queued"`
-when the bridge plugin will apply it the next time Obsidian is open, during which a read can still
-return the old text. The write journal reverses it by putting the previous section back under the
+when the bridge plugin will apply it the next time Obsidian is open (always the case for a section
+read from the plugin's report on a computer without the folder), during which a read can still
+return the old text. The re-read before the write uses the same source as the read: the newer of
+the file here and the plugin's report. The write journal reverses it by putting the previous section back under the
 same rule, so an undo never overwrites an edit made in Obsidian meanwhile; such an undo reports as
 skipped. Other fields in the same call are applied to the record as usual.
 

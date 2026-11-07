@@ -24,6 +24,9 @@ import { SCROLLING_HOUR_PX } from '../utils/timelineZoom.js';
 import { cardDoubleClickHandler } from '../utils/cardDoubleClick.js';
 import { dragBlockRange } from '../utils/dragUtils.js';
 import DragBlockPreview from './DragBlockPreview.jsx';
+import ContinuationCard from './ContinuationCard.jsx';
+import { overnightSpillMinutes } from '@glance-apps/agenda-core';
+import { continuationLayoutRow, dragPreviewSpillFor, resizePreviewForDate } from '../utils/continuations.js';
 
 const TimeGrid = () => {
   const {
@@ -65,7 +68,7 @@ const TimeGrid = () => {
     applySuggestionForEdit,
     moveToInbox, moveToRecycleBin, postponeTask,
     formatTime, timeToMinutes, minutesToTime,
-    getTasksForDate, getDayDisplayForDate,
+    getTasksForDate, getDayDisplayForDate, getContinuationsForDate,
     getTaskCalendarStyle,
     minutesToPosition, positionToMinutes,
     calculateTaskPosition, calculateConflictPosition,
@@ -168,6 +171,12 @@ const TimeGrid = () => {
       // NOW line: recorded Do drawn as read-only PastDoCards, in place of a
       // completed task's ended block.
       const dayTasks = (getDayDisplayForDate || getTasksForDate)(date).filter(t => !t.isAllDay && (!projectFilter || t.projectId === projectFilter));
+      // The previous date's tasks that run past midnight (#2278): drawn here
+      // from 00:00, packed into lanes with this date's own cards, but not
+      // among this date's tasks.
+      const continuations = (getContinuationsForDate ? getContinuationsForDate(date) : [])
+        .filter(c => !projectFilter || c.task.projectId === projectFilter);
+      const layoutTasks = continuations.length ? [...dayTasks, ...continuations.map(continuationLayoutRow)] : dayTasks;
       const frameInstances = getFrameInstancesForDate(date);
       const hgBars = getHGBarsForDate(hgVisibleProjects, dateStr, isDateToday ? new Date().getHours() * 60 + new Date().getMinutes() : undefined);
       const hasBars = hgBars.length > 0;
@@ -311,9 +320,9 @@ const TimeGrid = () => {
           )}
 
           {/* Resize guides - start and end of the block being resized (#2273) */}
-          {resizePreview && resizePreview.dateStr === dateStr && (
+          {resizePreviewForDate(resizePreview, dateStr) && (
             <ResizeGuides
-              preview={resizePreview}
+              preview={resizePreviewForDate(resizePreview, dateStr)}
               minToTop={minutesToPosition}
               formatMinutes={(m) => formatTime(minutesToTime(m))}
               darkMode={darkMode}
@@ -335,7 +344,10 @@ const TimeGrid = () => {
           {dayTasks.map((task) => {
             const { top, height } = calculateTaskPosition(task);
             const isConflicted = conflicts.some(c => c.includes(task.id));
-            const conflictPos = calculateConflictPosition(task, dayTasks);
+            const conflictPos = calculateConflictPosition(task, layoutTasks);
+            // Clipped at 24:00; the rest is drawn on the next date, whose
+            // piece holds the bottom edge (#2278).
+            const runsPastMidnight = overnightSpillMinutes(task) > 0;
             if (task.joboDo) {
               return (
                 <PastDoCard
@@ -518,7 +530,8 @@ const TimeGrid = () => {
                     : { left: conflictPos.left, right: conflictPos.right, width: conflictPos.width }),
                   visibility: isMeasured ? 'visible' : 'hidden',
                   ...(isTablet ? { touchAction: 'pan-y' } : {}),
-                  ...(isTablet ? {} : taskCalendarStyle)
+                  ...(isTablet ? {} : taskCalendarStyle),
+                  ...(runsPastMidnight ? { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 } : {}),
                 }}
               >
                 {task.isExample && !isTablet && (
@@ -571,7 +584,10 @@ const TimeGrid = () => {
                   onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'timeline'),
                 } : {})}
                 className={`group/card h-full flex text-white rounded-lg relative ${isTablet && !task.isTaskCalendar && !task.nativeCalendarColor ? task.color : ''} ${isTablet ? 'select-none' : ''}`}
-                style={{ ...(isTablet ? { touchAction: 'pan-y', ...taskCalendarStyle } : {}) }}
+                style={{
+                  ...(isTablet ? { touchAction: 'pan-y', ...taskCalendarStyle } : {}),
+                  ...(runsPastMidnight ? { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 } : {}),
+                }}
                 >
                   <TimelineTaskCardContent task={task} height={height} isNarrowWidth={isNarrowWidth} zoom={z} />
                   {/* Resize handle at top - moves the start, keeps the end (#2273).
@@ -589,8 +605,14 @@ const TimeGrid = () => {
                       <div className={`w-12 h-1 bg-white rounded-full ${isTablet ? '' : 'opacity-0 group-hover/card:opacity-100'}`}></div>
                     </div>
                   )}
-                  {/* Resize handle at bottom - solid white for visibility */}
-                  {(!isImported || !!task.nativeEventId) && (
+                  {/* Past midnight: the card stops at 24:00 and continues on the next date. */}
+                  {runsPastMidnight && (
+                    <div data-continues-next-day="" className="absolute bottom-0 left-0 right-0 border-b-2 border-dashed border-white/60 pointer-events-none" />
+                  )}
+                  {/* Resize handle at bottom - solid white for visibility. A
+                      task running past midnight is resized from its piece on
+                      the next date, where its end is. */}
+                  {(!isImported || !!task.nativeEventId) && !runsPastMidnight && (
                     <div
                       data-no-card-dblclick
                       data-resize-handle="bottom"
@@ -607,6 +629,24 @@ const TimeGrid = () => {
                 </div>{/* end inner overflow (tablet) */}
                 </div>{/* end flex items-start (tablet) */}
               </div>
+            );
+          })}
+
+          {/* The previous night's tasks, from midnight (#2278) */}
+          {continuations.map(c => {
+            const { top, height } = calculateTaskPosition({ startTime: '00:00', duration: c.minutes });
+            const pos = calculateConflictPosition(continuationLayoutRow(c), layoutTasks);
+            return (
+              <ContinuationCard
+                key={`continuation-${c.task.id}`}
+                continuation={c}
+                dateStr={dateStr}
+                top={top}
+                height={height}
+                positionStyle={{ left: pos.left, right: pos.right, width: pos.width }}
+                zoom={z}
+                dropHandlers={{ onDragOver: (e) => handleDragOver(e, date), onDrop: (e) => handleDropOnCalendar(e, date) }}
+              />
             );
           })}
 
@@ -764,6 +804,19 @@ const TimeGrid = () => {
                 darkMode={darkMode}
               />
             );
+          })()}
+
+          {/* The same preview's part past midnight, when it would carry onto
+              this date: the dropped task continues here (#2278). */}
+          {dragPreviewTime && draggedTask && dragPreviewDate && (() => {
+            const spill = dragPreviewSpillFor(
+              dragBlockRange(timeToMinutes(dragPreviewTime), draggedTask.duration),
+              dateToString(dragPreviewDate), dateStr,
+            );
+            if (!spill) return null;
+            const top = Math.round(minutesToPosition(0));
+            const bottom = Math.round(minutesToPosition(Math.min(spill, 24 * 60 - 0.001)));
+            return <DragBlockPreview top={top} height={bottom - top - 1} label="" darkMode={darkMode} showStart={false} />;
           })()}
 
           {/* Tablet touch drag preview - hover bar style */}

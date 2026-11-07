@@ -20,12 +20,37 @@
  * entirely (consistent with the per-user calendar config work).
  */
 import { isNativeApp } from '../native.js';
+import { taskEnd } from '@glance-apps/agenda-core';
+import { MAX_DURATION_MINUTES } from './taskDuration.js';
 
-const timeToMinutes = (time) => {
-  if (!time) return 0;
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + (m || 0);
+// "YYYY-MM-DDThh:mm" (seconds ignored) → minutes on a calendar with no time
+// zone, or null. Date.UTC only does the calendar arithmetic: the strings are
+// the device's local wall times, and the timeline draws wall times.
+const civilMinutes = (str) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(str ?? ''));
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) / 60000 : null;
 };
+
+/**
+ * A timed device event's duration (#2278): from its full start to its full
+ * end, so a 23:00-01:00 event is 120 minutes and carries past midnight like
+ * any task, at least 15 and at most a whole day (MAX_DURATION_MINUTES; a
+ * longer event's after-midnight piece is clipped at the next date's end, how
+ * it spans more dates is phase 2). 60 when there is no readable end.
+ *
+ * Wall-clock, not elapsed: across a DST change a 23:00-01:00 event is 120
+ * minutes whatever the clocks did in between, because the timeline places the
+ * block by its wall times and must end it where the calendar shows it ending.
+ *
+ * Mirrored by LauncherDeviceEvents.eventDuration (Kotlin); the device-event
+ * vectors hold the two equal.
+ */
+export function nativeEventDuration(startStr, endStr) {
+  const start = civilMinutes(startStr);
+  const end = civilMinutes(endStr);
+  if (start === null || end === null) return 60;
+  return Math.min(MAX_DURATION_MINUTES, Math.max(15, end - start));
+}
 
 /**
  * True when the Electron renderer exposes the macOS calendar IPC bridge.
@@ -185,11 +210,7 @@ export const nativeEventToTask = (event) => {
     date = startDate;
   }
   const startTime = isAllDay ? null : startStr.substring(11, 16); // "HH:MM"
-  let duration = 60;
-  if (!isAllDay && endStr && endStr.length >= 16) {
-    const endTime = endStr.substring(11, 16);
-    duration = Math.max(15, timeToMinutes(endTime) - timeToMinutes(startTime));
-  }
+  const duration = isAllDay ? 60 : nativeEventDuration(startStr, endStr);
   return {
     // The id names one occurrence on one day, never just the event: every
     // platform reports the same event id for each occurrence of a recurring
@@ -265,4 +286,17 @@ export function nativeResultsToTasks(results, dates, { calendarFilter = [], over
       };
     });
   return { events, tasks };
+}
+
+/**
+ * The local `YYYY-MM-DDTHH:MM:00` a timed block written back to the device
+ * calendar ends at. A block that runs past midnight ends on the next date
+ * (#2278): `2026-11-04T25:00:00` is not a time the calendar can read, and a
+ * write that fails reverts the move.
+ */
+export function nativeEventEndString(dateStr, startTime, duration) {
+  const end = taskEnd({ date: dateStr, startTime, duration });
+  const hh = String(Math.floor(end.minutes / 60)).padStart(2, '0');
+  const mm = String(end.minutes % 60).padStart(2, '0');
+  return `${end.date}T${hh}:${mm}:00`;
 }

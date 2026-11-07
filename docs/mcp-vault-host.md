@@ -1,6 +1,6 @@
 # GLANCEvault MCP host: design note
 
-**Status:** Draft, for the extraction work that precedes a prototype.
+**Status:** Draft, for the extraction work that precedes a prototype. Step 1 (the host kit), step 2 (`@glance-apps/sync` 2.4.0) and step 3 (3a: the read side's tools, read model and state; 3b: rows to slices; and the change-nudge client) are done.
 **Issue:** #2280. **Spec:** `docs/mcp-server-spec.md` §4.4 (r7).
 
 ## Decisions so far
@@ -29,7 +29,33 @@ The seam already exists. The desktop server's tools talk to a `RendererBridge` (
 
 ### 1. The MCP host kit (generic; also for lastGLANCE)
 
-From `electron/` (line counts without tests):
+**Done:** `packages/mcp-host`, published as `@glance-apps/mcp-host` (see its
+README for the API). The Electron server runs on it with no behaviour change;
+`electron/mcpServer.transport.test.ts` is unchanged in what it asserts, and
+`electron/mcpServer.listener.test.ts` pins the log lines, realm and localhost
+guards the server had before. Where the code said otherwise than the table
+below:
+
+- `mcpAuth`: the 401's realm was dayGLANCE's; it is now an argument (the
+  listener's `realm`, default `<name> MCP`).
+- `mcpPort`: the default port (7893) and the "dayGLANCE will not scan" wording
+  were dayGLANCE's. The kit takes `defaultPort` and `appName`; `electron/mcpPort.ts`
+  keeps 7893 and the one-argument functions main.ts calls.
+- `mcpPagination`: the cursor prefix `dgc1.` was dayGLANCE's. The kit takes a
+  `cursorPrefix` (default `mhc1.`); the read tools pass `dgc1.`, so cursors are
+  byte-identical.
+- `mcpJournal`: the undo op union, `undoGroupKey` and the recurring-date label
+  are dayGLANCE's, not just the tray helpers. The kit's journal is generic over
+  the op and takes a `groupKey` (and optional `groupLabel`); `electron/mcpJournal.ts`
+  keeps the vocabulary, the grouping, and `journalGroups` / `journalSnapshot`
+  bound to it.
+- `mcpLocalTime`: `validateDurationMinutes` (the block bounds and the
+  `duration_minutes` argument) stays in Electron.
+- `RendererBridge`: the kit's types are `HostBridge` and `BridgeResult`. The
+  `renderer_unavailable` code and its message stay with the Electron
+  implementation; the tool contract (`docs/mcp-tools-reference.md`) still names it.
+
+From `electron/` (line counts without tests), as planned:
 
 | Module | Lines | Verdict |
 |---|---|---|
@@ -44,9 +70,13 @@ From `electron/` (line counts without tests):
 | `mcpRendererBridge.ts` | 121 | Stays in Electron. The `RendererBridge` *type* moves to the kit. |
 | `mcpDesktopConfig.ts`, `mcpDesktopSetup.ts`, `mcpDiscovery.ts` | 199, 90, 49 | Stay in Electron (client config writing and token discovery). |
 
-**One real change for a network host:** the listener uses the SDK's `localhostHostValidation` / `localhostOriginValidation`. A host on a LAN box or behind a reverse proxy is reached by name, so the kit takes a configured Host allowlist (localhost stays the default) and the Electron server keeps passing the localhost one. TLS is the reverse proxy's job; the kit should refuse a non-loopback bind without a token configured.
+**One real change for a network host:** the listener uses the SDK's `localhostHostValidation` / `localhostOriginValidation`. A host on a LAN box or behind a reverse proxy is reached by name, so the kit takes a configured Host allowlist (localhost stays the default) and the Electron server keeps passing the localhost one. TLS is the reverse proxy's job; the kit should refuse a non-loopback bind without a token configured. **Done as:** `startMcpListener({ host, allowedHosts, allowedOrigins })`, both lists defaulting to the SDK's localhost guards; a token is required on every bind, and a non-loopback one without it gets its own refusal. The Electron server passes neither list.
 
 ### 2. The vault engine under Node (`@glance-apps/sync`, glance-sync repository)
+
+**Done in 2.4.0**, as planned below (its README: "Running the vault engine
+under Node"). dayGLANCE and the Obsidian plugin use 2.4.0 and pass no
+`storage`, so their keys stay in localStorage.
 
 Everything is `fetch` and Web Crypto, both present in Node 20+. Two things are browser-bound:
 
@@ -57,19 +87,240 @@ Note that the root key is module state (`_rootKey`): one account per process. Fi
 
 ### 3. The dayGLANCE read path (this repo)
 
-| Piece | Where | Node-ready? |
-|---|---|---|
-| Tool and resource registration, argument schemas | `electron/mcpReadTools.ts`, `mcpResources.ts`, `mcpInboxFilter.ts` (writes later: `mcpWriteTools.ts`, `mcp*Args.ts`) | Yes, they only see the bridge. Move so both servers register the same schemas. |
-| Read model | `src/utils/mcpReadModel.js` → `recurrenceEngine`, `goalProgress`, `projectProgress`, `bucketList`, `mcpRoutines`, `mcpFrames` (→ `frameInstances`, `dayOccupancy`), `obsidianProjectNotes`, `mcpRepeat`, `taskMetadata`, plus `@glance-apps/agenda-core` and `@glance-apps/obsidian-format` | Yes. None of these touches `window`, `document`, `localStorage` or `indexedDB` (checked: the only matches are comments). |
-| Rows → slices | `src/sync/dbAdapter.js`: `reassembleState(rows)` for a full read, `applyRemoteEntity` / `applyRemoteDelete` for incremental pulls, `absentCollectionKinds` | Needs its own import graph checked when moved. |
-| Change nudges | `src/sync/vaultEventStream.js` (fetch-streaming SSE) | Probably; verify the streaming body under Node's `fetch`. |
+**3a done:** `packages/dayglance-mcp`, published as `@glance-apps/dayglance-mcp`
+(see its README). The Electron server registers the package's read tools and
+resources with no behaviour change: the registered tool and resource list
+(names, descriptions, input schemas) is byte-identical, and
+`electron/mcpServer.transport.test.ts` changed only an import. A host answers
+the same surface from its own copy of the slices through the same code;
+`packages/dayglance-mcp/test/host.test.js` does exactly that in plain Node, on
+the kit's listener, with no `window`, `document`, `localStorage` or
+`indexedDB`.
 
-**What the host must supply that the app derives from the device.** `useMcpBridge` is handed (App.jsx, the `useMcpBridge({...})` call): `tasks`, `recurringTasks`, `unscheduledTasks`, `recycleBin`, `goals`, `projects`, `areas`, `dailyNotes`, `bucketConfig`, `users`, `multiUserEnabled`, `routines`, `routinesDate`, `routineCompletions`, `routinesEnabled`, `frames`, `todayDate`, `nowMinutes`, `weekStartDay`, `isVisibleForUser`. Most come from the reassembled rows. The rest are host configuration:
+What moved where:
 
-- **Time zone and clock.** `todayDate` and `nowMinutes` come from the device's local clock. A server is often on UTC, so the host needs the user's IANA zone configured, and dates computed in it.
+| Was | Now |
+|---|---|
+| `electron/mcpReadTools.ts`, `mcpResources.ts`, `mcpInboxFilter.ts` | `packages/dayglance-mcp/src/readTools.js`, `resources.js`, `inboxFilter.js` (TypeScript ported to JavaScript; types in `types/index.d.ts`) |
+| `src/utils/mcpReadModel.js`, `mcpFrames.js`, `mcpRepeat.js` | `packages/dayglance-mcp/src/readModel.js`, `frames.js`, `repeat.js` |
+| `wireStamp` (`src/utils/taskMetadata.js`) | `packages/dayglance-mcp/src/wireStamp.js` |
+| App.jsx's inline `useMcpBridge({...})` state | `buildMcpReadState` (`packages/dayglance-mcp/src/readState.js`), called by App.jsx in a memo |
+| `src/utils/bucketList.js`, `frameInstances.js`, `dayOccupancy.js`, `userScope.js` | `packages/agenda-core/src/` (same names) |
+| `src/utils/mcpRoutines.js` | `packages/agenda-core/src/routineBlocks.js` (the occupancy model is built on it) |
+| `parseStamp` (`taskMetadata.js`); `noteDisplayName`, `noteLinkOf` (`obsidianProjectNotes.js`) | `packages/agenda-core/src/stamps.js`, `noteLink.js` |
+
+`src/utils/bucketList.js` and `dayOccupancy.js` stay as one-line re-exports for
+their many importers; `obsidianProjectNotes.js` re-exports the two link
+functions and `taskMetadata.js` imports `parseStamp`. Everything else that
+imported a moved module imports the package. The write tools (`mcpWriteTools.ts`,
+`mcp*Args.ts`), the write model and `mcpNoteDescriptions.js` stay in the app.
+The host kit gained `localMinutesOf` beside `localDateOf`, the wall clock in a
+zone; the read model reaches both through the kit's `./dates` entry point
+(`@glance-apps/mcp-host/dates`), since the kit's root also loads the HTTP
+listener, which a browser bundle cannot.
+
+**3b done:** `packages/dayglance-vault`, published as
+`@glance-apps/dayglance-vault` (see its README): how dayGLANCE's data maps to
+vault rows and how a pulled row merges in. The app's engine wiring and the
+file tier import it; every existing sync test passes with only its imports
+changed. Its own name rather than a part of `dayglance-mcp`: the app's sync is
+not MCP, and the file tier shares half of it.
+
+What moved where (verbatim; the app modules that kept the rest of a rule
+import the moved part back, so each rule exists once):
+
+| Was | Now |
+|---|---|
+| `src/sync/dbAdapter.js` (whole) | `packages/dayglance-vault/src/adapter.js` |
+| `src/sync/tombstoneRetention.js`, `src/utils/tombstoneHorizon.js`, `src/sync/dayWindowSync.js`, `src/utils/recurringExceptions.js` (whole; pure, and each is one rule both tiers apply) | `packages/dayglance-vault/src/` (same names) |
+| `mergeHabitLogs`, `mergeRoutineCompletions`, `mergeCompletedDates` (`src/mergeSync.js`) | `merges.js` |
+| `pickJoboRecord` and the record primitives it is built from (`src/jobo/core.js`) | `jobo.js` |
+| `mergeDeferrals` (`utils/deferrals.js`); `mergePlanTrail`, `sameTrail`, `TRAIL_CAP` (`utils/planTrail.js`); `earlierCreatedAt` (`utils/createdAt.js`); `mergeRetiredTaskIds`, `pruneRetiredTaskIds` (`utils/retiredTaskIds.js`) | `deferrals.js`, `planTrail.js`, `createdAt.js`, `retiredTaskIds.js` |
+| the five engine callbacks over the mirror (`src/sync/dbEngine.js`) | `vaultEngineCallbacks(getData, markDirty)` (`engineCallbacks.js`), which `dbEngine.js` now builds its callbacks from |
+
+`mergeRoutineDefinitions` was always `@glance-apps/sync`'s; the adapter imports
+it from there, which makes the sync package a peer dependency (one copy of its
+module state). `dbEngine.js` itself stays in the app: the snapshot diff, the
+delete guards, the own-write acks, the Obsidian and ghost-row gates and the
+commit merge are a device's, and are bound to localStorage and IndexedDB. A
+host runs the engine with the package's callbacks and, after each pull, the
+same two calls the app's wrapper makes: `reconcileCrossList` and
+`pruneAllTombstones`.
+
+**The host path, proven in Node:** `packages/dayglance-vault/test/hostPull.e2e.test.js`,
+with `window`, `document`, `localStorage` and `indexedDB` all undefined. A
+device runs the real `createDbSyncEngine` (2.4.0) with Map-backed `storage`,
+its key from the passphrase kept through `nativeGetSyncKey` /
+`nativeStoreSyncKey`, and the package's callbacks over a realistic data
+object (multi-user, recurring series with per-date exceptions and
+completions, the inbox, goals, projects, areas, routines, frames, a daily
+note, a tombstone, a JOBO record), and pushes. A host, a fresh engine with
+its own storage and key slot and the same passphrase, pulls into an empty
+object, and `handleMcpRequest` over `buildMcpReadState` answers `get_day`,
+the goal tree and the inbox exactly as it does on the device's own data; a
+full read (every live row decrypted, `reassembleState`) answers the same.
+Then a completion, an occurrence change, a hard delete and a move to the bin
+whose stale row the vault still holds reach the host on its next pull, which
+resumes from its stored cursor. The vault is in memory behind a fetch shim, so
+the real vault client and the real crypto run. Breaking the cross-list
+reconcile, the routine-completion stamps' carry in `_extra`, or
+`getEntityLastModified` fails it.
+
+**Change nudges done:** the client for the vault's `/events` stream is in
+`@glance-apps/dayglance-vault` too (`vaultEvents.js`, `ownWrites.js`), so a
+host pulls within a moment of another device's push instead of waiting for a
+poll. Moved verbatim; the app imports it back and every existing test passed
+with only its imports changed.
+
+| Was | Now |
+|---|---|
+| `openWebSseStream`, `createVaultEventClient`, `createNudgeCoalescer`, `createKindFilter`, `backoffDelayMs` (`src/sync/vaultEventStream.js`) | `packages/dayglance-vault/src/vaultEvents.js` |
+| `src/sync/ownWrites.js` (whole: the own-write ack registry and `withOwnAckRecording`) and its test | `packages/dayglance-vault/src/ownWrites.js`, `test/ownEchoDamping.test.js` |
+
+What stays in the app is bound to the browser or the native shells:
+`detectSseTransport` (reads `window.DayGlanceNative`), `createBridgeSseClient`
+(the renderer half of the Android and iOS shells' bridge contract; a host has
+no shell), the per-device `sseNudgesEnabled` flag (localStorage) and the React
+hook `useVaultEventStream`. The frame parsers stay in
+`@glance-apps/obsidian-format` (one wire format, one parser, shared with the
+bridge plugin), which makes it the package's second peer dependency.
+
+**No change was needed for Node.** `openWebSseStream` defaults to
+`globalThis.fetch`, and Node 20+'s fetch (undici) streams the body through the
+same `getReader()`, decodes with the global `TextDecoder`, rejects a read when
+the `AbortController` aborts it, and resolves when the server ends the stream.
+
+What a host wires (`packages/dayglance-vault/test/hostPull.e2e.test.js`, the
+last describe, does exactly this):
+
+```js
+import { createDbSyncEngine, createVaultClient } from '@glance-apps/sync';
+import {
+  openWebSseStream, createVaultEventClient, createNudgeCoalescer, createKindFilter,
+  withOwnAckRecording, isOwnWriteSeq,
+} from '@glance-apps/dayglance-vault';
+
+// 1. Own-write acks, recorded at the source: the engine writes through a
+//    client whose batch and deleteRow acks land in the registry.
+const engine = createDbSyncEngine({ ...engineConfig,
+  vaultClient: withOwnAckRecording(createVaultClient({ vaultUrl, vaultToken })) });
+
+// 2. Nudges, coalesced: one cycle per burst, none for another namespace's
+//    write, none for the host's own echo.
+const coalescer = createNudgeCoalescer({
+  kinds: ['sync'],
+  kindFilter: createKindFilter({ sync: 'dayglance' }),
+  isOwnSeq: isOwnWriteSeq,
+  onDrain: () => runCycle(),
+});
+
+// 3. The stream: reconnects with backoff; each (re)connect's `ready` frame
+//    reconciles anything missed while it was down.
+const events = createVaultEventClient({
+  getConnection: () => ({ vaultUrl, vaultToken, accountId }),
+  openStream: openWebSseStream,
+  onEvent: coalescer.handleEvent,
+});
+events.start();
+// shutdown: events.stop(); coalescer.cancel();
+```
+
+- **The cycle** is the app's: pull, `reconcileCrossList`, `pruneAllTombstones`,
+  then push what those marked. One at a time; a nudge that lands during a cycle
+  runs one more after it.
+- **Own acks.** Without step 1 every push the host makes (a reconcile's
+  tombstone, later its writes) comes back as a nudge and costs a pointless
+  cycle. Wrap the client rather than record the push's folded `maxSeq`: a push
+  of upserts and deletes gets one nudge per batch and per delete, each with its
+  own seq (audit M13). The registry is module state, one per process, like the
+  engine's root key.
+- **The bridge namespace.** A host that reads note descriptions from the
+  bridge's observation stream adds a kind for `dayglance-bridge`
+  (`BRIDGE_VAULT_APP`) that re-lists it.
+- **Keep a poll.** Nudges only add a prompt pull on top. The poll covers a
+  backoff wait, a stream that is down, and a half-open connection: the client
+  has no read timeout, and heartbeats are comments that never reach `onEvent`.
+- **A refused token is not terminal.** A 401 rejects with
+  `vault SSE connect failed: 401` and the client keeps retrying on its backoff
+  ladder, capped at `backoffMaxMs` (30 s by default), as it does in the browser.
+  A host that wants to stop on a revoked token watches
+  `onStateChange('error', err)` and calls `stop()`, as the native shells and the
+  bridge plugin do.
+- **Restart with a new client.** `stop()` during a backoff wait leaves the
+  client unable to `start()` again (a defect shared with the browser, reported
+  separately); a host that stops and resumes builds a fresh client.
+
+The proof, in Node with no `window`, `document`, `localStorage` or
+`indexedDB`: the in-memory vault nudges on every write that advances its seq
+(one per batch, one per delete, tagged with the namespace) and serves
+`/events` over a real loopback HTTP server, authenticated like the real one,
+with a `ready` frame per connection, heartbeats, and each activity frame
+written in two pieces. The host's client reads it with Node's own fetch.
+Device A's edit reaches `handleMcpRequest` through the nudge alone while the
+response is still open; a burst of three pushes is one cycle; a bridge write
+wakes none; the host's own delete is suppressed as its echo; a dropped
+connection backs off 40, 80, 160 ms through refused reconnects and its `ready`
+frame catches the push it missed, and a reconnect that missed nothing wakes
+nothing; a revoked token backs off the same way; `stop()` closes the stream
+server-side and leaves no timer. Breaking the debounce, the seq cursor, the
+kind filter, the own-echo check, the deleteRow ack wrap, the backoff growth,
+the stream (reading the whole body) or `stop()`'s timer cleanup fails it.
+
+**What the host must supply that the app derives from the device.** The read
+model answers over the state `buildMcpReadState(data, { now, timeZone,
+userSyncId, weekStartDay })` builds. `data` is the synced slices under their
+payload names (`tasks`, `recurringTasks`, `unscheduledTasks`, `recycleBin`,
+`goals`, `projects`, `areas`, `dailyNotes`, `bucketConfig`, `users`,
+`multiUserEnabled`, `todayRoutines`, `routinesDate`, `routineCompletions`,
+`routinesEnabled`, `gtdFrames`), which come from the reassembled rows. The
+options are host configuration:
+
+- **Time zone and clock.** `todayDate` and `nowMinutes` are read in `timeZone`
+  when it is given; the app gives none, since its clock is the user's. A
+  server is often on UTC, so the host must configure the user's IANA zone. The
+  zone also rides the state, so `created_at` and `completed_at` are reported in
+  it. The tools' own "today" (`deps.timeZone()`) must be the same zone.
 - **`weekStartDay`** is a per-device setting (`day-planner-week-start-day`), not synced. Host config.
-- **Which user, in a multi-user account.** The app scopes routines and frames by owner *before* the bridge, because `isVisibleForUser` does not filter them (see the comment at the call site: skipping this leaks another member's routines). The host must be configured as one user and apply the same scoping.
-- **Obsidian-linked descriptions.** The goal tree read awaits the Obsidian bridge for a linked goal's or project's description. The host has no vault notes: it must report those descriptions as unavailable, never as empty.
+- **Settings the vault never hands over.** The adapter keeps the receiving
+  device's value for `multiUserEnabled` always, and, while it is on, for the
+  feature toggles (`routinesEnabled`, `habitsEnabled`, `goalsProjectsEnabled`)
+  so one member's choice is not everyone's. A host starting from an empty
+  object would read multi-user off and, in a multi-user account, routines as
+  disabled, and show none. Host config, seeded into its data before the
+  first pull (the end-to-end test does exactly this).
+- **Which user, in a multi-user account** (`userSyncId`). `buildMcpReadState`
+  scopes routines and frames by owner, because `isVisibleForUser` does not
+  filter them (skipping this leaks another member's routines and frames); the
+  host is configured as one user and gets the same scoping by construction.
+- **Obsidian-linked descriptions, from the observation stream.** A linked
+  goal's or project's description is its note's opening section, which the
+  goal tree read fills in through an injected `loadNoteDescription(path)`
+  (`enrichGoalTreeDescriptions`, now in `@glance-apps/dayglance-mcp/model`,
+  `noteDescriptions.js`, with its cap of 40 notes and 2-second budget; the
+  write half stays in the app's `mcpNoteDescriptions.js`). The app's loader
+  reads the vault file. The host has no vault folder, but it does not need
+  one: the Obsidian plugin reports every linked note into GLANCEvault as an
+  observation row with the note's full content (the link is the plugin's
+  scope), sealed under the bridge subkey (#2291). The host lists the
+  `dayglance-bridge` namespace beside its own and builds its loader with
+  `bridgeNoteDescriptionLoader(rows, { rootKey })` from
+  `@glance-apps/obsidian-format` (`noteObservations.js`): it derives the
+  subkey from the root key and the plaintext `meta:pairing` row's salt, opens
+  the observation rows, and answers per path, normalized as the app's loader
+  normalizes it (`normalizeNotePath`, moved to the same package). The latest
+  report of the path wins; `{ text, base }` uses the same extraction and hash
+  the app's loader uses, so a later description write can carry `base`. A
+  deleted or withdrawn note is `{ notFound: true }`; a path no report names
+  is `null`, no information, and the entity keeps its pointer either way.
+  **Freshness:** as current as the plugin's last report. An edit in Obsidian
+  reaches the host when the plugin reports the note (once the edit settles,
+  while Obsidian runs), and not while Obsidian is closed. The pure reader,
+  `noteDescriptionFromObservations(observations, path)`, is what #2291 will
+  wire into the app's planner; the app does not use it yet.
+  `dayglance-obsidian-plugin/test/projectNotes.scenarios.test.ts` scenario 26
+  holds it to the app's file loader over the real plugin's report, and
+  `packages/dayglance-mcp/test/noteDescriptionsStream.test.js` walks it
+  through the goal tree read.
 
 ## Writes (after the read side)
 
@@ -86,17 +337,34 @@ Either way: consent tiers from §6.3 (read; read + write; the device-calendar ti
 - Decrypted content is never logged.
 - The privacy statement for the host is the device one: "this machine holds your key". Docs say plainly that running the host on the same box as a self-hosted GLANCEvault separates them by configuration, not by cryptography.
 
+## Reaching the host from Claude
+
+What decides whether a Claude client can reach the host is **which program opens the connection**, not which device the person is holding.
+
+**A local connection: Claude Desktop and Claude Code, on the person's own computer.** The MCP connection starts on that computer, so it can use the person's VPN (Tailscale, WireGuard) and reach a host that has no public address at all. The host's Host allowlist (`allowedHosts`, #2289) names the VPN hostname; the token is required as on any non-loopback bind.
+
+- **Claude Code** speaks Streamable HTTP directly, so it works today: `claude mcp add --transport http dayglance https://<vpn-name>/mcp --header "Authorization: Bearer <token>"`.
+- **Claude Desktop** launches only stdio commands, through `@glance-apps/mcp-bridge`, and the bridge is hard-wired to `http://127.0.0.1:<port>/mcp` (`bridge.js`). Reaching a host elsewhere needs a small bridge change: a `--url` option (and a matching env variable) that replaces the loopback endpoint, keeping the token handling as it is. Until then, Claude Desktop reaches only a host on the same machine.
+
+**A custom connector: Claude's web and mobile apps (and Claude Desktop, when used that way).** A connector is called by **Anthropic's servers**, not by the person's device. The phone app has no local connections, so this is the only way a phone can use the host. A VPN on the phone does not help, because the phone is not the one connecting. What it takes, none of which is designed yet:
+
+1. **A public HTTPS address.** Anthropic's servers must reach the host: a domain with TLS behind a reverse proxy, or a tunnel (Cloudflare Tunnel, Tailscale Funnel) so no router port opens. If Anthropic publishes the address ranges its connector traffic comes from, the host or the tunnel can admit only those.
+2. **Probably OAuth.** The host kit authenticates with a static bearer token. Remote connectors are built around OAuth sign-in (the MCP authorization spec), so a connector-facing host likely needs an OAuth layer. Check Anthropic's current custom-connector documentation before designing this; it is the least certain part.
+3. **The exposure, stated plainly.** The host holds the passphrase and decrypted data, and would be reachable from the internet. GLANCEvault stays zero-knowledge; the host becomes the thing to protect. And whatever Claude reads passes through Anthropic, as in any Claude conversation (true of the desktop app's server too). Both are acceptable choices; the docs a host ships with say them in these words.
+4. **Writes.** A phone is most useful for "move my 3 pm" or "add this to my inbox", which is the write phase (step 5 below).
+
 ## Sequence
 
-1. **Host kit package** from `electron/`; the Electron server switches to it with no behaviour change (`electron/mcpServer.transport.test.ts` stays green). Serves lastGLANCE too.
-2. **`@glance-apps/sync`:** injectable storage for the vault engine; document the key hooks for Node.
-3. **dayGLANCE MCP core package, read side:** tool and resource registration, the read model, the rows-to-slices path. The Electron server uses the shared registration.
+1. **Host kit package** from `electron/`; the Electron server switches to it with no behaviour change (`electron/mcpServer.transport.test.ts` stays green). Serves lastGLANCE too. **Done:** `packages/mcp-host` (`@glance-apps/mcp-host`).
+2. **`@glance-apps/sync`:** injectable storage for the vault engine; document the key hooks for Node. **Done:** 2.4.0, which dayGLANCE and the Obsidian plugin now use.
+3. **dayGLANCE MCP core package, read side:** tool and resource registration, the read model, the rows-to-slices path. The Electron server uses the shared registration. **3a done:** `packages/dayglance-mcp` (`@glance-apps/dayglance-mcp`): the tools, resources, read model and `buildMcpReadState`. **3b done:** `packages/dayglance-vault` (`@glance-apps/dayglance-vault`): the rows-to-slices path (was `src/sync/dbAdapter.js`) and the merge rules it shares with the file tier. **Change nudges done:** the `/events` client and the own-write ack registry, in the same package.
 4. **Read-only host prototype** (#2280's offer), in its own repository, against the packages.
 5. **Writes:** choose A or B, then journal, consent and rate-limit parity.
+6. **Reach beyond the host's network** (see "Reaching the host from Claude"): a `--url` option on `mcp-bridge` for Claude Desktop over a VPN; then, for phones, the connector path (public HTTPS, likely OAuth, writes).
 
 ## Open questions
 
-1. Where the packages live and what they are called (the glance-apps organization, next to `@glance-apps/mcp-bridge`?).
+1. ~~Where the packages live and what they are called.~~ **Decided:** in this repository under `packages/`, published to npm as `@glance-apps/*` (0.1.0, 2026-11-05) and linked into the app with `file:`, so the app never waits on a publish. `dayglance-mcp` and `dayglance-vault` stay separate packages.
 2. Does the host count as a device for the vault's device list and for billing (`@glance-apps/billing`)?
 3. Who owns the host repository: glance-apps, or the contributor who prototypes it?
 4. Writes: A or B (above).

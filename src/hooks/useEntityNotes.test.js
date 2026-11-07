@@ -140,6 +140,58 @@ describe('useEntityNotes — a linked note\'s description section', () => {
   });
 });
 
+describe('useEntityNotes — the section from the plugin\'s report (#2291)', () => {
+  const reported = (text, observedAt) => ({ text, base: noteTextHash(text), source: 'report', observedAt, lastModified: '2026-11-05T09:00:00.000Z' });
+  beforeEach(() => {
+    globalThis.window = new EventTarget();
+    globalThis.document = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+  });
+  afterEach(() => { delete globalThis.window; delete globalThis.document; });
+
+  it('shows the reported text with when it was reported, edits it under its base, and drops the age once saved', async () => {
+    sync.value = {
+      loadNoteDescription: vi.fn(async () => reported('From Obsidian', '2026-11-05T10:00:00.000Z')),
+      saveNoteDescription: vi.fn(async () => ({ ok: true, mode: 'queued' })),
+    };
+    const h = mount({ kind: 'project', entity: { ...LINKED, id: 'p1' }, saveRecord: vi.fn() });
+    await h.act();
+    expect(h.state.notes).toBe('From Obsidian');
+    expect(h.state.vault).toMatchObject({ unavailable: false, reportedAt: '2026-11-05T10:00:00.000Z', base: noteTextHash('From Obsidian') });
+    await h.act((s) => s.setNotes('Typed on the phone'));
+    await h.act((s) => s.save());
+    expect(sync.value.saveNoteDescription).toHaveBeenCalledWith('project', 'p1', 'Goals/Run.md', 'Typed on the phone', { base: noteTextHash('From Obsidian') });
+    expect(h.state.vault.reportedAt).toBe(null);
+  });
+
+  it('a later report of the same text refreshes its age; a read from a file carries none', async () => {
+    let next = reported('Same', '2026-11-05T10:00:00.000Z');
+    sync.value = { loadNoteDescription: vi.fn(async () => next), saveNoteDescription: vi.fn() };
+    const h = mount({ kind: 'goal', entity: LINKED, saveRecord: vi.fn(), editWhenEmpty: false });
+    await h.act();
+    next = reported('Same', '2026-11-05T12:00:00.000Z');
+    window.dispatchEvent(new Event('focus'));
+    await h.act();
+    expect(h.state.vault.reportedAt).toBe('2026-11-05T12:00:00.000Z');
+    next = { text: 'Same', base: noteTextHash('Same'), lastModified: 'L' };
+    window.dispatchEvent(new Event('focus'));
+    await h.act();
+    expect(h.state.vault.reportedAt).toBe(null);
+  });
+
+  it('a refusal against a newer report reloads it with its age', async () => {
+    sync.value = {
+      loadNoteDescription: vi.fn(async () => reported('First', '2026-11-05T10:00:00.000Z')),
+      saveNoteDescription: vi.fn(async () => ({ refused: 'changed', text: 'Newer', source: 'report', observedAt: '2026-11-05T11:00:00.000Z' })),
+    };
+    const h = mount({ kind: 'goal', entity: LINKED, saveRecord: vi.fn() });
+    await h.act();
+    await h.act((s) => s.setNotes('Mine'));
+    await h.act((s) => s.save());
+    expect(h.state.vault).toMatchObject({ conflict: true, text: 'Newer', reportedAt: '2026-11-05T11:00:00.000Z' });
+    expect(h.state.notes).toBe('Newer\n\nMine');
+  });
+});
+
 describe('useEntityNotes — a linked note edited in Obsidian meanwhile', () => {
   let texts;
   const live = () => ({

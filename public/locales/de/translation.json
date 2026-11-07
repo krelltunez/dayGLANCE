@@ -813,6 +813,13 @@
     "wikiNoteNotFound": "Notiz im Vault nicht gefunden – prüfe, ob dein Vault eingerichtet ist und die Notiz existiert.",
     "wikiNoteLoadFailed": "Notiz konnte nicht geladen werden: {{error}}",
     "wikiNoteChanged": "Diese Notiz wurde in Obsidian geändert, seit Sie sie geöffnet haben. Der neuere Text ist geladen, Ihr ungespeicherter Text steht darunter; prüfen Sie ihn und speichern Sie erneut.",
+    "wikiNoteNotSetUp": "Die Notiz dieser Aufgabe liegt in Obsidian. Richte die Obsidian-Integration ein, um sie hier zu sehen.",
+    "wikiNoteOpenObsidianSettings": "Obsidian-Einstellungen öffnen",
+    "wikiNoteNotShared": "Dieses Gerät kann deinen Vault-Ordner nicht lesen, und diese Notiz gehört nicht zu denen, die das Obsidian-Plugin teilt.",
+    "wikiNoteNewNotesFolderNotShared": "Notizen, die dayGLANCE anlegt, landen im Ordner „{{folder}}“, der nicht im Aufgabenbereich des Plugins liegt. Füge diesen Ordner in den Plugin-Einstellungen zum Bereich hinzu, um diese Notizen hier zu sehen.",
+    "wikiNoteAmbiguous": "Mehr als eine Notiz in deinem Vault heißt „{{name}}“, daher kann dieses Gerät nicht erkennen, auf welche diese Aufgabe verlinkt. Verlinke sie mit ihrem Ordner, etwa [[Ordner/{{name}}]], um sie hier zu sehen.",
+    "wikiNoteDeleted": "Obsidian meldet, dass diese Notiz gelöscht wurde.",
+    "wikiNoteUnreachable": "Dieses Gerät kann deinen Vault-Ordner nicht lesen, und die Meldung von Obsidian zu dieser Notiz konnte gerade nicht abgerufen werden. Versuche es später erneut.",
     "emptyWikiNotePlaceholder": "Leere Notiz – beginne zu tippen, um sie in deinem Vault zu erstellen",
     "editWikiNote": "„{{name}}“ bearbeiten",
     "notesFormattingPlaceholder": "Notizen hinzufügen... (**fett**, *kursiv*, __unterstrichen__, URLs, @@ verlinkt eine Aufgabe) – Umschalt+Enter für Vorschau",
@@ -946,7 +953,9 @@
     "deferredTimes_other": "{{count}}-mal verschoben",
     "movedVia": "Letzte Verschiebungen",
     "earlierMoves": "+1 früher",
-    "earlierMoves_other": "+{{count}} frühere"
+    "earlierMoves_other": "+{{count}} frühere",
+    "continuesFrom": "von {{day}}",
+    "continuesFromLabel": "{{title}}, fortgesetzt von {{day}}"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}",
@@ -2130,6 +2139,7 @@
     "notesLoadFailed": "Die verknüpfte Notiz konnte nicht gelesen werden: {{error}}",
     "notesNoteMissing": "Die verknüpfte Notiz wurde im Vault nicht gefunden. Prüfen Sie den Namen der Notiz, oder erstellen Sie die Notiz in Obsidian.",
     "notesChanged": "Die Notiz wurde in Obsidian geändert, seit Sie sie geöffnet haben. Der neuere Text ist geladen, Ihr ungespeicherter Text steht darunter; prüfen Sie ihn und speichern Sie erneut.",
+    "notesReportedByObsidian": "Von Obsidian gemeldet, {{when}}.",
     "scheduled": "Geplant",
     "nothingScheduledYet": "Noch nichts geplant.",
     "noUnscheduledTasks": "Keine ungeplanten Aufgaben.",

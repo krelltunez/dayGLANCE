@@ -7,6 +7,7 @@ import MobileTimeGrid from '../MobileTimeGrid.jsx';
 import DoColumn from './DoColumn.jsx';
 import { DO_STRIPES } from './PastDoCard.jsx';
 import useJoboDay from '../../hooks/useJoboDay.js';
+import { continuationLayoutRow } from '../../utils/continuations.js';
 import useJoboDoActions from '../../hooks/useJoboDoActions.js';
 import DoEditor from './DoEditor.jsx';
 import JoboSheet from './JoboSheet.jsx';
@@ -66,19 +67,27 @@ const cssEscape = (value) => (typeof CSS !== 'undefined' && CSS.escape
   ? CSS.escape(String(value))
   : String(value).replace(/["\\]/g, '\\$&'));
 
-/** The narrow Plan lane's bars: each timed task at its time, solid, in its colour. */
-function PlanBars({ tasks, selectedTaskId, ctx }) {
-  return tasks.map((task) => {
-    const { top, height } = ctx.calculateTaskPosition(task);
-    const pos = ctx.calculateConflictPosition(task, tasks);
+/**
+ * The narrow Plan lane's bars: each timed task at its time, solid, in its
+ * colour. The previous night's tasks still running after midnight
+ * (`continuations`, #2278) draw from 00:00 as the phone timeline's cards do,
+ * packed with the date's own, squared at the top with a dashed edge: a bar of
+ * the task itself, so a tap pairs it with the same task.
+ */
+function PlanBars({ tasks, continuations = [], selectedTaskId, ctx }) {
+  const layout = continuations.length ? [...tasks, ...continuations.map(continuationLayoutRow)] : tasks;
+  const bar = (task, row, { key, from } = {}) => {
+    const { top, height } = ctx.calculateTaskPosition(row);
+    const pos = ctx.calculateConflictPosition(row, layout);
     const selected = selectedTaskId != null && String(task.id) === String(selectedTaskId);
     return (
       <div
-        key={task.id}
+        key={key ?? task.id}
         data-jobo-bar-task={task.id}
         data-jobo-bar="plan"
+        data-continuation-from={from}
         data-selected={selected ? 'true' : undefined}
-        className={`absolute rounded-sm ${task.color || 'bg-gray-500'} ${task.completed ? 'opacity-50' : ''} ${selected ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : ''}`}
+        className={`absolute ${from !== undefined ? 'rounded-b-sm border-t-2 border-dashed border-white/60' : 'rounded-sm'} ${task.color || 'bg-gray-500'} ${task.completed ? 'opacity-50' : ''} ${selected ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : ''}`}
         style={{
           top: `${top}px`,
           height: `${Math.max(3, height)}px`,
@@ -86,7 +95,11 @@ function PlanBars({ tasks, selectedTaskId, ctx }) {
         }}
       />
     );
-  });
+  };
+  return [
+    ...tasks.map((task) => bar(task, task)),
+    ...continuations.map((c) => bar(c.task, continuationLayoutRow(c), { key: `continuation-${c.task.id}`, from: c.fromDate || '' })),
+  ];
 }
 
 /** The narrow Do lane: the Do items as striped bars, on the Do column's hour rows. */
@@ -123,8 +136,11 @@ function DoBars({ items, date, hourPx, selectedTaskId, onTap, ctx, t }) {
             key={item.id}
             data-jobo-bar="do"
             data-jobo-bar-task={bar.taskId ?? undefined}
+            // The rest of a Do that ran past midnight: squared and dashed at
+            // the top, as the Plan lane's pieces (#2278).
+            data-continuation-from={!item.point && item.clippedStart ? item.record?.date : undefined}
             data-selected={selected ? 'true' : undefined}
-            className={`absolute rounded-sm ${bar.color} ${item.estimate ? 'opacity-60' : ''} ${selected ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : ''}`}
+            className={`absolute ${!item.point && item.clippedStart ? 'rounded-b-sm border-t-2 border-dashed border-white/60' : 'rounded-sm'} ${bar.color} ${item.estimate ? 'opacity-60' : ''} ${selected ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : ''}`}
             style={{
               top: `${bar.top}px`, height: `${bar.height}px`,
               left: `calc(${bar.leftPct}% + 3px)`, width: `calc(${bar.widthPct}% - 6px)`,
@@ -382,7 +398,11 @@ export default function MobileJoboView({ stickyHeaderRef, gutterW = HOUR_GUTTER_
               gutterW={gutterW}
               barsMode={!planCards}
               onLaneTap={onLaneTap}
-              barsOverlay={planCards ? null : <PlanBars tasks={dayTasks} selectedTaskId={selectedTaskId} ctx={ctx} />}
+              // The bars read the day as JOBO's day model does (useJoboDay):
+              // untouched by the tag filter, the night before's pieces too.
+              barsOverlay={planCards ? null : (
+                <PlanBars tasks={dayTasks} continuations={ctx.getContinuationsForDate?.(ctx.selectedDate, false, { asPlanned: true }) ?? []} selectedTaskId={selectedTaskId} ctx={ctx} />
+              )}
             />
           </div>
         </div>

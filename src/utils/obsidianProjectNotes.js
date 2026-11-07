@@ -21,37 +21,21 @@
 //                          the first authoritative pass with a stream asks
 //                          the plugin for the key and clears the mark.
 
-import { noteKeyForPath } from '@glance-apps/obsidian-format';
-import { noteWikilink } from '@glance-apps/agenda-core';
+import { normalizeNotePath } from '@glance-apps/obsidian-format';
+import { noteWikilink, noteDisplayName, noteLinkOf } from '@glance-apps/agenda-core';
 import { extractWikilinks, stripWikilinks } from './taskUtils.js';
 
-/** A user-typed note reference → a normalized vault path ending in .md, or ''. */
-export function normalizeNotePath(input) {
-  let s = String(input ?? '').trim();
-  if (!s) return '';
-  s = s.replace(/^\[\[|\]\]$/g, '').trim();
-  const hashIdx = s.indexOf('#');
-  if (hashIdx > 0) s = s.slice(0, hashIdx).trim();
-  if (!s) return '';
-  if (!/\.md$/i.test(s)) s = `${s}.md`;
-  return noteKeyForPath(s);
-}
+// normalizeNotePath (a user-typed note reference → a normalized vault path
+// ending in .md, or '') lives in @glance-apps/obsidian-format (identity.js,
+// #2280), so the observation-stream reader normalizes a linked note's path
+// exactly as this app does. Re-exported here for this module's importers.
+export { normalizeNotePath };
 
-/** The note as Obsidian names it: the path without the .md extension. */
-export function noteDisplayName(path) {
-  return String(path ?? '').replace(/\.md$/i, '');
-}
-
-/**
- * The entity's link for display, or null when unlinked. `pending` is a link
- * the record holds alone, the note not yet carrying the key.
- * @returns {{ path: string, name: string, missing: boolean, pending: boolean } | null}
- */
-export function noteLinkOf(entity) {
-  const path = typeof entity?.obsidianNotePath === 'string' ? entity.obsidianNotePath : '';
-  if (!path) return null;
-  return { path, name: noteDisplayName(path), missing: !!entity.obsidianNoteMissingAt, pending: !!entity.obsidianNoteLinkPending };
-}
+// noteDisplayName and noteLinkOf, the link as every reader sees it, live in
+// @glance-apps/agenda-core (noteLink.js) so the MCP read surface
+// (@glance-apps/dayglance-mcp) reads a link exactly as the app does. Re-exported
+// here for this module's many importers.
+export { noteDisplayName, noteLinkOf };
 
 /**
  * A [[wikilink]] typed into a project's or goal's TITLE names its note

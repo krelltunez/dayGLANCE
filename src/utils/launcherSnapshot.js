@@ -14,6 +14,7 @@ import { deriveBlockEnergy } from './energyAxis.js';
 import { getSunTimes } from './solar.js';
 import { dateToString } from './taskUtils.js';
 import { computeAvailableSlots } from './dayOccupancy.js';
+import { shiftDateStr } from '@glance-apps/agenda-core';
 import { sortProjectsByOrder } from './projectOrder.js';
 
 export const LAUNCHER_SNAPSHOT_VERSION = 1;
@@ -24,7 +25,9 @@ export const FRAME_WINDOW = { daysBefore: 7, daysAfter: 34 };
 /**
  * Device-calendar events are listed over this window: the launcher's planning
  * and dial look at today and the days ahead, and every event is a row in the
- * provider, so the window is kept to what is drawn.
+ * provider, so the window is kept to what is drawn. It opens a day before
+ * today: an event last night that runs past midnight is yesterday's row, and
+ * the launcher draws its piece on today (#2278, docs/launcher-integration.md).
  */
 export const DEVICE_EVENT_WINDOW = { daysBefore: 1, daysAfter: 6 };
 
@@ -113,7 +116,7 @@ const keep = (t, isVisibleForUser) => t && !t.archived && !t.isExample && isVisi
  *   user lens (utils/inboxFilter.js); the launcher's Inbox complication shows it. Null: left out.
  * @param {Array} input.todayRoutines @param {object} input.routineCompletions  id → the date completed
  * @param {boolean} input.routinesEnabled
- * @param {Function} input.frameInstancesForDate  (Date) → frame instances (utils/frameInstances.js)
+ * @param {Function} input.frameInstancesForDate  (Date) → frame instances (agenda-core's frameInstances.js)
  * @param {Function} input.getDayWindow    (dateStr) → { start, stop } as 'HH:MM' | null, or null
  * @param {?{lat:number, lon:number}} input.weatherCoords
  * @param {?object} input.weatherHourlyByDate  useWeather's hourlyByDate: { 'YYYY-MM-DD': { hour: {temp, code, uv} } }
@@ -231,6 +234,9 @@ export function buildLauncherSnapshot({
     for (const f of frameInstancesForDate(date)) {
       const slots = computeAvailableSlots(f, {
         state: routineState, tasks: timedByDate.get(dateStr) || [], dateStr, todayStr: dateStr, nowMinutes: 0,
+        // The night before's rows still running after midnight are busy here
+        // too (#2278), as the app's own frame availability counts them.
+        prevDayTasks: timedByDate.get(shiftDateStr(dateStr, -1)) || [],
       });
       frameRows.push({
         id: `${f.frameId}:${dateStr}`, frameId: String(f.frameId), date: dateStr,

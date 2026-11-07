@@ -2,8 +2,7 @@
 // the spec's own day at 17:18, as tasks and frame instances the dial takes.
 // Shared by DayDial.frames.test.jsx; the iOS and Android previews draw the
 // same four from their own fixtures.
-import { frameInstancesForDate } from '../utils/frameInstances.js';
-import { computeAvailableSlots } from '../utils/dayOccupancy.js';
+import { frameInstancesForDate, computeAvailableSlots } from '@glance-apps/agenda-core';
 
 export const SCENARIO_DATE = '2026-09-26';
 export const SCENARIO_NOW = 17 * 60 + 18;

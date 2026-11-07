@@ -1,5 +1,5 @@
 // Renderer-side dispatcher for MCP write requests (spec §10 Phase 3),
-// companion to mcpReadModel.js. Pure decisions live in taskMutations.js;
+// companion to the read model (@glance-apps/dayglance-mcp). Pure decisions live in taskMutations.js;
 // this module maps request methods onto them, applies the results through
 // the provided React setters, and shapes the §5.2 response (the resulting
 // entity state, via the same toBlock the read surface uses).
@@ -41,11 +41,10 @@ import {
   applyCreateGoal, applyUpdateGoal, applyCreateProject, applyUpdateProject,
   applyGoalProjectUndoOps, GOAL_PROJECT_UNDO_KINDS,
 } from './goalProjectMutations.js';
-import { toBlock, inboxItem, goalItem, projectItem } from './mcpReadModel.js';
+import { toBlock, inboxItem, goalItem, projectItem, recurrenceToWire } from '@glance-apps/dayglance-mcp/model';
 import { resolveRetirement } from './retiredTaskIds.js';
 import { recurringTaskInstance } from './expandRecurringTasks.js';
 import { getOccurrencesInRange } from './recurrenceEngine.js';
-import { recurrenceToWire } from './mcpRepeat.js';
 import { recordDeletedTaskTombstone } from './deletedTaskTombstones.js';
 
 const WRITE_METHODS = new Set([

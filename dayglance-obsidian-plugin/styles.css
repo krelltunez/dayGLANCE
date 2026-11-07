@@ -53,6 +53,12 @@ body.dg-hide-completed .markdown-reading-view li.task-list-item.dg-done { displa
 .dg-agenda-status { color: var(--text-faint); font-size: var(--font-ui-smaller); margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--background-modifier-border); }
 .dg-agenda-status.is-error { color: var(--text-error); }
 .dg-agenda-setup { color: var(--text-muted); padding: 8px 2px; }
+.dg-agenda-waiting { color: var(--text-warning); font-size: var(--font-ui-smaller); margin-top: 6px; }
+
+/* "Add to dayGLANCE" form (src/addTaskModal.ts): why it cannot send yet. */
+.dg-add-task-status { color: var(--text-muted); font-size: var(--font-ui-small); margin: 8px 0; }
+.dg-add-task-status:empty { display: none; }
+.dg-add-task-status.is-blocked { color: var(--text-warning); }
 
 /* Pairing modal (src/pairing.ts). */
 .dg-pairing-input { width: 100%; }

@@ -67,7 +67,7 @@
 // (dot-file READS continue; only writes and the scan stop).
 
 import { detectObsidianDeletions } from './obsidianDeletions.js';
-import { TOMBSTONE_RETENTION_DAYS } from '../sync/tombstoneRetention.js';
+import { TOMBSTONE_RETENTION_DAYS } from '@glance-apps/dayglance-vault';
 
 const MODE_KEY = 'day-planner-obsidian-bridge-mode';
 const BASELINE_KEY = 'day-planner-obsidian-last-scanned';

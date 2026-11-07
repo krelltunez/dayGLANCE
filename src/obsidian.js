@@ -407,11 +407,16 @@ export async function appendTaskToDailyNote(vaultHandle, dailyNotesPath, dateStr
  * runaway traversal of unusually deep vaults.
  */
 async function findFileHandleInDir(dirHandle, mdFileName, depth = 0) {
+  return (await findFileInDir(dirHandle, mdFileName, depth))?.handle ?? null;
+}
+
+/** findFileHandleInDir with the vault path it found the file at: { handle, path } or null. */
+async function findFileInDir(dirHandle, mdFileName, depth = 0, prefix = '') {
   if (depth > 8) return null;
   for await (const [name, handle] of dirHandle.entries()) {
-    if (handle.kind === 'file' && name === mdFileName) return handle;
+    if (handle.kind === 'file' && name === mdFileName) return { handle, path: `${prefix}${name}` };
     if (handle.kind === 'directory' && !name.startsWith('.')) {
-      const found = await findFileHandleInDir(handle, mdFileName, depth + 1);
+      const found = await findFileInDir(handle, mdFileName, depth + 1, `${prefix}${name}/`);
       if (found) return found;
     }
   }
@@ -420,7 +425,9 @@ async function findFileHandleInDir(dirHandle, mdFileName, depth = 0) {
 
 /**
  * Read an arbitrary vault note by wikilink name (e.g. "My Note" or "Folder/My Note").
- * Returns { text, lastModified } or null if the file doesn't exist.
+ * Returns { text, lastModified, path } or null if the file doesn't exist;
+ * `path` is where the file was found, from the vault root (the task panel
+ * weighs it against the plugin's report of that path, #2291 follow-up).
  *
  * When the name contains path separators (e.g. "Folder/My Note") the exact
  * path is used. When it is a bare name (e.g. "My Note") the entire vault is
@@ -436,6 +443,7 @@ export async function readWikiNote(vaultHandle, noteName) {
   const mdFileName = `${parts[parts.length - 1]}.md`;
 
   let fileHandle;
+  let path;
   if (parts.length > 1) {
     // Explicit path — navigate directly
     let dir = vaultHandle;
@@ -445,14 +453,17 @@ export async function readWikiNote(vaultHandle, noteName) {
     }
     try { fileHandle = await dir.getFileHandle(mdFileName); }
     catch (err) { if (err.name === 'NotFoundError') return null; throw err; }
+    path = [...parts.slice(0, -1), mdFileName].join('/');
   } else {
     // Bare name — search whole vault so notes in sub-folders are found
-    fileHandle = await findFileHandleInDir(vaultHandle, mdFileName);
-    if (!fileHandle) return null;
+    const found = await findFileInDir(vaultHandle, mdFileName);
+    if (!found) return null;
+    fileHandle = found.handle;
+    path = found.path;
   }
 
   const file = await fileHandle.getFile();
-  return { text: await file.text(), lastModified: new Date(file.lastModified).toISOString() };
+  return { text: await file.text(), lastModified: new Date(file.lastModified).toISOString(), path };
 }
 
 /**

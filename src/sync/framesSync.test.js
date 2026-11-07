@@ -23,7 +23,7 @@
 // per-date time adjust.
 import { describe, it, expect } from 'vitest';
 import { createVault, createDevice, syncToConvergence } from './dbVaultSim.js';
-import { makeEntityId, COLLECTION_KINDS } from './dbAdapter.js';
+import { makeEntityId, COLLECTION_KINDS } from '@glance-apps/dayglance-vault';
 import { mergeSyncData } from '../mergeSync.js';
 
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];

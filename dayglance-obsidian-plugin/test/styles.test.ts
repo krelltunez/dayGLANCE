@@ -42,8 +42,15 @@ describe('styles.css', () => {
     }
   });
 
+  it('styles the "Add to dayGLANCE" form\'s status line addTaskModal.ts uses', () => {
+    const src = read('../src/addTaskModal.ts');
+    expect(src).toContain("'dg-add-task-status'");
+    expect(css).toContain('.dg-add-task-status {');
+    expect(css).toContain('.dg-add-task-status.is-blocked {');
+  });
+
   it('is the only stylesheet: no source file injects a <style> element', () => {
-    for (const file of ['agendaView.ts', 'editorHiding.ts', 'main.ts', 'pairing.ts', 'settingsTab.ts', 'linkModal.ts']) {
+    for (const file of ['agendaView.ts', 'editorHiding.ts', 'main.ts', 'pairing.ts', 'settingsTab.ts', 'linkModal.ts', 'addTaskModal.ts']) {
       expect(read(`../src/${file}`)).not.toMatch(/createElement\(['"]style['"]\)|createEl\(['"]style['"]\)/);
     }
   });

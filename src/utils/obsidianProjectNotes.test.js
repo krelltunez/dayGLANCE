@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { normalizeNotePath, noteDisplayName, noteLinkOf, noteLinkFromTitle, planNoteLinkUpdates, projectLogName, projectByNotePath } from './obsidianProjectNotes.js';
 
+// noteDisplayName and noteLinkOf are tested with agenda-core (noteLink.test.js);
+// these pin that this module still re-exports them for its importers.
 describe('normalizeNotePath / noteDisplayName / noteLinkOf', () => {
   it('accepts a bare name, a wikilink, a heading suffix, and a path; adds .md; normalizes slashes', () => {
     expect(normalizeNotePath('Projects/House')).toBe('Projects/House.md');
@@ -10,11 +12,8 @@ describe('normalizeNotePath / noteDisplayName / noteLinkOf', () => {
     expect(normalizeNotePath('   ')).toBe('');
     expect(noteDisplayName('Projects/House.md')).toBe('Projects/House');
   });
-  it('noteLinkOf reads the locator, the missing mark and the pending mark', () => {
-    expect(noteLinkOf({})).toBe(null);
+  it('re-exports noteLinkOf from agenda-core', () => {
     expect(noteLinkOf({ obsidianNotePath: 'Projects/House.md' })).toEqual({ path: 'Projects/House.md', name: 'Projects/House', missing: false, pending: false });
-    expect(noteLinkOf({ obsidianNotePath: 'Projects/House.md', obsidianNoteMissingAt: '2026-09-03T10:00:00.000Z' }).missing).toBe(true);
-    expect(noteLinkOf({ obsidianNotePath: 'Projects/House.md', obsidianNoteLinkPending: '2026-10-03T10:00:00.000Z' }).pending).toBe(true);
   });
 });
 

@@ -95,3 +95,124 @@ export function noteWikilink(path: string, title: string): string;
 export function projectNoteBlock(project: { id: string; status?: string }, ctx?: { goal?: { title?: string } | null; goalNotePath?: string | null }): ProjectNoteBlock;
 export function goalNoteBlock(goal: { id: string; status?: string }): GoalNoteBlock;
 export function noteBlockChanged(prev: unknown, next: unknown): boolean;
+
+// ── the domain rules the app and the MCP read surface share ─────────────────
+
+// bucketList.js: the Bucket List (someday/maybe), kept out of every inbox list.
+export interface BucketConfig {
+  headings: { b1: string; b2: string };
+  secondListHidden: boolean;
+  notes: string;
+  updatedAt?: string;
+}
+export const BUCKET_LIST_IDS: string[];
+export const DEFAULT_BUCKET_CONFIG: BucketConfig;
+export function isBucketTask(task: { bucketId?: string | null } | null | undefined): boolean;
+export function notBucketed(task: { bucketId?: string | null } | null | undefined): boolean;
+export function demoteToBucket<T extends object>(task: T, listId?: string): Omit<T, 'deadline' | 'priority'> & { bucketId: string; lastModified: string };
+export function promoteToInbox<T extends object>(task: T): Omit<T, 'bucketId' | 'deadline'> & { priority: 0; lastModified: string };
+export function stripBucketId<T extends object>(task: T): Omit<T, 'bucketId'>;
+export function normalizeBucketConfig(raw: unknown): BucketConfig;
+
+// frameInstances.js: which GTD frames apply to a date. Callers pass frames
+// already scoped to the user (frames have one owner; see userScope.js).
+export interface FrameInstance {
+  frameId: string;
+  templateId: string;
+  date: string;
+  start: string;
+  end: string;
+  label?: string;
+  color?: string;
+  tagAffinity: string[];
+  energyLevel: string;
+  bufferMinutes: number;
+}
+export function dayOfWeekFor(dateStr: string | null | undefined): number | null;
+export function frameAppliesTo(frame: unknown, dateStr: string, dayOfWeek: number | null): boolean;
+export function frameInstancesForDate(frames: unknown[] | null | undefined, dateStr: string): FrameInstance[];
+
+// routineBlocks.js: today's placed routines as read-only blocks. Callers pass
+// routines already scoped to the user.
+export interface RoutineState {
+  routines?: unknown[];
+  routinesDate?: string | null;
+  routineCompletions?: Record<string, unknown>;
+  routinesEnabled?: boolean;
+  /** Today on the user's clock: routines exist for exactly this date. */
+  todayDate?: string;
+}
+export interface RoutineBlock {
+  id: string;
+  type: 'routine';
+  title: string;
+  date: string;
+  start_time: string | null;
+  duration_minutes: number | null;
+  all_day: boolean;
+  completed: boolean;
+  read_only: true;
+}
+export const ROUTINE_ID_PREFIX: string;
+export function routineBlockId(routineId: string | number): string;
+export function parseRoutineBlockId(blockId: unknown): string | null;
+export function toRoutineBlock(routine: unknown, date: string, completed: unknown): RoutineBlock;
+export function buildRoutineBlocks(state: RoutineState | null | undefined, date: string | null | undefined): RoutineBlock[];
+
+// dayOccupancy.js: what occupies a day, and a frame's free slots.
+export interface OccupiedInterval { start: number; end: number; label?: string; id?: string; continuesFrom?: string | null }
+export interface AvailableSlot { start: string; end: string; minutes: number }
+export interface SlotOptions {
+  state?: RoutineState;
+  tasks?: unknown[];
+  prevDayTasks?: unknown[];
+  dateStr?: string;
+  todayStr?: string;
+  nowMinutes?: number;
+  defaultDuration?: number;
+}
+export function timeToMinutes(hhmm: string | null | undefined): number | null;
+export function minutesToTime(minutes: number): string;
+export function routineIntervals(state: RoutineState | null | undefined, date: string): OccupiedInterval[];
+export function taskInterval(task: unknown, opts?: { defaultDuration?: number }): OccupiedInterval | null;
+export function continuationIntervals(prevDayTasks: unknown[] | null | undefined, opts?: { excludeId?: string | null }): OccupiedInterval[];
+export function computeOccupiedIntervals(state: RoutineState | null | undefined, date: string, opts?: { tasks?: unknown[]; prevDayTasks?: unknown[]; excludeId?: string | null; defaultDuration?: number }): OccupiedInterval[];
+export function mergeIntervals(intervals: OccupiedInterval[], bufferMinutes?: number): OccupiedInterval[];
+export function computeAvailableSlots(frameInstance: unknown, opts?: SlotOptions): AvailableSlot[];
+export function availableMinutes(frameInstance: unknown, opts?: SlotOptions): number;
+export function adjustPastConflicts(
+  state: RoutineState | null | undefined,
+  date: string,
+  opts: { startTime: string; duration: number; tasks?: unknown[]; prevDayTasks?: unknown[]; excludeId?: string | null; maxIterations?: number },
+): { conflicted: boolean; adjustedStartTime: string; conflictingEvent: OccupiedInterval | null };
+export function obstacleName(obstacle: unknown): string | null;
+export function describeObstacle(obstacle: unknown): string;
+export function findRoutineConflict(
+  state: RoutineState | null | undefined,
+  date: string,
+  opts?: { startTime?: string | null; durationMinutes?: number; allDay?: boolean },
+): OccupiedInterval | null;
+
+// overnight.js: a timed task's part after its own date's midnight (#2278).
+export interface OvernightTaskLike { date?: string | null; startTime?: string | null; duration?: number | null; isAllDay?: boolean; [key: string]: unknown }
+export interface Continuation<T = OvernightTaskLike> { task: T; fromDate: string | null; startMinutes: 0; endMinutes: number; minutes: number }
+export const DAY_MINUTES: number;
+export function isTimedBlock(task: OvernightTaskLike | null | undefined): boolean;
+export function overnightSpillMinutes(task: OvernightTaskLike | null | undefined): number;
+export function continuationsFromPreviousDay<T extends OvernightTaskLike>(prevDayTasks: T[] | null | undefined): Continuation<T>[];
+export function taskEnd(task: OvernightTaskLike | null | undefined, opts?: { defaultDuration?: number }): { date: string; minutes: number } | null;
+export function hasTaskEnded(task: OvernightTaskLike | null | undefined, opts: { todayStr: string; nowMinutes: number; defaultDuration?: number }): boolean;
+
+// userScope.js: multi-user scoping. Tasks, goals and projects are broadcast
+// unless assigned (isTaskVisibleForUser); routines, habits and frames have one
+// owner (isOwnedBy), which isTaskVisibleForUser does not understand.
+export function isTaskVisibleForUser(task: { assignedUserSyncIds?: string[] | null }, multiUserEnabled: unknown, meUserSyncId: string | null | undefined): boolean;
+export function isOwnedBy(item: { ownerSyncId?: string | null }, multiUserEnabled: unknown, meUserSyncId: string | null | undefined, syncId?: string | null): boolean;
+
+// stamps.js: a stored createdAt / completedAt stamp.
+export function parseStamp(value: unknown): { date: Date; hasTime: boolean } | null;
+
+// noteLink.js: a project's or goal's linked Obsidian note, as readers see it.
+export interface NoteLink { path: string; name: string; missing: boolean; pending: boolean }
+export function noteDisplayName(path: unknown): string;
+export function noteLinkOf(entity: unknown): NoteLink | null;

@@ -3,16 +3,18 @@ import {
   parseSseFrame,
   drainSseBuffer,
   detectSseTransport,
-  openWebSseStream,
-  createNudgeCoalescer,
-  createVaultEventClient,
   createBridgeSseClient,
-  backoffDelayMs,
   sseNudgesEnabled,
   SSE_NUDGES_DEFAULT_ON,
   SSE_NUDGES_FLAG_KEY,
-  createKindFilter,
 } from './vaultEventStream.js';
+import {
+  openWebSseStream,
+  createNudgeCoalescer,
+  createVaultEventClient,
+  backoffDelayMs,
+  createKindFilter,
+} from '@glance-apps/dayglance-vault';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GLANCEvault SSE push client — pure transport core.
@@ -482,6 +484,73 @@ describe('createVaultEventClient — lifecycle, reconnect, reconcile', () => {
 });
 
 // ─── web streaming reader ─────────────────────────────────────────────────────
+
+describe('createVaultEventClient — stop() during a backoff wait', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const settle = async () => { for (let i = 0; i < 5; i += 1) await Promise.resolve(); };
+  const makeClient = (s, extra = {}) => createVaultEventClient({
+    supported: true,
+    getConnection: () => ({ vaultUrl: 'https://v', vaultToken: 't', accountId: 'a' }),
+    openStream: s.openStream,
+    onEvent: () => {},
+    backoffBaseMs: 1000,
+    randomFn: () => 1,
+    ...extra,
+  });
+
+  it('a start() after a stop() during backoff reconnects (the loop is not left asleep)', async () => {
+    const s = makeControllableStream();
+    const client = makeClient(s);
+    client.start();
+    expect(s.calls).toHaveLength(1);
+    s.fail(new Error('network gone'));
+    await settle(); // now waiting out the backoff
+
+    client.stop(); // e.g. the tab is hidden during the wait
+    await settle();
+    vi.advanceTimersByTime(60_000);
+    await settle();
+    expect(s.calls).toHaveLength(1); // stopped: no reconnect
+
+    client.start(); // the tab is shown again
+    await settle();
+    expect(s.calls).toHaveLength(2); // before the fix: still 1, forever
+    expect(client.isRunning()).toBe(true);
+    client.stop();
+  });
+
+  it('stop() during backoff leaves no timer behind and reports stopped', async () => {
+    const s = makeControllableStream();
+    const states = [];
+    const client = makeClient(s, { onStateChange: (st) => states.push(st) });
+    client.start();
+    s.fail(new Error('network gone'));
+    await settle();
+    expect(vi.getTimerCount()).toBe(1); // the backoff wait
+
+    client.stop();
+    await settle();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(states.at(-1)).toBe('stopped');
+    expect(client.isRunning()).toBe(false);
+  });
+
+  it('stop() and start() in the same tick during backoff reconnects rather than stalling', async () => {
+    const s = makeControllableStream();
+    const client = makeClient(s);
+    client.start();
+    s.fail(new Error('network gone'));
+    await settle();
+
+    client.stop();
+    client.start(); // before the woken loop has run
+    await settle();
+    expect(s.calls).toHaveLength(2);
+    client.stop();
+  });
+});
 
 describe('openWebSseStream — web fetch-stream path', () => {
   it('sets the Bearer header + accountId, and pumps parsed frames', async () => {

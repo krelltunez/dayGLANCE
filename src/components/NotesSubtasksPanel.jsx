@@ -17,6 +17,7 @@ import TaskThread from './TaskThread.jsx';
 import { dropIndex } from '../utils/subtaskOrder.js';
 import { beginLongPressReorder } from '../utils/longPressReorder.js';
 import { aiFeatureOn } from '../ai.js';
+import { describeAgo } from '../utils/bridgeStatus.js';
 
 /** Format an ISO timestamp as a human-readable relative or absolute string. */
 function formatNoteTimestamp(iso) {
@@ -31,6 +32,21 @@ function formatNoteTimestamp(iso) {
   if (diffH < 24) return relativeTime.format(-diffH, 'hour');
   return formatLocalizedDate(d, { month: 'short', day: 'numeric' });
 }
+
+// When the Obsidian plugin reported a note the panel shows from its report
+// (#2291 follow-up), or null for a note read from the vault folder.
+const reportedAtOf = (r) => (r?.source === 'report' && typeof r.observedAt === 'string' ? r.observedAt : null);
+
+// Why a linked note cannot be shown, as the task-note loader says it
+// (useObsidianSync's loadTaskNote): the message for each reason.
+const UNAVAILABLE_MESSAGES = {
+  not_found: 'task.wikiNoteNotFound',
+  not_set_up: 'task.wikiNoteNotSetUp',
+  not_shared: 'task.wikiNoteNotShared',
+  ambiguous: 'task.wikiNoteAmbiguous',
+  deleted: 'task.wikiNoteDeleted',
+  unreachable: 'task.wikiNoteUnreachable',
+};
 
 /**
  * Render note text with [[wikilink]] patterns as clickable buttons.
@@ -121,6 +137,7 @@ const NotesSubtasksPanel = ({
   const [linkedNoteEditing, setLinkedNoteEditing] = useState({}); // { noteName: boolean }
   const linkedNoteTextsRef = useRef({}); // { noteName: currentText } — for save-on-unmount
   const linkedNoteOriginalRef = useRef({}); // { noteName: textAtLoad } — to detect changes
+  const linkedNoteFromReportRef = useRef({}); // { noteName: true } while it shows the plugin's report
   const onSaveWikiNoteRef = useRef(onSaveWikiNote);
   useEffect(() => { onSaveWikiNoteRef.current = onSaveWikiNote; }, [onSaveWikiNote]);
   const requestedNotesRef = useRef(new Set()); // note names a load has been started for
@@ -179,11 +196,21 @@ const NotesSubtasksPanel = ({
     requestedNotesRef.current.add(noteName);
     const seeded = seededText !== null;
     if (!seeded) setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text: '', lastModified: null, loading: true, error: null } }));
-    onLoadWikiNote?.(noteName).then(result => {
-      if (seeded && (result === null || result?.notFound)) return;
-      if (result === null) {
+    // The task-note loader (#2291 follow-up): the note from the vault folder
+    // or from the Obsidian plugin's report of it, and, when neither can show
+    // it, WHY (`unavailable`), so the panel can say so honestly.
+    onLoadWikiNote?.(noteName, { taskPanel: true }).then(result => {
+      if (seeded && (result === null || result?.notFound || result?.unavailable)) return;
+      if (result === null || result?.unavailable === 'read_failed') {
         // Vault unavailable or the read failed — no editor, fail closed.
         setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text: '', lastModified: null, loading: false, error: 'not_found' } }));
+        return;
+      }
+      if (result?.unavailable) {
+        // Nothing to show, and no editor: no folder here and the note is not
+        // reported (or is ambiguous, deleted, or could not be asked for).
+        const hint = result.newNotesFolderOutsideScope ? { newNotesFolder: result.newNotesFolder } : null;
+        setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text: '', lastModified: null, loading: false, error: result.unavailable, hint } }));
         return;
       }
       if (result?.notFound) {
@@ -198,10 +225,13 @@ const NotesSubtasksPanel = ({
         return;
       }
       const text = result?.text ?? '';
-      setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text, lastModified: result?.lastModified ?? null, loading: false, error: null } }));
+      // From the plugin's report: when it was reported, said under the note.
+      const reportedAt = reportedAtOf(result);
+      setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text, lastModified: result?.lastModified ?? null, loading: false, error: null, reportedAt } }));
       setLinkedNoteEditing(prev => ({ ...prev, [noteName]: !text }));
       linkedNoteTextsRef.current[noteName] = text;
       linkedNoteOriginalRef.current[noteName] = text;
+      linkedNoteFromReportRef.current[noteName] = result?.source === 'report';
     }).catch(err => {
       if (seeded) return;
       setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text: '', lastModified: null, loading: false, error: err.message } }));
@@ -216,12 +246,18 @@ const NotesSubtasksPanel = ({
     const original = linkedNoteOriginalRef.current[noteName] ?? '';
     if (text === original || !onSaveWikiNote) return;
     linkedNoteOriginalRef.current[noteName] = text;
-    Promise.resolve(onSaveWikiNote(noteName, text, { base: noteTextHash(original) })).then((r) => {
+    Promise.resolve(onSaveWikiNote(noteName, text, { base: noteTextHash(original), taskPanel: true })).then((r) => {
+      if (r?.ok && r.mode === 'queued') {
+        // Sent from this device: the note now shows what it wrote, not a
+        // report's age (it still lives on the stream's side, for the flush).
+        setLinkedNoteStates(prev => ({ ...prev, [noteName]: { ...(prev[noteName] || {}), reportedAt: null } }));
+      }
       if (!r?.refused) return;
       const merged = `${r.text}\n\n${text}`.trim();
       linkedNoteOriginalRef.current[noteName] = r.text;
       linkedNoteTextsRef.current[noteName] = merged;
-      setLinkedNoteStates(prev => ({ ...prev, [noteName]: { ...(prev[noteName] || {}), text: merged, lastModified: r.lastModified ?? null, loading: false, error: null, conflict: true } }));
+      linkedNoteFromReportRef.current[noteName] = r.source === 'report';
+      setLinkedNoteStates(prev => ({ ...prev, [noteName]: { ...(prev[noteName] || {}), text: merged, lastModified: r.lastModified ?? null, loading: false, error: null, conflict: true, reportedAt: reportedAtOf(r) } }));
       setLinkedNoteEditing(prev => ({ ...prev, [noteName]: true }));
     }).catch(() => {});
   };
@@ -243,9 +279,15 @@ const NotesSubtasksPanel = ({
       const texts = linkedNoteTextsRef.current;
       // eslint-disable-next-line react-hooks/exhaustive-deps
       const originals = linkedNoteOriginalRef.current;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const fromReport = linkedNoteFromReportRef.current;
       Object.entries(texts).forEach(([noteName, text]) => {
         if (text !== (originals[noteName] ?? '')) {
-          onSaveWikiNoteRef.current(noteName, text);
+          // A note shown from the plugin's report is only ever sent under
+          // the base of the text shown, so the plugin can refuse it if the
+          // note moved; a folder note flushes as it always has.
+          if (fromReport[noteName]) onSaveWikiNoteRef.current(noteName, text, { base: noteTextHash(originals[noteName] ?? ''), taskPanel: true });
+          else onSaveWikiNoteRef.current(noteName, text);
         }
       });
     };
@@ -588,10 +630,23 @@ const NotesSubtasksPanel = ({
                     {t('common.loading')}
                   </div>
                 ) : state.error ? (
-                  <div className={`text-xs italic opacity-60 ${noteMinH} ${th.label}`}>
-                    {state.error === 'not_found'
-                      ? t('task.wikiNoteNotFound')
+                  <div data-linked-note-unavailable={UNAVAILABLE_MESSAGES[state.error] ? state.error : 'load_failed'} className={`text-xs italic opacity-60 ${noteMinH} ${th.label}`}>
+                    {UNAVAILABLE_MESSAGES[state.error]
+                      ? t(UNAVAILABLE_MESSAGES[state.error], { name: noteName.split('|')[0].split('#')[0].split('/').pop().trim() })
                       : t('task.wikiNoteLoadFailed', { error: state.error })}
+                    {state.error === 'not_shared' && state.hint?.newNotesFolder && (
+                      <span data-linked-note-scope-hint className="block mt-1">{t('task.wikiNoteNewNotesFolderNotShared', { folder: state.hint.newNotesFolder })}</span>
+                    )}
+                    {state.error === 'not_set_up' && planner?.openSettings && (
+                      <button
+                        type="button"
+                        data-linked-note-settings
+                        onClick={(e) => { e.stopPropagation(); planner.openSettings('integrations', 'obsidian'); }}
+                        className={`block mt-1 not-italic underline underline-offset-2 ${th.obsBtn}`}
+                      >
+                        {t('task.wikiNoteOpenObsidianSettings')}
+                      </button>
+                    )}
                   </div>
                 ) : isEditingWiki ? (
                   <textarea
@@ -629,6 +684,11 @@ const NotesSubtasksPanel = ({
                   >
                     {renderNoteContent(state.text, handleContentWikilinkClick, darkMode, t)}
                   </div>
+                )}
+                {state.reportedAt && !state.loading && !state.error && Number.isFinite(Date.parse(state.reportedAt)) && (
+                  <p data-linked-note-reported={state.reportedAt} className={`text-xs italic mt-1 ${th.noteTs}`}>
+                    {t('planner.notesReportedByObsidian', { when: describeAgo(Date.parse(state.reportedAt), Date.now(), activeLocale()) })}
+                  </p>
                 )}
               </div>
             );

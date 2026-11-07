@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createVault, createDevice, syncToConvergence } from './dbVaultSim.js';
-import { shredState, makeEntityId } from './dbAdapter.js';
+import { shredState, makeEntityId } from '@glance-apps/dayglance-vault';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAGE 2 PART A — MULTI-DEVICE MERGE CORRECTNESS (the gate)

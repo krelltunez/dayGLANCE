@@ -2,7 +2,7 @@
 // pinned: a paired vault keeps a device on the stream side even while its
 // own heartbeat is stale; an unpaired vault keeps the frozen direct tier.
 import { describe, it, expect } from 'vitest';
-import { vaultPosture, isStreamPosture } from './obsidianVaultPosture.js';
+import { vaultPosture, isStreamPosture, isPluginPosture } from './obsidianVaultPosture.js';
 
 const fresh = { obsidianRunning: true, pluginAuthoritative: true, stamping: 'armed' };
 const runningUnpairedHere = { obsidianRunning: true, pluginAuthoritative: false, stamping: null };
@@ -42,5 +42,18 @@ describe('isStreamPosture', () => {
     expect(isStreamPosture(stale)).toBe(false);
     expect(isStreamPosture(null)).toBe(false);
     expect(isStreamPosture(undefined)).toBe(false);
+  });
+});
+
+describe('isPluginPosture (#2291: is this folder the live note?)', () => {
+  it('is the recorded posture when there is one', () => {
+    expect(isPluginPosture({ vaultPosture: 'plugin' })).toBe(true);
+    expect(isPluginPosture({ vaultPosture: 'holding', pluginAuthoritative: true })).toBe(false);
+    expect(isPluginPosture({ vaultPosture: 'direct', pluginAuthoritative: true })).toBe(false);
+  });
+  it("falls back to the heartbeat's own claim before a cycle recorded a posture", () => {
+    expect(isPluginPosture({ pluginAuthoritative: true })).toBe(true);
+    expect(isPluginPosture({ pluginAuthoritative: false })).toBe(false);
+    expect(isPluginPosture(null)).toBe(false);
   });
 });

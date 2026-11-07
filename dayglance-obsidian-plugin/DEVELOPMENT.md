@@ -158,10 +158,38 @@ How the plugin works, for whoever changes it. The user-facing description is
   scope by virtue of the link, folder setting or not. The plugin applies
   `task_append` (note-task placement: section end, never sorted, never a
   missing note) and `task_remove` (the line carrying a block id) for this.
-- Six commands: **Sync now** (drains pending intents + refreshes the
+- **Add to dayGLANCE** (companion spec §4.2.1, `src/addTask.ts`,
+  `src/addTaskModal.ts`): the editor's context menu, while text is
+  selected, and the **Add selection or current line to dayGLANCE as a task** command (an `editorCallback`, so it is in the
+  mobile toolbar's picker too; the selection or the cursor's line,
+  `addTaskSource`) open a form: the title prefilled from that text, an optional deadline, the app's priority
+  (none to high) and, when the mirror can list them, the active projects.
+  The task title is `<title> [[<link>]]`, the link being Obsidian's own
+  link text for the note (`fileToLinktext`), always a wikilink. With
+  **Link to the exact paragraph** on (Editor settings, off by default) the
+  link names the block holding the selection's start: an id already at
+  its end is reused, otherwise six random letters and digits are added
+  through the editor. Never a `^dg-` id, written or linked (the writeback
+  refuses to stamp a title holding `^dg-`), and never one on an unstamped
+  task line (the parser would fold it into the title, the stamper would
+  refuse the line): a task line, stamped or not, links to the note. The plugin emits a
+  `task_create` action row under `act-create:` (sealed under the pairing
+  subkey, the transport's 429 brake and own-seq record honoured, retried
+  under one actionId); any paired dayGLANCE device with the account key
+  builds the task, folder or not. Emitting needs only the pairing.
+  It sends only once some current app announces `task_create`
+  (companion §4.2.2, `src/appCapabilities.ts`: a sealed `meta:cap:<name>`
+  row read by id; a yes cached per account and pairing generation in the
+  device-local store, a no asked again on every open). Until then the form
+  explains, Add is disabled, and nothing is emitted or written to the note.
+  The creates it sent wait in a device-local list (`src/sentCreates.ts`)
+  that the 30-second tick checks a few rows at a time; one still unconsumed
+  after an hour shows as a waiting line in the agenda view.
+- Seven commands: **Sync now** (drains pending intents + refreshes the
   heartbeat), **Enter pairing code**, **Unpair from GLANCEvault**
   (forgets the local credentials and the account key; revoke the token
-  server-side too), **Open agenda**, and the two link commands above.
+  server-side too), **Open agenda**, the two link commands above, and
+  **Add selection or current line to dayGLANCE as a task**.
 
 Network access happens only while paired (plus pairing verification), only
 to the vault URL carried in the offer, via Obsidian's `requestUrl`. All
@@ -182,15 +210,19 @@ stream rows are AES-256-GCM under the pairing's bridge subkey.
 
 ## Tests
 
-Apart from the pure editor-hiding rules, the plugin has no unit tests of its
-own; it is exercised end to end by the bridge scenario harness in `test/`,
+Apart from the pure editor-hiding rules, the Add to dayGLANCE helpers
+(`test/addTask.test.ts`), the app capability reader
+(`test/appCapabilities.test.ts`) and the waiting list
+(`test/sentCreates.test.ts`), the plugin has no unit tests of its own; it is
+exercised end to end by the bridge scenario harness in `test/`,
 which runs from the repository root
 with the rest of the suite (`npx vitest run`). The harness stubs the
 `obsidian` module (`test/obsidianStub.ts`), serves an in-memory GLANCEvault
 (`test/fakeGlanceVault.ts`), and drives the real transport plus the real
 dayGLANCE sync hook against it (`test/harness.ts`). Add a scenario to
 `test/scope.scenarios.test.ts` for any change to what the plugin stamps,
-reports, or applies.
+reports, or applies; Add to dayGLANCE has its own,
+`test/addTask.scenarios.test.ts`.
 
 ## Build
 
@@ -263,6 +295,19 @@ which is generated from here and never edited directly:
   tagged, it pushes the tag, and the mirror's release workflow builds it into
   a draft release with `main.js`, `manifest.json` and `styles.css`.
   Publishing that draft is what ships the version, so it stays a manual step.
+- The mirror's `main` names the PUBLISHED version. Obsidian's directory and
+  BRAT read `manifest.json` at the head of `main` and install from the release
+  whose tag matches, so `manifest.json` and `versions.json` there change only
+  when a release is published: the code on `main` follows this repository,
+  those two files keep `main`'s copies (`scripts/bridge-mirror/sync.sh`), and
+  a new version's files sit on its tag's commit, one step past `main`. When
+  the release is published, the mirror's `publish-manifest` workflow copies
+  them to `main` (a pre-release, or a release not newer than `main`, changes
+  nothing). `scripts/bridge-mirror/sync.test.js` runs both scripts on
+  throwaway repositories.
 
-To release a version: bump it in `manifest.json`, `package.json` and
-`versions.json`, merge, then publish the draft release in the mirror.
+To release a version: bump it in `manifest.json`, `package.json`,
+`package-lock.json` and `versions.json`, and merge. Test the build first if
+you like (`npm run bridge:install` at the repo root builds it into a vault);
+nothing reaches users until you publish the draft release in the mirror,
+which also moves `main`'s `manifest.json` to the new version.

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallba
 import i18n from 'i18next';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, TextCursorInput, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask, nativeResultsToTasks, extendCalendarFilter } from './utils/nativeCalendar.js';
+import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask, nativeResultsToTasks, extendCalendarFilter, nativeEventEndString } from './utils/nativeCalendar.js';
 import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeWriteDailyNote, nativeClearVault, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeGetWidgetPendingAction, triggerHaptic, nativeTouchLauncherHeartbeat } from './native.js';
 import { readDailyNoteFresh, readDailyNoteNative, simpleHash as obsidianSimpleHash, buildNewObsidianTaskMeta, dailyNoteFilename } from './obsidian.js';
 import { appendTaskDirect, writeDailyNoteDirect } from './utils/obsidianDirectWrites.js';
@@ -13,9 +13,10 @@ import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, testConnection, DEFAULT
 import { taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
-import { tombstoneCutoff, pruneCompletedTaskUids } from './sync/tombstoneRetention.js';
+import { tombstoneCutoff, pruneCompletedTaskUids } from '@glance-apps/dayglance-vault';
 import { readMinimizedSections, readUse24HourClock, readWeekStartDay, readBucketConfig, readDailyNotes, readMultiUserEnabled, readUsers, readMeUserSyncId, readCalendarFilter, readNativeTimeOverrides, readJoboEnabled } from './utils/storedSlices.js';
-import { isTaskVisibleForUser, isOwnedBy } from './utils/userScope.js';
+import { isTaskVisibleForUser, isOwnedBy, frameInstancesForDate, shiftDateStr } from '@glance-apps/agenda-core';
+import { continuationsForDate } from './utils/continuations.js';
 import { preserveStickyFields } from './utils/preserveStickyFields.js';
 import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
 import { withProjectMetadata } from '@glance-apps/obsidian-format';
@@ -60,7 +61,6 @@ import useStorageProjection from './hooks/useStorageProjection.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, extractShareTitle } from './utils/textFormatting.jsx';
 import { msUntilMidnightRefresh, rememberViewsForMidnight, readMidnightViews, clearMidnightViews } from './utils/midnightRefresh.js';
 import { computeAvailableSlots as computeAvailableSlotsPure, adjustPastConflicts } from './utils/dayOccupancy.js';
-import { frameInstancesForDate } from './utils/frameInstances.js';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, stripWikilinksAndTags, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
 import { carryCreatedAt } from './utils/createdAt.js';
 import DaySummaryCallouts from './components/DaySummaryCallouts.jsx';
@@ -182,6 +182,7 @@ import { useDbIntentPoller, drainDbIntents } from './intents/dbIntentsTransport.
 import { ensureVaultIntentsKeyReady } from './intents/vaultIntentsSetup.js';
 import { getDbIntentsConnection, isDbIntentsEnabled } from './intents/dbIntentsConfig.js';
 import { useVaultEventStream } from './hooks/useVaultEventStream.js';
+import useBridgeTaskCreates from './hooks/useBridgeTaskCreates.js';
 import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
 import { useGoalNotifyEmitter } from './intents/useGoalNotifyEmitter.js';
 import { useOutboxFlush } from './intents/useOutboxFlush.js';
@@ -203,6 +204,7 @@ import useTaskFormHelpers from './hooks/useTaskFormHelpers.js';
 import useTaskActions from './hooks/useTaskActions.js';
 import useElectronBridge from './hooks/useElectronBridge.js';
 import useMcpBridge from './hooks/useMcpBridge.js';
+import { buildMcpReadState } from '@glance-apps/dayglance-mcp/model';
 import useRecycleBin from './hooks/useRecycleBin.js';
 import useReminderEngine from './hooks/useReminderEngine.js';
 import useReminders from './hooks/useReminders.js';
@@ -1845,6 +1847,7 @@ const DayPlanner = () => {
   // the ordering costs nothing. All pacing — the observation probe, the min
   // gap, the plugin-authority gate — lives in the callee.
   const obsidianSseNudgeRef = useRef(null);
+  const bridgeCreatesNudgeRef = useRef(null);
   useVaultEventStream({
     dataLoaded,
     drainSync: useCallback(() => {
@@ -1861,7 +1864,13 @@ const DayPlanner = () => {
     // cycle — bridge rows advance the same account seq, so a plugin-observed
     // vault edit reaches dayGLANCE in seconds instead of waiting out the
     // 5-minute poll. See nudgeObsidianObservations in useObsidianSync.
-    drainObsidian: useCallback(() => obsidianSseNudgeRef.current?.(), []),
+    // The same bridge-namespace nudge wakes the consumer of tasks added from
+    // Obsidian (useBridgeTaskCreates), which runs on every paired device,
+    // folder or not, with its own pacing.
+    drainObsidian: useCallback(() => {
+      obsidianSseNudgeRef.current?.();
+      bridgeCreatesNudgeRef.current?.();
+    }, []),
   });
   // Proactively (re-)derive the GLANCEvault INTENTS root key the moment sync is
   // established with the passphrase in memory — the same trigger that re-derives
@@ -3232,6 +3241,15 @@ const DayPlanner = () => {
   // Late-bind the SSE → Obsidian nudge (declared beside useVaultEventStream
   // above, which mounts before this hook can exist).
   obsidianSseNudgeRef.current = nudgeObsidianObservations;
+  // Tasks added from Obsidian (companion spec 4.2.1): applied by any paired
+  // device with the account key, folder or not. Not inside useObsidianSync,
+  // whose cycle needs the vault folder.
+  const { nudgeBridgeTaskCreates } = useBridgeTaskCreates({
+    dataLoaded, isTrayMode,
+    tasks, unscheduledTasks, recurringTasks, recycleBin, projects, users, multiUserEnabled,
+    setUnscheduledTasks,
+  });
+  bridgeCreatesNudgeRef.current = nudgeBridgeTaskCreates;
 
   // Auto-backup timer
   useEffect(() => {
@@ -3373,6 +3391,9 @@ const DayPlanner = () => {
       duration,
       excludeId: taskId,
       tasks: tasks.filter(t => t.date === dateStr && t.imported && !t.isAllDay),
+      // An imported event from the night before still holds the hours after
+      // midnight (#2278).
+      prevDayTasks: tasks.filter(t => t.date === shiftDateStr(dateStr, -1) && t.imported && !t.isAllDay),
     })
   );
 
@@ -3897,9 +3918,9 @@ const DayPlanner = () => {
     setMobileEditingNativeEvent(null);
 
     // Attempt to write back to the device calendar
-    const endMin = startTime ? timeToMinutes(startTime) + duration : 0;
     const newStart = isAllDay ? date : `${date}T${startTime}:00`;
-    const newEnd = isAllDay ? date : `${date}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+    // An end past midnight is on the next date (#2278).
+    const newEnd = isAllDay ? date : nativeEventEndString(date, startTime, duration);
     const result = await nativeUpdateEvent({
       id: orig.nativeEventId,
       title,
@@ -5685,6 +5706,16 @@ const DayPlanner = () => {
     return applyTagFilter ? filterByTags(dayTasks) : dayTasks;
   }, [filterByTags, tasksByDate]);
 
+  // The previous date's rows, for what they leave on `date` after midnight
+  // (#2278, agenda-core overnight.js). The previous date owns those tasks; the
+  // timelines draw their continuation and occupancy counts it as busy, but
+  // getTasksForDate(date) never lists it.
+  const getPrevDayTasks = useCallback((date, applyTagFilter = true) => {
+    const prev = new Date(date);
+    prev.setDate(prev.getDate() - 1);
+    return getTasksForDate(prev, applyTagFilter);
+  }, [getTasksForDate]);
+
   // JOBO slice 6: a date before today shows what was done
   // (docs/jobo-past-days.md, src/jobo/pastDay.js). Only the views' own
   // column and all-day reads take this; getTasksForDate stays as it is for
@@ -5720,6 +5751,14 @@ const DayPlanner = () => {
     tagFilter: applyTagFilter ? filterByTags : null,
     todayEnded,
   }), [getTasksForDate, pastDayIndex, isVisibleForUser, filterByTags, nowTodayStr, todayEnded]);
+  // The pieces the previous date leaves on `date` after midnight, for the
+  // timelines (#2278): carried from the previous date as it is SHOWN, so a
+  // past night's block that gave way to its Do (JOBO slice 6) gives way on
+  // the next date too; `asPlanned` (JOBO's Plan side) reads the plan as it
+  // stood. utils/continuations.js continuationsForDate.
+  const getContinuationsForDate = useCallback((date, applyTagFilter = true, { asPlanned = false } = {}) => continuationsForDate(date, {
+    readShown: getDayDisplayForDate, readPlanned: getTasksForDate, applyTagFilter, asPlanned,
+  }), [getTasksForDate, getDayDisplayForDate]);
   // SCHED's Do badge: a task's timed Do on its own date, from the same index
   // (src/jobo/pastDay.js, doSessionsByTask). Cached per date for as long as
   // the index stands, so a day's cards share one pass over its slices. Empty
@@ -5862,11 +5901,13 @@ const DayPlanner = () => {
     return computeAvailableSlotsPure(frameInstance, {
       state: routineOccupancy,
       tasks: getTasksForDate(slotDate).filter(t => !t.isAllDay && t.startTime),
+      // Last night's task still running after midnight is busy time (#2278).
+      prevDayTasks: getPrevDayTasks(slotDate),
       dateStr: dateToString(slotDate),
       todayStr: dateToString(now),
       nowMinutes: now.getHours() * 60 + now.getMinutes(),
     });
-  }, [getTasksForDate, routineOccupancy]);
+  }, [getTasksForDate, getPrevDayTasks, routineOccupancy]);
 
   // A frame's free time as the Day Dial ships it: the same rule, with two
   // differences on purpose. No now floor (todayStr is the day itself and now
@@ -5878,11 +5919,12 @@ const DayPlanner = () => {
     return computeAvailableSlotsPure(frameInstance, {
       state: routineOccupancy,
       tasks: getTasksForDate(date, false).filter(t => !t.isAllDay && t.startTime),
+      prevDayTasks: getPrevDayTasks(date, false),
       dateStr,
       todayStr: dateStr,
       nowMinutes: 0,
     });
-  }, [getTasksForDate, routineOccupancy]);
+  }, [getTasksForDate, getPrevDayTasks, routineOccupancy]);
   const dialFramesForDate = useCallback((date) => getFrameInstancesForDate(date)
     .map(f => ({ ...f, slots: dialFrameSlots(f, date) })), [getFrameInstancesForDate, dialFrameSlots]);
 
@@ -6193,36 +6235,32 @@ const DayPlanner = () => {
 
   // MCP read bridge (docs/mcp-server-spec.md §10 Phase 2): answers main-process
   // data requests from live state. Inert in the tray popup and outside Electron.
-  // Deliberately its own hook + tested pure model (src/utils/mcpReadModel.js),
+  // Deliberately its own hook + tested pure model (@glance-apps/dayglance-mcp),
   // NOT part of useElectronBridge — see the §11 risk register.
-  useMcpBridge({
+  //
+  // The state it answers from is assembled by buildMcpReadState, the same
+  // function a GLANCEvault-client host assembles its state with (#2280), so
+  // the two cannot scope or date anything differently. It is handed the
+  // UNSCOPED slices under their sync-payload names and does the scoping
+  // itself; the comments below say what each slice is for.
+  const mcpReadState = useMemo(() => buildMcpReadState({
     tasks,
     recurringTasks,
     unscheduledTasks,
-    // ROUTINES (read-only). `todayRoutines` here is the OWNER-SCOPED memo
-    // (filtered by ownedBy above), never `allTodayRoutines`. This is not a
-    // tidiness point: routines carry ownerSyncId, and isVisibleForUser (the
-    // filter every other slice below relies on) tests assignedUserSyncIds,
-    // which a routine does not have, so it returns true for every member's
-    // routines. Scoping has to happen HERE, before the bridge, or another
-    // member's routines leak onto this user's MCP read surface.
-    routines: todayRoutines,
+    // ROUTINES (read-only). Every member's placed routines: buildMcpReadState
+    // scopes them by owner. This is not a tidiness point: routines carry
+    // ownerSyncId, and isVisibleForUser (the filter every other slice relies
+    // on) tests assignedUserSyncIds, which a routine does not have, so it
+    // returns true for every member's routines. The scoping has to happen
+    // before the read model, or another member's routines leak onto this
+    // user's MCP read surface.
+    todayRoutines: allTodayRoutines,
     routinesDate,
     routineCompletions,
     routinesEnabled,
-    // Today per the ticking clock, so the read model can require that
-    // routinesDate really is today before reporting routines (see the date
-    // guard in mcpRoutines.js).
-    todayDate: dateToString(currentTime),
-    // FRAMES (read-only). `myFrames` is the OWNER-SCOPED memo, for exactly the
-    // reason routines above are: frames carry ownerSyncId and isVisibleForUser
-    // tests assignedUserSyncIds, so the generic filter would admit every
-    // member's frames. Both slices are scoped here, before the bridge.
-    frames: myFrames,
-    // Frame availability clips today's free slots to the present, so the model
-    // needs the current minute. Supplied rather than read inside the model,
-    // which stays pure.
-    nowMinutes: currentTime.getHours() * 60 + currentTime.getMinutes(),
+    // FRAMES (read-only). Every member's frames, scoped by owner the same way
+    // and for exactly the same reason as routines above.
+    gtdFrames,
     // Bulk undo moves undone creates to the recycle bin (the UI's own delete
     // shape), so the undo path needs the current bin to append to.
     recycleBin,
@@ -6233,14 +6271,27 @@ const DayPlanner = () => {
     // Read-only: the day's note rides get_day; the Bucket List has its own tool.
     dailyNotes,
     bucketConfig,
-    isVisibleForUser,
-    // Phase 4 week resource honors the user's week-start setting (0=Sunday).
-    weekStartDay,
     // Multi-user: the roster backs list_users and assignee validation in the
     // renderer; the flag is pushed to main to gate the tool schemas.
     users,
     multiUserEnabled,
   }, {
+    // Today per the ticking clock, on this device's own (the user's) clock:
+    // the read model requires that routinesDate really is today before
+    // reporting routines (the date guard in buildRoutineBlocks), and clips
+    // today's frame availability to the current minute. No time zone: a host
+    // on a server passes the user's.
+    now: currentTime,
+    // Whose read surface this is: owner scoping and isVisibleForUser.
+    userSyncId: meUserSyncId,
+    // Phase 4 week resource honors the user's week-start setting (0=Sunday).
+    weekStartDay,
+  }), [
+    tasks, recurringTasks, unscheduledTasks, allTodayRoutines, routinesDate, routineCompletions,
+    routinesEnabled, gtdFrames, recycleBin, goals, projects, areas, dailyNotes, bucketConfig, users,
+    multiUserEnabled, currentTime, meUserSyncId, weekStartDay,
+  ]);
+  useMcpBridge(mcpReadState, {
     // Write setters (Phase 3): handleMcpWrite applies the canonical shapes
     // from src/utils/taskMutations.js through these — the same store layer
     // every UI edit uses, so sync, tombstones, and tray:data-changed engage
@@ -6442,7 +6493,7 @@ const DayPlanner = () => {
       tasksForDate: widgetTasksForDate,
       deadlinesForDate: (dateStr) => unscheduledTasks.filter(t => notBucketed(t) && t.deadline === dateStr && !t.completed && !t.isExample && isVisibleForUser(t)),
       // Routines exist for today only; both halves of the date guard are the
-      // ones buildRoutineBlocks (utils/mcpRoutines.js) explains.
+      // ones buildRoutineBlocks (agenda-core's routineBlocks.js) explains.
       // Completion rides along for the extra-large widget's agenda, which
       // draws a done routine the way SCHED draws a done task.
       routinesForDate: (dateStr) => (routinesEnabled && routinesDate === dateStr && widgetTodayKey === dateStr)
@@ -7362,6 +7413,7 @@ const DayPlanner = () => {
     getConflictingTasks, calculateConflictPosition, wouldExceedMaxColumns,
     filterByTags,
     getTasksForDate, getDayDisplayForDate, getDoSessionsForTask, getDateIndicators, hasTasksOnDate,
+    getContinuationsForDate,
     getDayName, getMonthDays, getNextQuarterHour,
     getTodayStr, getOverdueTasks,
     getTaskCalendarStyle,
