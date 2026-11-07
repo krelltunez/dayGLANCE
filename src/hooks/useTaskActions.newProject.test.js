@@ -59,6 +59,24 @@ describe('a task saved with a new project', () => {
   });
 });
 
+// #2308: the title written to the daily note drops #obsidian and only that
+// tag. The old rule (`#obsidian\b`) cut `#obsidian/inbox` down to `/inbox`.
+describe('the #obsidian tag on save', () => {
+  const plain = (title) => ({ title, duration: 30, startTime: '10:00', date: DAY, isAllDay: false, projectId: null, color: 'bg-green-500' });
+
+  it('drops #obsidian, in any case, and leaves a longer or nested tag whole', () => {
+    const getObsidianTaskMeta = vi.fn(() => null);
+    build(plain('Buy shoes #Obsidian #obsidian/inbox #obsidian-notes, today'), { getObsidianTaskMeta }).actions.addTask(false);
+    expect(getObsidianTaskMeta).toHaveBeenCalledWith('Buy shoes #obsidian/inbox #obsidian-notes, today', null, null);
+  });
+
+  it('a title with only a longer tag is not an #obsidian task', () => {
+    const getObsidianTaskMeta = vi.fn(() => null);
+    build(plain('Buy shoes #obsidian-notes'), { getObsidianTaskMeta }).actions.addTask(false);
+    expect(getObsidianTaskMeta).not.toHaveBeenCalled();
+  });
+});
+
 // #2274: a task saved from the editor makes its project the picker's
 // "last used" on this device; one saved without a project leaves it.
 describe('the last used project', () => {

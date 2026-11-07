@@ -33,10 +33,21 @@ export function isTagEditable(task) {
   return !!task && !task.imported && !task._native && !task.todoist?.id;
 }
 
+// Brackets a removed tag leaves empty go with it: `Buy milk (#errand)`.
+const CLOSER = { '(': ')', '[': ']', '{': '}' };
+// Punctuation that belongs to the words before a removed tag, so the space
+// before the tag goes: `Call Bob #work, then` is `Call Bob, then`.
+const TRAILING_PUNCT = /^[,.;:!?…)\]}]/u;
+// After a tag that opened a line, its punctuation goes with it: `#work: plan` is `plan`.
+const LABEL_PUNCT = /^[,.;:!?…]+[ \t]*/u;
+const AT_LINE_START = /(^|\n)[ \t]*$/;
+
 /**
  * `text` with tag `from` renamed to `to`, or removed when `to` is null. A
  * rename into a tag the text already has keeps only the first of the two.
- * Removing a tag tidies the spaces it leaves. Unchanged text comes back as is.
+ * Removing a tag tidies what it leaves: the spaces either side, the space
+ * before punctuation that followed it, brackets it leaves empty, and the
+ * punctuation after a tag that opened a line. Unchanged text comes back as is.
  */
 export function rewriteTag(text, from, to) {
   const source = String(text ?? '');
@@ -44,19 +55,65 @@ export function rewriteTag(text, from, to) {
   if (!target || !extractTags(source).includes(target)) return source;
   const into = to ? lower(to) : null;
   let seenInto = false;
-  const out = source.replace(TAG_OR_ADDRESS, (all, address, name) => {
-    if (address) return all;
+  let out = '';
+  let at = 0;
+  for (const m of source.matchAll(TAG_OR_ADDRESS)) {
+    const [all, address, name] = m;
+    if (address) continue;
     const key = lower(name);
     const renamed = key === target ? into : key;
-    if (renamed === null) return '';
-    if (renamed === into) {
-      if (seenInto) return '';
-      seenInto = true;
-      return key === target ? `#${into}` : all;
+    let replacement = all;
+    if (renamed === null) replacement = null;
+    else if (renamed === into) {
+      if (seenInto) replacement = null;
+      else {
+        seenInto = true;
+        if (key === target) replacement = `#${into}`;
+      }
     }
-    return all;
-  });
+    if (replacement === all) continue;
+    out += source.slice(at, m.index);
+    at = m.index + all.length;
+    if (replacement !== null) { out += replacement; continue; }
+    // Removed: tidy what the tag leaves around it.
+    const closer = CLOSER[out.slice(-1)];
+    if (closer && source[at] === closer) {
+      out = out.slice(0, -1);
+      at += 1;
+    } else if (closer) {
+      while (source[at] === ' ' || source[at] === '\t') at += 1;
+    } else if (TRAILING_PUNCT.test(source.slice(at))) {
+      if (AT_LINE_START.test(out)) at += source.slice(at).match(LABEL_PUNCT)?.[0].length ?? 0;
+      else out = out.replace(/[ \t]+$/, '');
+    }
+  }
+  out += source.slice(at);
   return out === source ? source : out.replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+$/gm, '').replace(/^[ \t]+/gm, '');
+}
+
+/**
+ * The task editor's tag picker (#2308): `title` with `#tag` at its end, one
+ * space before it and none after, unless the title already carries the tag
+ * in any case. An empty title becomes the tag alone; an invalid name changes
+ * nothing.
+ */
+export function addTagToTitle(title, tag) {
+  const source = String(title ?? '');
+  const name = normalizeTagInput(tag);
+  if (!name || extractTags(source).includes(name)) return source;
+  const head = source.trimEnd();
+  return head ? `${head} #${name}` : `#${name}`;
+}
+
+/** `title` without `#tag`, every occurrence and any case, tidied as the tag manager removes one. */
+export const removeTagFromTitle = (title, tag) => rewriteTag(title, String(tag ?? '').replace(/^#+/, ''), null);
+
+/** The picker's tap: removes `#tag` from a title that carries it, adds it to one that does not. */
+export function toggleTagInTitle(title, tag) {
+  const name = lower(String(tag ?? '').trim().replace(/^#+/, ''));
+  return extractTags(String(title ?? '')).includes(name)
+    ? removeTagFromTitle(title, name)
+    : addTagToTitle(title, name);
 }
 
 const rewriteRecurring = (template, from, to) => {
