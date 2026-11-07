@@ -1491,6 +1491,12 @@ function startMcpListener(): void {
       includeNativeEvents: () => mcpGates(integrationsConfig).includeNative,
       multiUserEnabled: () => mcpMultiUserEnabled,
     },
+    // dayglance_list_mcp_writes (#2321): the journal read back, per call, so
+    // a write or an undo shows on the next read. Rides the read tier.
+    journalDeps: {
+      entries: () => mcpJournalEntries,
+      timeZone: mcpTimeZone,
+    },
     writeDeps: {
       bridge: mcpBridge,
       gate: mcpWriteGate,

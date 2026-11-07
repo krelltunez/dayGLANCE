@@ -21,6 +21,7 @@ import { startMcpListener } from '@glance-apps/mcp-host';
 import { DEFAULT_MCP_PORT } from './mcpPort.js';
 import { registerReadTools, registerResources, type ReadToolDeps } from '@glance-apps/dayglance-mcp';
 import { registerWriteTools, type WriteToolDeps } from './mcpWriteTools.js';
+import { registerJournalReadTool, type JournalReadDeps } from './mcpJournalRead.js';
 
 export const MCP_ENDPOINT_PATH = '/mcp';
 
@@ -47,6 +48,12 @@ export interface McpServerOptions {
    * Absent means the write tools are not registered at all.
    */
   writeDeps?: WriteToolDeps;
+  /**
+   * The §4.3 session write journal, for dayglance_list_mcp_writes (#2321). A
+   * read: registered only together with the read tools (the same consent
+   * tier, §6.3), whatever the writes opt-in says.
+   */
+  journalDeps?: JournalReadDeps;
   log?: (msg: string) => void;
   logError?: (msg: string) => void;
 }
@@ -93,6 +100,7 @@ export function startMcpServer(opts: McpServerOptions): http.Server | null {
         // Phase 4 resources share the read tools' deps: same bridge, same
         // clock/timezone, same consent tier (§5.4 — no second read path).
         registerResources(server, opts.readDeps);
+        if (opts.journalDeps) registerJournalReadTool(server, opts.journalDeps);
       }
       if (opts.writeDeps) registerWriteTools(server, opts.writeDeps);
       return server;

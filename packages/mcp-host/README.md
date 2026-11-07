@@ -27,7 +27,7 @@ Everything is exported from the package root.
 | `rateLimit.js`, `writeGate.js` | `createWriteRateLimiter` (sliding window, keyed by token), `createWriteGate` (repeated violations auto-disable writes until `reset()`). |
 | `idempotency.js` | `createIdempotencyStore` (TTL + LRU replay store), `isValidIdempotencyKey`, `makeStoreKey`. |
 | `pagination.js` | `paginate(items, { limit, cursor, filterKey, cursorPrefix })`: self-contained cursors bound to the filter they were minted under. `encodeCursor`, `decodeCursor`. |
-| `journal.js` | The session write journal: `appendEntry`, `journalGroups` / `journalSnapshot` (given the app's `groupKey`, and optionally `groupLabel`), `buildUndoPlan`, `summaryTitle`. |
+| `journal.js` | The session write journal: `appendEntry`, `journalGroups` / `journalSnapshot` (given the app's `groupKey`, and optionally `groupLabel`), `buildUndoPlan`, `summaryTitle`. Read back for a tool: `journalPage(entries, { describe, formatAt, match, limit, cursor, cursorPrefix })` (newest first, filtered by the ids the app's `describe(op)` names, paginated; the op and idempotency key never reach a row), `publicJournalEntry`, `journalFilterKey`. |
 | `dates.js`, `localTime.js` | Local calendar dates and wall-clock times: `isValidLocalDate`, `localDateOf`, `localMinutesOf`, `dateEnvelope`, `isValidWallTime`, `resolveLocalTime`, `validateStartTime` (refuses DST-skipped and DST-repeated times). |
 
 Types only: `HostBridge` and `BridgeResult`, the contract between the tools
