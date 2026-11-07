@@ -5785,12 +5785,15 @@ const DayPlanner = () => {
   // inside it: frames carry ownerSyncId (single-owner), which the shared
   // isVisibleForUser predicate does not understand, so the scoping cannot be
   // delegated to a generic filter without leaking other members' frames.
+  // The frame sets go in whole (#2305): a set is only looked up by a frame's
+  // setId, and without them every set's frames would show on every date.
   const getFrameInstancesForDate = useCallback(
     (date) => frameInstancesForDate(
       gtdFrames.filter(f => ownedBy(f, meUserSyncId)),
       dateToString(date),
+      { frameSets },
     ),
-    [gtdFrames, ownedBy, meUserSyncId],
+    [gtdFrames, frameSets, ownedBy, meUserSyncId],
   );
 
   // --- Frame Nudge --- (must be after getFrameInstancesForDate and getTasksForDate)
@@ -6262,6 +6265,9 @@ const DayPlanner = () => {
     // FRAMES (read-only). Every member's frames, scoped by owner the same way
     // and for exactly the same reason as routines above.
     gtdFrames,
+    // Frame sets (#2305): which frames apply on a date. Unscoped is fine, a
+    // set is only looked up by a frame's setId.
+    frameSets,
     // Bulk undo moves undone creates to the recycle bin (the UI's own delete
     // shape), so the undo path needs the current bin to append to.
     recycleBin,
@@ -6289,7 +6295,7 @@ const DayPlanner = () => {
     weekStartDay,
   }), [
     tasks, recurringTasks, unscheduledTasks, allTodayRoutines, routinesDate, routineCompletions,
-    routinesEnabled, gtdFrames, recycleBin, goals, projects, areas, dailyNotes, bucketConfig, users,
+    routinesEnabled, gtdFrames, frameSets, recycleBin, goals, projects, areas, dailyNotes, bucketConfig, users,
     multiUserEnabled, currentTime, meUserSyncId, weekStartDay,
   ]);
   useMcpBridge(mcpReadState, {

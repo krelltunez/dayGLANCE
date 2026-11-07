@@ -32,6 +32,8 @@ describe('App.jsx hands the MCP bridge buildMcpReadState\'s state', () => {
   it('hands over every member\'s routines and frames under their payload names, for buildMcpReadState to scope', () => {
     expect(memo).toMatch(/\n\s*todayRoutines: allTodayRoutines,/);
     expect(memo).toMatch(/\n\s*gtdFrames,/);
+    // Frame sets (#2305): without them every set's frames reach every date.
+    expect(memo).toMatch(/\n\s*frameSets,/);
     // The pre-package keys would bypass the scoping entirely.
     expect(memo).not.toMatch(/\n\s*routines:/);
     expect(memo).not.toMatch(/\n\s*frames:/);
@@ -50,5 +52,11 @@ describe('the UI frame wrapper is owner-scoped too', () => {
     // contract does not scope.
     const wrapper = app.slice(app.indexOf('const getFrameInstancesForDate'), app.indexOf('const getFrameInstancesForDate') + 500);
     expect(wrapper).toContain('ownedBy(f, meUserSyncId)');
+  });
+
+  it('passes the frame sets, and recomputes when they change (#2305)', () => {
+    const wrapper = app.slice(app.indexOf('const getFrameInstancesForDate'), app.indexOf('const getFrameInstancesForDate') + 500);
+    expect(wrapper).toContain('{ frameSets }');
+    expect(wrapper).toMatch(/\[gtdFrames, frameSets,/);
   });
 });

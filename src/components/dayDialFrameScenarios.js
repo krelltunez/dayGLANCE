@@ -42,7 +42,8 @@ const FRAMES = {
 };
 
 /** Frame instances with their unfloored slots, as App.jsx's dialFramesForDate. */
-const framesFor = (defs, tasks) => frameInstancesForDate(defs, SCENARIO_DATE).map((f) => ({
+// The scenario frames belong to no set, so the set list is empty (#2305).
+const framesFor = (defs, tasks) => frameInstancesForDate(defs, SCENARIO_DATE, { frameSets: [] }).map((f) => ({
   ...f,
   slots: computeAvailableSlots(f, { tasks, dateStr: SCENARIO_DATE, todayStr: SCENARIO_DATE, nowMinutes: 0 }),
 }));

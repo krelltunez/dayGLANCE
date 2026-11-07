@@ -6,6 +6,8 @@ import { describe, it, expect } from 'vitest';
 import { frameInstancesForDate, isOwnedBy, isTaskVisibleForUser } from '@glance-apps/agenda-core';
 import { FRAME_ID_PREFIX, frameWireId, toFrameObject, buildFrames } from '../src/frames.js';
 import { buildDayBlocks } from '../src/readModel.js';
+import { buildMcpReadState } from '../src/readState.js';
+import { handleMcpRequest } from '../src/model.js';
 
 // 2026-09-19 is a Saturday (day 6); 2026-09-21 a Monday (day 1).
 const SAT = '2026-09-19';
@@ -169,6 +171,31 @@ describe('frame ownership is scoped BEFORE the read model', () => {
     // every other slice uses admits BOTH.
     expect([mine, theirs].filter(isVisibleForUser)).toHaveLength(2);
     expect([mine, theirs].filter((f) => ownedBy(f, 'user-me'))).toHaveLength(1);
+  });
+});
+
+// Frame sets (#2305): a frame in a set is reported only on the dates its set
+// is active, so the read surface matches the timeline. History is kept: a set
+// switched off from a date still reports its frames before it.
+describe('frame sets on the read surface', () => {
+  const work = { id: 'work', name: 'Work', periods: [{ from: null, until: '2026-09-20' }] };
+  const frames = [F({ id: 'desk', setId: 'work' }), F({ id: 'free', start: '13:00', end: '14:00' })];
+
+  it('reports a set\'s frames only on the dates the set is active', () => {
+    expect(buildFrames(state({ frames, frameSets: [work] }), MON).map((f) => f.id)).toEqual(['frame-free-2026-09-21']);
+    expect(buildFrames(state({ frames, frameSets: [work] }), '2026-09-14').map((f) => f.id))
+      .toEqual(['frame-desk-2026-09-14', 'frame-free-2026-09-14']);
+  });
+
+  it('reports a frame whose set it does not know, as the app shows it', () => {
+    expect(buildFrames(state({ frames }), MON).map((f) => f.id)).toEqual(['frame-desk-2026-09-21', 'frame-free-2026-09-21']);
+  });
+
+  it('reaches get_day through buildMcpReadState from the payload slice', () => {
+    const s = buildMcpReadState({ gtdFrames: frames, frameSets: [work], tasks: [], recurringTasks: [], unscheduledTasks: [] }, { now: new Date(2026, 8, 21, 8, 0) });
+    expect(s.frameSets).toEqual([work]);
+    const r = handleMcpRequest(s, { method: 'get_day', params: { date: MON } });
+    expect(r.data.frames.map((f) => f.id)).toEqual(['frame-free-2026-09-21']);
   });
 });
 

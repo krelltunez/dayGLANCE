@@ -48,7 +48,7 @@ export function readClock(now, timeZone) {
  * @param {object} data  the synced slices, under their sync-payload names:
  *   tasks, recurringTasks, unscheduledTasks, recycleBin, todayRoutines (every
  *   member's), routinesDate, routineCompletions, routinesEnabled, gtdFrames
- *   (every member's), goals, projects, areas, dailyNotes, bucketConfig,
+ *   (every member's), frameSets, goals, projects, areas, dailyNotes, bucketConfig,
  *   users, multiUserEnabled
  * @param {object} opts  what the device (or the host's configuration) supplies:
  * @param {Date|number} opts.now  the current instant
@@ -78,6 +78,10 @@ export function buildMcpReadState(data, { now, timeZone, userSyncId, weekStartDa
     todayDate,
     // Owner-scoped, for the same reason as routines.
     frames: ownedByUser(d.gtdFrames),
+    // Frame sets (#2305): not scoped, a set is only looked up by a frame's
+    // setId. Absent (not loaded, or an older payload), frames read as if
+    // they had no set.
+    frameSets: d.frameSets,
     // Frame availability clips today's free slots to the present.
     nowMinutes,
     // Bulk undo (the app's write path) moves undone creates to the bin.
