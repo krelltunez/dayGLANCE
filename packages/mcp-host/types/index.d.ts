@@ -224,6 +224,61 @@ export function journalSnapshot<Op>(
 /** Every op, newest first, so compound histories unwind. */
 export function buildUndoPlan<Op>(entries: JournalEntry<Op>[]): { count: number; ops: Op[] };
 
+/** One field a write changed: its value before the write, and after when the host kept it. */
+export interface JournalChange {
+  field: string;
+  before: unknown;
+  after?: unknown;
+}
+
+/**
+ * What an app makes public about one undo op: the entity ids it touched,
+ * under the app's wire names, and the field-level changes it kept.
+ */
+export interface JournalDescription {
+  ids?: Record<string, unknown>;
+  changes?: JournalChange[];
+}
+
+/** A journal entry as a read tool shows it: never the op, never the idempotency key. */
+export type PublicJournalRow = {
+  at: unknown;
+  tool: string;
+  summary: string;
+  changes?: JournalChange[];
+  [id: string]: unknown;
+};
+
+export interface JournalReadOptions<Op = unknown> {
+  /** The app's: ids and changes for an op. May throw on a kind it does not know. */
+  describe(op: Op): JournalDescription | null | undefined;
+  /** The wire form of an entry's ISO `at`. Default: as stored. */
+  formatAt?(at: string): unknown;
+}
+
+/** The filter key a journal read's cursor is bound to. */
+export function journalFilterKey(match?: Record<string, string | undefined>): string;
+
+/** One entry as a read tool may show it, and the ids a filter matches against. */
+export function publicJournalEntry<Op>(
+  entry: Pick<JournalEntry<Op>, 'at' | 'tool' | 'summary' | 'op'>,
+  opts: JournalReadOptions<Op>,
+): { row: PublicJournalRow; ids: Record<string, string> };
+
+/**
+ * The journal newest first, filtered by id (every filter given must match),
+ * paginated with the kit's cursor. Never trims the journal.
+ */
+export function journalPage<Op>(
+  entries: Array<Pick<JournalEntry<Op>, 'at' | 'tool' | 'summary' | 'op'>>,
+  opts: JournalReadOptions<Op> & {
+    match?: Record<string, unknown>;
+    limit?: unknown;
+    cursor?: unknown;
+    cursorPrefix?: string;
+  },
+): PageResult<PublicJournalRow>;
+
 // ── dates.js (also the ./dates entry point) ──────────────────────────────────
 
 export * from './dates';

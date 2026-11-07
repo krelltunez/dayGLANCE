@@ -13,6 +13,15 @@
 // `groupKey(op)` naming the single entity an op reverses. That function should
 // THROW on an op kind it does not know, so a future multi-entity op fails at
 // the grouping seam instead of silently grouping wrong.
+//
+// READING IT BACK (#2321): `journalPage` is the journal as a read tool shows
+// it to an MCP client. The op is the undo descriptor, before-state copies of
+// user data kept as host metadata: it never reaches tool output, and neither
+// does the caller's idempotency key. The public row is BUILT from named
+// fields, never derived by removing fields from an entry, so a field added to
+// entries later stays private until a host names it.
+
+import { paginate } from './pagination.js';
 
 /**
  * Append one write to the journal. Immutable (returns a new array) so the
@@ -131,4 +140,103 @@ export function journalSnapshot(entries, grouping, displayLimit = 50) {
 export function buildUndoPlan(entries) {
   const ops = entries.slice().reverse().map((e) => e.op);
   return { count: entries.length, ops };
+}
+
+/** The public row's own keys: a host's ids may not take them over. */
+const RESERVED_ROW_KEYS = new Set(['at', 'tool', 'summary', 'changes', 'op', 'seq', 'idempotencyKey', 'idempotency_key']);
+
+/**
+ * The canonical filter key of a journal read, which its pagination cursor is
+ * bound to (pagination.js). Only the filters that are set, sorted by name, so
+ * an omitted filter and the next page's omitted filter never mismatch.
+ *
+ * @param {Record<string, string | undefined>} [match]
+ * @returns {string}
+ */
+export function journalFilterKey(match = {}) {
+  const parts = Object.keys(match)
+    .filter((k) => match[k] !== undefined)
+    .sort()
+    .map((k) => `${k}=${JSON.stringify(match[k])}`);
+  return `journal:${parts.length ? parts.join('&') : 'all'}`;
+}
+
+/**
+ * One journal entry as a read tool may show it, and the ids a filter matches
+ * against. `describe(op)` is the app's: it names the entity ids the op touched
+ * (`ids`, string values under the app's wire names) and, where the op kept
+ * them, field-level `changes` ({ field, before } with an optional `after`), in
+ * values the app's read tools would show. Nothing else of the op is read.
+ * A describe that throws (an op kind it does not know) costs the row its ids
+ * and changes, never the read: it is still listed, and matches no id filter.
+ *
+ * @param {{ at: string, tool: string, summary: string, op: unknown }} entry
+ * @param {{ describe: (op: unknown) => ({ ids?: Record<string, unknown>, changes?: unknown[] } | null | undefined), formatAt?: (at: string) => unknown }} opts
+ * @returns {{ row: Record<string, unknown>, ids: Record<string, string> }}
+ */
+export function publicJournalEntry(entry, { describe, formatAt }) {
+  let described;
+  try {
+    described = describe(entry.op) ?? {};
+  } catch {
+    described = {};
+  }
+  const ids = {};
+  for (const [key, value] of Object.entries(described.ids ?? {})) {
+    if (typeof value === 'string' && !RESERVED_ROW_KEYS.has(key)) ids[key] = value;
+  }
+  const changes = (Array.isArray(described.changes) ? described.changes : [])
+    .filter((c) => c && typeof c === 'object' && typeof c.field === 'string')
+    .map((c) => ({
+      field: c.field,
+      before: c.before === undefined ? null : c.before,
+      ...(Object.prototype.hasOwnProperty.call(c, 'after') ? { after: c.after === undefined ? null : c.after } : {}),
+    }));
+  const row = {
+    at: formatAt ? formatAt(entry.at) : entry.at,
+    tool: entry.tool,
+    summary: entry.summary,
+    ...ids,
+    ...(changes.length ? { changes } : {}),
+  };
+  return { row, ids };
+}
+
+/**
+ * The journal as a read tool returns it: newest first, narrowed to the rows
+ * whose ids match EVERY filter given in `match`, then paginated with the
+ * kit's cursor (bound to the filter, so a filter changed mid-walk is
+ * refused). `total` counts the filtered rows. Nothing here bounds or trims
+ * the journal: it pages over the host's whole session list, so nothing older
+ * is ever dropped from what a client can reach.
+ *
+ * An invalid limit, cursor or filter value comes back as { ok: false,
+ * reason }, for the tool layer to answer with its validation error.
+ *
+ * @param {Array<{ at: string, tool: string, summary: string, op: unknown }>} entries
+ * @param {{
+ *   describe: (op: unknown) => ({ ids?: Record<string, unknown>, changes?: unknown[] } | null | undefined),
+ *   formatAt?: (at: string) => unknown,
+ *   match?: Record<string, unknown>,
+ *   limit?: unknown,
+ *   cursor?: unknown,
+ *   cursorPrefix?: string,
+ * }} opts
+ */
+export function journalPage(entries, opts) {
+  const wanted = Object.entries(opts.match ?? {}).filter(([, v]) => v !== undefined);
+  for (const [key, value] of wanted) {
+    if (typeof value !== 'string') return { ok: false, reason: `${key} must be a string, got ${JSON.stringify(value)}` };
+  }
+  const rows = [];
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    const { row, ids } = publicJournalEntry(entries[i], opts);
+    if (wanted.every(([key, value]) => ids[key] === value)) rows.push(row);
+  }
+  return paginate(rows, {
+    limit: opts.limit,
+    cursor: opts.cursor,
+    filterKey: journalFilterKey(Object.fromEntries(wanted)),
+    cursorPrefix: opts.cursorPrefix,
+  });
 }
