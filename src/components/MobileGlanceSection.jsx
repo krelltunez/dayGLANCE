@@ -20,6 +20,7 @@ import GettingStartedChecklist from './GettingStartedChecklist.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import EventNotesPanel, { editsDeviceCalendar } from './EventNotesPanel.jsx';
 import FrameNudgeCard, { revealFrameNudgeCard } from './FrameNudgeCard.jsx';
+import { useCalendarFilterSummary } from './CalendarFilterProjects.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useMcpStatus, McpBoltButton, McpStatusModal } from './McpStatusControls.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
@@ -56,9 +57,7 @@ const MobileGlanceSection = () => {
     unscheduledTasks, setUnscheduledTasks,
     recycleBin, setRecycleBin,
     recurringTasks, setRecurringTasks,
-    selectedTags,
     showMobileTagFilter, setShowMobileTagFilter,
-    filterableTags,
     taskContextMenu, setTaskContextMenu,
     expandedNotesTaskId, setExpandedNotesTaskId,
     showDeadlinePicker, setShowDeadlinePicker,
@@ -84,7 +83,7 @@ const MobileGlanceSection = () => {
     pushUndo,
     scheduleTaskAtNextSlot,
     setShowSpotlight,
-    filterByTags,
+    filterByTags, filterForCalendar,
     getTodayStr, getOverdueTasks,
     getTaskCalendarStyle,
     getTasksForDate,
@@ -141,6 +140,7 @@ const MobileGlanceSection = () => {
     isVisibleForUser,
   } = useFeaturesCtx();
   const { t, i18n } = useTranslation();
+  const calendarFilter = useCalendarFilterSummary();
   const glanceSwipeStartX = useRef(0);
 
   const isHealthSyncPaused = (habit) => {
@@ -168,16 +168,22 @@ const MobileGlanceSection = () => {
           and this matches the desktop/tablet GLANCE button. */}
       <span className="text-sm">{t('common.search')}</span>
     </button>
-    {filterableTags.length > 0 && (
+    {calendarFilter.available && (
       <button
         onClick={() => setShowMobileTagFilter(true)}
-        className={`relative flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${
-          !filterableTags.every(tag => selectedTags.includes(tag))
+        data-calendar-filter-button
+        aria-label={calendarFilter.hiddenCount > 0 ? t('calendarFilter.hiddenHint', { count: calendarFilter.hiddenCount }) : t('calendarFilter.title')}
+        className={`relative flex-shrink-0 px-2.5 self-stretch flex items-center gap-1 rounded-lg transition-colors ${
+          calendarFilter.active
             ? 'bg-blue-500 text-white'
             : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'
         }`}
       >
         <Filter size={16} />
+        {/* How many tasks the filter leaves off the days on screen (#2307). */}
+        {calendarFilter.hiddenCount > 0 && (
+          <span data-calendar-hidden-count className="text-xs font-semibold tabular-nums">{calendarFilter.hiddenCount}</span>
+        )}
       </button>
     )}
     {/* Voice quick-add works without AI, so nothing gates the button; the
@@ -779,7 +785,8 @@ const MobileGlanceSection = () => {
     );
   })()}
   {(() => {
-    const filteredAgenda = filterByTags(todayAgenda);
+    // The calendar filter: tags and hidden projects together (#2307).
+    const filteredAgenda = (filterForCalendar || filterByTags)(todayAgenda);
     const today = new Date(getTodayStr() + 'T12:00:00');
     const nowMinGlance = currentTime.getHours() * 60 + currentTime.getMinutes();
     const todayFrames = getFrameInstancesForDate(today).filter(f => timeToMinutes(f.end) > nowMinGlance);

@@ -2830,5 +2830,14 @@
       "tagRemoved": "#{{from}} removida",
       "subtasksReordered": "Subtarefas de “{{title}}” reordenadas"
     }
+  },
+  "calendarFilter": {
+    "title": "Filtrar calendário",
+    "hideProjects": "Ocultar projetos",
+    "showAll": "Mostrar tudo",
+    "hidden_one": "{{count}} oculta",
+    "hidden_other": "{{count}} ocultas",
+    "hiddenHint_one": "Filtrar calendário: {{count}} tarefa oculta nos dias exibidos",
+    "hiddenHint_other": "Filtrar calendário: {{count}} tarefas ocultas nos dias exibidos"
   }
 }
