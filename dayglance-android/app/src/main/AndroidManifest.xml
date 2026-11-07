@@ -39,8 +39,13 @@
          so a Play-signed dayGLANCE and a sideloaded launcher still pair.
          knownSigner needs Android 12; below it the permission is signature-only
          and the launcher stays in demo mode. -->
+    <!-- The name is com.dayglance.permission.LAUNCHER in every release build
+         (the launcher requests exactly that); a debug build declares its own
+         (build.gradle.kts, launcherPermission), so a test APK installs beside
+         the store app: two packages with different signatures cannot both
+         declare one permission (#2272). -->
     <permission
-        android:name="com.dayglance.permission.LAUNCHER"
+        android:name="${launcherPermission}"
         android:label="@string/launcher_permission_label"
         android:description="@string/launcher_permission_description"
         android:protectionLevel="signature|knownSigner"
@@ -370,13 +375,13 @@
              with the automation receiver below but not its opt-in toggle. -->
         <provider
             android:name=".launcher.LauncherProvider"
-            android:authorities="com.dayglance.app.launcher"
+            android:authorities="${applicationId}.launcher"
             android:exported="true"
-            android:readPermission="com.dayglance.permission.LAUNCHER" />
+            android:readPermission="${launcherPermission}" />
         <receiver
             android:name=".launcher.LauncherIntentReceiver"
             android:exported="true"
-            android:permission="com.dayglance.permission.LAUNCHER">
+            android:permission="${launcherPermission}">
             <intent-filter>
                 <action android:name="com.dayglance.app.launcher.CREATE" />
                 <action android:name="com.dayglance.app.launcher.COMPLETE" />

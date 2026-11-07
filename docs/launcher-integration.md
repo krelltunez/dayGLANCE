@@ -327,6 +327,15 @@ provider. `knownSigner` exists from Android 12; on older devices the permission
 is signature-only and the launcher stays in demo mode. The launcher declares
 `<uses-permission android:name="com.dayglance.permission.LAUNCHER" />`.
 
+That name, and the provider's authority `com.dayglance.app.launcher`, belong to
+release builds. A debug build (`com.dayglance.app.debug`) declares its own,
+`com.dayglance.permission.LAUNCHER_DEBUG` and `com.dayglance.app.debug.launcher`
+(the `launcherPermission` manifest placeholder and `applicationId`), because two
+packages with different signatures cannot declare one permission or one
+authority: a test APK would otherwise refuse to install beside the store app
+(#2272). The launcher pairs only with `com.dayglance.app`, so a debug build is
+never paired.
+
 A digest is read from the launcher's keystore (`keytool -list -v`, SHA-256,
 lowercase, no colons). The Play entry stays a placeholder until the launcher ships
 there. There is no debug entry: where the launcher's release key is present, its

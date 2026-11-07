@@ -27,6 +27,9 @@ android {
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 185
         versionName = "5.11.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // GLANCElauncher's permission (AndroidManifest.xml). Release builds must
+        // keep exactly this name: the launcher requests it.
+        manifestPlaceholders["launcherPermission"] = "com.dayglance.permission.LAUNCHER"
     }
 
     signingConfigs {
@@ -44,6 +47,12 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            // A debug build is its own package, so it declares its own launcher
+            // permission (and, through applicationId, its own provider
+            // authority): a test APK then installs beside the store app instead
+            // of failing with INSTALL_FAILED_DUPLICATE_PERMISSION (#2272). The
+            // launcher only pairs with com.dayglance.app, so nothing is lost.
+            manifestPlaceholders["launcherPermission"] = "com.dayglance.permission.LAUNCHER_DEBUG"
         }
         release {
             if (hasKeystore) {
