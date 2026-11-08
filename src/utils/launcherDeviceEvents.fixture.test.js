@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { buildLauncherSnapshot, launcherDeviceCalendar, DEVICE_EVENT_WINDOW } from './launcherSnapshot.js';
 import { nativeResultsToTasks } from './nativeCalendar.js';
 import { groupWidgetNativeEvents } from './widgetNativeEvents.js';
-import { RESTORE_KEYWORDS } from './energyAxis.js';
+import { RESTORE_KEYWORDS, RESTORE_PHRASES } from './energyAxis.js';
 import { dateToString } from './taskUtils.js';
 
 const path = fileURLToPath(new URL('../../dayglance-ios/TestFixtures/launcherDeviceEvents.vectors.json', import.meta.url));
@@ -44,6 +44,7 @@ describe('launcherDeviceEvents fixture', () => {
   if (generate) {
     it('regenerates the expected output', () => {
       fixture.restoreKeywords = [...RESTORE_KEYWORDS];
+      fixture.restorePhrases = [...RESTORE_PHRASES];
       for (const c of fixture.cases) Object.assign(c, jsRows(c));
       writeFileSync(path, `${JSON.stringify(fixture, null, 2)}\n`);
     });
@@ -52,6 +53,10 @@ describe('launcherDeviceEvents fixture', () => {
 
   it('the restore keywords are the ones the Kotlin side matches', () => {
     expect(fixture.restoreKeywords).toEqual([...RESTORE_KEYWORDS]);
+  });
+
+  it('the restore phrases (Chinese, matched as substrings) are the ones the Kotlin side matches', () => {
+    expect(fixture.restorePhrases).toEqual([...RESTORE_PHRASES]);
   });
 
   for (const c of fixture.cases) {

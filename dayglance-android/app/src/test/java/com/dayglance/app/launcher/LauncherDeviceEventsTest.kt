@@ -61,6 +61,16 @@ class LauncherDeviceEventsTest {
     }
 
     @Test
+    fun `the restore phrases are the web layer's, and match inside a title with no spaces`() {
+        val arr = fixture.getJSONArray("restorePhrases")
+        assertEquals((0 until arr.length()).map { arr.getString(it) }, LauncherDeviceEvents.RESTORE_PHRASES)
+        assertEquals("restore", LauncherDeviceEvents.energy("中午吃饭"))
+        assertEquals("restore", LauncherDeviceEvents.energy("Almuerzo con Marta"))
+        assertEquals("effort", LauncherDeviceEvents.energy("团队会议"))
+        assertEquals("effort", LauncherDeviceEvents.energy("Pause the ad campaign"))
+    }
+
+    @Test
     fun `every fixture case reads to the rows the snapshot builds`() {
         val cases = fixture.getJSONArray("cases")
         for (i in 0 until cases.length()) {
