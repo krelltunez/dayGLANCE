@@ -46,6 +46,7 @@ import { readPaneWidth, writePaneWidth } from '../../utils/paneWidth.js';
 import { sortByProjectOrder, applyProjectReorder, projectReorderIds, topProjectOrder, sendToBottomIds } from '../../utils/projectOrder.js';
 import { readRetiredTaskIds } from '../../utils/retiredTaskIds.js';
 import { keyboardSheet } from '../../utils/keyboardInset.js';
+import { projectTaskFields } from '../../utils/projectTaskDefaults.js';
 
 /**
  * PLANNER — a per-project planning dashboard, themed to the project's color.
@@ -393,16 +394,13 @@ const ProjectPlanner = ({ project, onClose, initialHyperglanceOpen = false }) =>
     setUnscheduledTasks(prev => [...prev, {
       id,
       projectOrder,
-      title,
-      duration: 30,
-      color: projectColor,
+      // Title (with the default tags), colour, duration, notes, checklist and
+      // users: what the project gives a new task (utils/projectTaskDefaults.js).
+      ...projectTaskFields(project, parentGoal, { title }),
       completed: false,
       isAllDay: false,
-      notes: '',
-      subtasks: [],
       priority: 0,
       projectId: project.id,
-      ...(project.assignedUserSyncIds?.length ? { assignedUserSyncIds: project.assignedUserSyncIds } : {}),
       lastModified: new Date().toISOString(),
     }]);
     setQuickAddTitle('');

@@ -351,17 +351,23 @@ With `start` **and** `repeat`, a repeating series starting on `start`'s date (se
 |---|---|---|---|
 | `title` | string | yes | Non-empty. Stored literally (no sigil parsing). |
 | `notes` | string | no | |
-| `project_id` | string | no | Attach to a project (ids from `dayglance_get_goal_progress`). |
+| `project_id` | string | no | Attach to a project (ids from `dayglance_get_goal_progress`). The task takes the project's colour and assignees, and its **New task defaults** where the call leaves them out (below). |
 | `assignee_id` | string | no | **Multi-user only** (absent from the schema otherwise). Ids from `dayglance_list_users`. |
 | `priority` | integer | no | **Unscheduled only** (inbox or project). 0 none (default), 1 low, 2 medium, 3 high. |
 | `deadline` | string | no | **Unscheduled only** (inbox or project). Local `YYYY-MM-DD`. |
 | `start` | string | no | Local `"YYYY-MM-DD HH:MM"`; with `all_day`, a bare `YYYY-MM-DD`. Presence = scheduled create. |
-| `duration_minutes` | integer | no | 1–1440. Default 30. Contradicts `all_day`. |
+| `duration_minutes` | integer | no | 1–1440. Default: the project's default duration (with `project_id`), else 30. Contradicts `all_day`. |
 | `all_day` | boolean | no | With `start` only. |
 | `repeat` | object | no | With `start` only: make it a repeating series. See below. |
 | `idempotency_key` | string | no | Also seeds a deterministic task id, so replays converge. |
 
 By-design `validation` rejections: priority/deadline with `start`; `all_day` + `duration_minutes`; `all_day` with a time in `start`; `repeat` without `start`.
+
+**A project's New task defaults** (set in the project's form, #2336) are copied onto a task created in
+it, as the app's own create paths copy them, and fill only what the call leaves out: the duration
+when `duration_minutes` is absent (a series takes its duration from `start`), the notes when
+`notes` is absent or empty, the project's `#tags` appended to the title where it lacks them, and the
+project's checklist as subtasks. Later edits to the project never reach tasks already created.
 Unknown `assignee_id` → `not_found`.
 
 **`repeat`** mirrors what the app itself can repeat, and nothing more:

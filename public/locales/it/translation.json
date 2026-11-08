@@ -2035,7 +2035,19 @@
     "showFilters": "Mostra filtri",
     "hideFilters": "Nascondi filtri",
     "filtersActive": "Filtri attivi",
-    "filterButton": "Filtra"
+    "filterButton": "Filtra",
+    "taskDefaults": {
+      "title": "Valori per le nuove attività",
+      "hint": "Le nuove attività di questo progetto partono da qui. Modificarli in seguito non cambia le attività esistenti.",
+      "copyFrom": "Copia da un altro progetto…",
+      "duration": "Durata (minuti)",
+      "tags": "Tag",
+      "tagsPlaceholder": "#tag #altro",
+      "notes": "Note",
+      "notesPlaceholder": "Riepilogo:\nScopo:\nRisultato:",
+      "subtasks": "Sottoattività (una per riga)",
+      "subtasksPlaceholder": "Primo passo\nSecondo passo"
+    }
   },
   "colors": {
     "gray": "Grigio",

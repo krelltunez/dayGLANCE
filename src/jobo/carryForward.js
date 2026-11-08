@@ -7,6 +7,7 @@
 import { tagsIn } from '../utils/taskUtils.js';
 import { validCivilDate } from './viewDates.js';
 import { canLinkDo } from './core.js';
+import { taskDefaultsOf, withTags, defaultSubtasks } from '../utils/projectTaskDefaults.js';
 
 export const CARRY_ACTION = Object.freeze({
   CONTINUE: 'continue',
@@ -101,14 +102,23 @@ const openProject = (projects, id) => (Array.isArray(projects) ? projects : []).
  * The tags sit after the cursor, so what the user types goes before them. The
  * follow-up starts unscheduled: in its project's list, or in the Inbox when
  * the project is gone or closed. The form can still give it a day.
+ *
+ * In a project, it is a new task there, so it takes the project's New task
+ * defaults (#2336): their tags after the task's own, and their duration,
+ * notes and checklist where the project sets them.
  */
 export function followUpDraft(task, { projects = [] } = {}) {
   const seen = new Set();
   const tags = tagsIn(task?.title).filter(tag => !seen.has(tag.toLowerCase()) && seen.add(tag.toLowerCase()));
   const project = task?.projectId != null ? openProject(projects, task.projectId) : null;
+  const defaults = taskDefaultsOf(project);
+  const title = tags.length ? ` ${tags.map(tag => `#${tag}`).join(' ')}` : '';
   return {
-    title: tags.length ? ` ${tags.map(tag => `#${tag}`).join(' ')}` : '',
+    title: defaults.tags ? withTags(title, defaults.tags) : title,
     cursor: 0,
+    ...(defaults.duration ? { duration: defaults.duration } : {}),
+    ...(defaults.notes ? { notes: defaults.notes } : {}),
+    ...(defaults.subtasks ? { subtasks: defaultSubtasks(defaults.subtasks) } : {}),
     ...(typeof task?.color === 'string' && task.color ? { color: task.color } : {}),
     ...(project
       ? { projectId: project.id, keepUnscheduled: true }

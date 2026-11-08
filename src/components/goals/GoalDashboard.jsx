@@ -55,6 +55,7 @@ import useProjectDrag from './useProjectDrag.js';
 import { useTranslation } from 'react-i18next';
 import GoalProgress from './GoalProgress.jsx';
 import ProjectCard from '../projects/ProjectCard.jsx';
+import ProjectTaskDefaultsFields, { taskDefaultsForm, taskDefaultsFromForm } from '../projects/ProjectTaskDefaultsFields.jsx';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import ArchivedProjectReview from './ArchivedProjectReview.jsx';
 import { groupArchivedProjects, restoredStatus } from '../../utils/archiveCascade.js';
@@ -562,10 +563,12 @@ const CreateNoteCheckbox = ({ checked, onChange }) => {
 export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, tasks, unscheduledTasks, use24HourClock, isMobile, isTablet } =
     useDayPlannerCtx();
-  const { multiUserEnabled, users } = useFeaturesCtx();
+  const { multiUserEnabled, users, projects: allProjects } = useFeaturesCtx();
   const { t } = useTranslation();
 
   const [title, setTitle] = useState(initial?.title || '');
+  // New task defaults (#2336), as typed; stored by taskDefaultsFromForm.
+  const [taskDefaults, setTaskDefaults] = useState(() => taskDefaultsForm(initial));
   const [goalId, setGoalId] = useState(initial?.goalId || defaultGoalId || '');
   const [status, setStatus] = useState(initial?.status || 'active');
   // The project's own target date (local calendar date, absent = none). This
@@ -605,6 +608,9 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
     onSave({
       title: fromTitle ? fromTitle.title : title.trim(), goalId: goalId || undefined, status, color, assignedUserSyncIds,
       targetDate: targetDate || undefined,
+      // Undefined for none, so clearing them leaves no field (updateProject
+      // spreads it over the row; JSON drops an undefined key).
+      taskDefaults: taskDefaultsFromForm(taskDefaults),
       createNote: !initial && createNote && !fromTitle, linkNotePath: fromTitle?.path,
     });
   };
@@ -714,6 +720,18 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
         darkMode={darkMode}
         borderClass={borderClass}
         textSecondary={textSecondary}
+      />
+
+      {/* New task defaults (#2336): what a task created in the project starts with */}
+      <ProjectTaskDefaultsFields
+        value={taskDefaults}
+        onChange={setTaskDefaults}
+        projects={allProjects || []}
+        selfId={initial?.id ?? null}
+        darkMode={darkMode}
+        borderClass={borderClass}
+        textSecondary={textSecondary}
+        hoverBg={hoverBg}
       />
 
       {/* Status — edit only */}

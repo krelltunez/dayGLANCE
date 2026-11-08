@@ -243,7 +243,8 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
     title: z.string().describe('Task title. Required, non-empty.'),
     notes: z.string().optional(),
     project_id: z.string().optional().describe(
-      'Attach to a project (see dayglance_get_goal_progress). An unscheduled project task may carry priority and deadline like any inbox task.'),
+      'Attach to a project (see dayglance_get_goal_progress). An unscheduled project task may carry priority and deadline like any inbox task. ' +
+      'The task takes the project\'s colour and assignees, and its New task defaults where this call leaves them out: duration, notes, #tags appended to the title, a checklist.'),
     ...(multiUser ? {
       assignee_id: z.string().optional().describe(
         'Assign to one household member by their user id. Ids come from dayglance_list_users. Never guess from a name.'),
@@ -256,7 +257,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       'Presence makes this a SCHEDULED create, placed directly on the calendar in one call. ' +
       'Timed: local "YYYY-MM-DD HH:MM" (DST gap/repeat times rejected). With all_day: a bare "YYYY-MM-DD".'),
     duration_minutes: z.number().int().optional().describe(
-      '1-1440. Defaults to 30. Contradicts all_day: an all-day task has no meaningful duration.'),
+      '1-1440. Defaults to the project\'s default duration (with project_id), else 30. Contradicts all_day: an all-day task has no meaningful duration.'),
     all_day: z.boolean().optional().describe(
       'With start: create an all-day task. start must then be a bare YYYY-MM-DD date.'),
     // Permissive on purpose (CLAUDE.md, MCP transport suite): parseRepeat

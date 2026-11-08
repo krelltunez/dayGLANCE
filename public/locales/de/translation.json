@@ -2033,7 +2033,19 @@
     "showFilters": "Filter einblenden",
     "hideFilters": "Filter ausblenden",
     "filtersActive": "Filter aktiv",
-    "filterButton": "Filtern"
+    "filterButton": "Filtern",
+    "taskDefaults": {
+      "title": "Vorgaben für neue Aufgaben",
+      "hint": "Neue Aufgaben in diesem Projekt beginnen damit. Spätere Änderungen betreffen bestehende Aufgaben nicht.",
+      "copyFrom": "Aus einem anderen Projekt übernehmen…",
+      "duration": "Dauer (Minuten)",
+      "tags": "Tags",
+      "tagsPlaceholder": "#tag #weiterer",
+      "notes": "Notizen",
+      "notesPlaceholder": "Zusammenfassung:\nZweck:\nErgebnis:",
+      "subtasks": "Unteraufgaben (eine pro Zeile)",
+      "subtasksPlaceholder": "Erster Schritt\nZweiter Schritt"
+    }
   },
   "colors": {
     "gray": "Grau",

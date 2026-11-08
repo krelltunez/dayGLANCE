@@ -36,8 +36,16 @@ const createdStamp = (nowIso) => createdTimestamp(nowIso ? new Date(nowIso) : ne
 // can close a Focus session. The sync merge compares stamps as instants.
 const offsetStampAt = (nowIso) => completionTimestamp(Number.isFinite(Date.parse(nowIso)) ? new Date(nowIso) : new Date());
 import { getProjectColor } from './colorUtils.js';
+import { taskDefaultsOf, withTags, defaultSubtasks, DEFAULT_TASK_DURATION } from './projectTaskDefaults.js';
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { applyRecurringInstanceEdit } from './recurringInstanceEdit.js';
+
+// Subtask ids for a created task's default checklist, derived from its id so
+// a replayed or doubly-applied create writes the same row.
+const subtaskIds = (taskId) => {
+  let i = 0;
+  return () => `${taskId}-st-${++i}`;
+};
 
 export const WRITE_ERROR_CODES = Object.freeze({
   NOT_FOUND: 'not_found',
@@ -188,6 +196,12 @@ export function parseRecurringInstanceId(id) {
  * explicit assigneeSyncId wins over the project's users. An unknown projectId
  * inherits nothing and falls back to the default color.
  *
+ * The project's New task defaults (#2336, utils/projectTaskDefaults.js) fill
+ * what the call leaves out: its duration when none is given, its notes when
+ * none are, its #tags appended to the title, its checklist. The subtasks take
+ * ids derived from taskId, so a create applied twice (two devices draining
+ * one intent) writes the same row.
+ *
  * Idempotent per the handleIntent.js:347-389 precedent (the one create-shaped
  * mutation-level dedup in the codebase): the caller derives `taskId`
  * deterministically from its idempotency key, so a replayed create finds the
@@ -242,15 +256,16 @@ export function applyCreateTask(state, {
     assignedUserSyncIds = [...project.assignedUserSyncIds];
   }
 
+  const defaults = taskDefaultsOf(project);
   const base = {
     id: taskId,
-    title: trimmed,
-    duration: typeof durationMinutes === 'number' ? durationMinutes : 30,
+    title: withTags(trimmed, defaults.tags),
+    duration: typeof durationMinutes === 'number' ? durationMinutes : (defaults.duration ?? DEFAULT_TASK_DURATION),
     color: project ? getProjectColor(project, parentGoal) : 'bg-blue-500',
     completed: false,
     isAllDay: false,
-    notes: typeof notes === 'string' ? notes : '',
-    subtasks: [],
+    notes: typeof notes === 'string' && notes ? notes : (defaults.notes || ''),
+    subtasks: defaultSubtasks(defaults.subtasks, subtaskIds(taskId)),
     ...(projectId ? { projectId } : {}),
     ...(assignedUserSyncIds ? { assignedUserSyncIds } : {}),
     ...(transitionId ? { transitionId } : {}),
@@ -325,15 +340,18 @@ function createRecurringSeries(state, {
   if (!users && project?.assignedUserSyncIds?.length) users = [...project.assignedUserSyncIds];
 
   const allDay = !!schedule.allDay;
+  // The project's New task defaults, as a one-off create takes them; the
+  // duration is the schedule's, which a series always names.
+  const defaults = taskDefaultsOf(project);
   const template = {
     id: taskId,
-    title,
+    title: withTags(title, defaults.tags),
     startTime: allDay ? '00:00' : schedule.startTime,
     duration: schedule.durationMinutes,
     color: project ? getProjectColor(project, parentGoal) : DEFAULT_COLOR,
     isAllDay: allDay,
-    notes: typeof notes === 'string' ? notes : '',
-    subtasks: [],
+    notes: typeof notes === 'string' && notes ? notes : (defaults.notes || ''),
+    subtasks: defaultSubtasks(defaults.subtasks, subtaskIds(taskId)),
     recurrence: { ...recurrence, startDate: schedule.date },
     completedDates: [],
     exceptions: {},

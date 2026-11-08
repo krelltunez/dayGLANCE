@@ -5,6 +5,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getProjectColor } from '../utils/colorUtils.js';
 import { NEW_PROJECT_ID, withPendingProject } from '../utils/pendingProject.js';
+import { draftWithProjectDefaults } from '../utils/projectTaskDefaults.js';
 import TaskProjectPicker from './TaskProjectPicker.jsx';
 
 /**
@@ -15,7 +16,7 @@ import TaskProjectPicker from './TaskProjectPicker.jsx';
  */
 export default function TaskProjectField({ newTask, setNewTask }) {
   const { t } = useTranslation();
-  const { darkMode, borderClass, textSecondary, hoverBg } = useDayPlannerCtx();
+  const { darkMode, borderClass, textSecondary, hoverBg, mobileEditingTask } = useDayPlannerCtx();
   const { goals, projects } = useFeaturesCtx();
   const fieldClass = `w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-white text-stone-900 placeholder-stone-400'}`;
   const activeGoals = goals.filter(g => g.status !== 'archived');
@@ -75,9 +76,19 @@ export default function TaskProjectField({ newTask, setNewTask }) {
 
   // A choice in the picker: '' for no project, NEW_PROJECT_ID for
   // "New project…", or a project's id.
+  //
+  // A NEW task also takes the project's New task defaults (#2336, utils/
+  // projectTaskDefaults.js): duration, notes, checklist and tags, swapped for
+  // the next project's on a change while they are still as the last one left
+  // them. Editing an existing task never does: the defaults are for creation,
+  // and what the task already holds is the user's.
+  const creating = !mobileEditingTask;
+  const previous = newTask.projectId ? projects.find(p => p.id === newTask.projectId) : null;
   const choose = (value) => {
     if (value === NEW_PROJECT_ID) {
-      setNewTask(pendingWith({ title: '', goalId: '' }));
+      // A project made here has no defaults yet: take back the last one's.
+      const base = creating ? draftWithProjectDefaults(newTask, previous, null) : newTask;
+      setNewTask(withPendingProject(base, { title: '', goalId: '' }, goals));
       return;
     }
     const pid = value || null;
@@ -86,8 +97,9 @@ export default function TaskProjectField({ newTask, setNewTask }) {
     // Copy-at-creation inheritance: adopting a project stamps its
     // effective color and assigned users onto the draft task
     // (deselecting clears the inherited users).
+    const base = creating ? draftWithProjectDefaults(newTask, previous, proj) : newTask;
     setNewTask({
-      ...newTask,
+      ...base,
       projectId: pid,
       ...(proj ? { color: getProjectColor(proj, parentGoal) } : {}),
       assignedUserSyncIds: proj?.assignedUserSyncIds || [],

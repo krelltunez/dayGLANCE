@@ -448,3 +448,49 @@ describe('pending a new project', () => {
     expect(find({ 'data-task-new-project-cancel': true })).toHaveLength(1);
   });
 });
+
+// #2336: a NEW task picks up the project's New task defaults when the project
+// is chosen; editing an existing task never does.
+describe('New task defaults', () => {
+  const fit = { id: 'p-fit', title: 'Fitness', color: 'bg-emerald-500', taskDefaults: { duration: 45, tags: ['health'], notes: 'Goal:', subtasks: ['Warm up'] } };
+  const wr = { id: 'p-wr', title: 'Writing', taskDefaults: { duration: 90, tags: ['deep'] } };
+  const projects = [...PROJECTS, fit, wr];
+  // Projects in no goal sit folded under "standalone" while goals exist.
+  const pick = (h, id) => {
+    h.click(h.trigger());
+    if (!h.option(id) && h.group('standalone')) h.click(h.group('standalone'));
+    h.click(h.option(id));
+  };
+
+  it('a new task takes them when its project is chosen', () => {
+    const h = setup({ title: 'Run 5k', duration: 30 }, { projects });
+    pick(h, 'p-fit');
+    const task = h.lastTask();
+    expect(task).toMatchObject({ projectId: 'p-fit', title: 'Run 5k #health', duration: 45, notes: 'Goal:', color: 'bg-emerald-500' });
+    expect(task.subtasks.map((s) => s.title)).toEqual(['Warm up']);
+  });
+
+  it('switching projects swaps what the last one filled in', () => {
+    const h = setup({ title: 'Draft', duration: 30 }, { projects });
+    pick(h, 'p-fit');
+    pick(h, 'p-wr');
+    expect(h.lastTask()).toMatchObject({ projectId: 'p-wr', title: 'Draft #deep', duration: 90, notes: '', subtasks: [] });
+  });
+
+  // MUTATION: drop the `creating` check and editing a task re-stamps its
+  // notes, duration and checklist from the project.
+  it('editing an existing task takes only the colour and users, as before', () => {
+    const editing = { id: 't1', title: 'Old task', duration: 20, notes: 'mine' };
+    const h = setup({ ...editing }, { projects, plannerOverrides: { mobileEditingTask: editing } });
+    pick(h, 'p-fit');
+    expect(h.lastTask()).toEqual({ ...editing, projectId: 'p-fit', color: 'bg-emerald-500', assignedUserSyncIds: [] });
+  });
+
+  it('New project… takes back the last project\'s defaults', () => {
+    const h = setup({ title: 'Run', duration: 30 }, { projects });
+    pick(h, 'p-fit');
+    h.click(h.trigger());
+    h.click(h.option('new'));
+    expect(h.lastTask()).toMatchObject({ title: 'Run', duration: 30, notes: '', subtasks: [] });
+  });
+});
