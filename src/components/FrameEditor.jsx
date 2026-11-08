@@ -4,6 +4,7 @@ import { FRAME_COLORS } from '../constants/frames.js';
 import ClockTimePicker from './ClockTimePicker.jsx';
 import { useTranslation } from 'react-i18next';
 import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
+import { findFrameOverlap } from '../utils/frameOverlap.js';
 
 const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, existingFrames, use24HourClock, isTablet, frameSets = [], defaultSetId = null }) => {
   const { t } = useTranslation();
@@ -54,31 +55,17 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
     if (!label.trim()) return t('frames.nameRequired', { defaultValue: 'Frame needs a name' });
     if (!singleDate && days.length === 0) return t('frames.dayRequired', { defaultValue: 'Select at least one day' });
     if (start >= end) return t('frames.endAfterStart', { defaultValue: 'End time must be after start time' });
-    // Check overlap with existing frames (same day). Frames in two DIFFERENT
-    // sets are alternatives (work and holiday on the same weekday), so they
-    // may overlap; a frame in no set can meet any other, so it is checked.
-    const inOtherSet = (other) => setId !== '' && other.setId != null && other.setId !== '' && String(other.setId) !== String(setId);
-    const otherFrames = existingFrames.filter(f => f.id !== frame?.id && f.enabled && !inOtherSet(f));
-    for (const other of otherFrames) {
-      if (singleDate) {
-        // For single-date frames, check overlap on that specific date
-        if (other.singleDate === singleDate || (!other.singleDate && other.days.includes(new Date(singleDate + 'T12:00:00').getDay()))) {
-          if (start < other.end && end > other.start) {
-            return t('frames.overlap', { frame: other.label, defaultValue: 'Overlaps with "{{frame}}"' });
-          }
-        }
-      } else {
-        const sharedDays = days.filter(d => other.days.includes(d));
-        if (sharedDays.length > 0) {
-          if (start < other.end && end > other.start) {
-            return t('frames.overlapOnDays', {
-              frame: other.label,
-              days: sharedDays.map(d => dayLabels[d]).join(', '),
-              defaultValue: 'Overlaps with "{{frame}}" on {{days}}',
-            });
-          }
-        }
-      }
+    // Overlap with another frame on a shared day (utils/frameOverlap.js, the
+    // rule a drag into another set is held to as well).
+    const clash = findFrameOverlap({ id: frame?.id, days, singleDate, start, end, setId }, existingFrames);
+    if (clash) {
+      return clash.days
+        ? t('frames.overlapOnDays', {
+          frame: clash.frame.label,
+          days: clash.days.map(d => dayLabels[d]).join(', '),
+          defaultValue: 'Overlaps with "{{frame}}" on {{days}}',
+        })
+        : t('frames.overlap', { frame: clash.frame.label, defaultValue: 'Overlaps with "{{frame}}"' });
     }
     return '';
   };

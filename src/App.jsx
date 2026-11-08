@@ -6607,8 +6607,10 @@ const DayPlanner = () => {
   // Frame sets (#2305): the Frames UI's set actions (hooks/useFrameSetActions.js).
   const {
     frameSetsLoaded, createFrameSet, renameFrameSet, switchFrameSet, setFrameSetPeriods, deleteFrameSet,
+    moveFrameToSet,
   } = useFrameSetActions({
-    frameSets, setFrameSets, setGtdFrames, getTodayStr, pushUndo, setUndoToast, ownerRef: hrOwnerRef,
+    frameSets, setFrameSets, gtdFrames, setGtdFrames, getTodayStr, pushUndo, setUndoToast, ownerRef: hrOwnerRef,
+    alwaysLabel: t('frames.sets.always'),
   });
 
   const deleteFrame = (frameId) => {
@@ -7576,6 +7578,7 @@ const DayPlanner = () => {
     // ── GTD Frames ────────────────────────────────────────────────────────────
     gtdFrames, setGtdFrames, myFrames,
     frameSets, frameSetsLoaded, createFrameSet, renameFrameSet, switchFrameSet, setFrameSetPeriods, deleteFrameSet,
+    moveFrameToSet,
     showFramesModal, setShowFramesModal,
     framesModalTab, setFramesModalTab,
     editingFrame, setEditingFrame,

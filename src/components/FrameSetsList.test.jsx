@@ -195,3 +195,133 @@ describe('FrameEditor set picker', () => {
     expect(root.root.findAll((n) => n.type === 'select')).toHaveLength(0);
   });
 });
+
+// #2335: a frame moved into another set by dragging its grip onto a section,
+// "Always" included, by mouse (HTML5 drag events) or by touch (document
+// listeners and elementFromPoint, useFrameDrag.js).
+describe('dragging a frame into another set', () => {
+  const dt = () => ({ setData: vi.fn(), effectAllowed: '', dropEffect: '' });
+  const grip = (root, id) => byData(root, 'data-frame-grip', id)[0];
+  const section = (root, id) => byData(root, 'data-frame-set-section', id)[0];
+  const dragTo = (root, frameId, setKey) => {
+    act(() => { grip(root, frameId).props.onDragStart({ stopPropagation: vi.fn(), dataTransfer: dt() }); });
+    act(() => { section(root, setKey).props.onDragOver({ preventDefault: vi.fn(), dataTransfer: dt() }); });
+    act(() => { section(root, setKey).props.onDrop({ preventDefault: vi.fn() }); });
+  };
+
+  it('a drop on a set moves the frame there', () => {
+    const onMoveFrame = vi.fn(() => ({ ok: true }));
+    const root = mount(<FrameSetsList {...props({ onMoveFrame })} />);
+    dragTo(root, 'free', 'hol');
+    expect(onMoveFrame).toHaveBeenCalledWith('free', 'hol');
+  });
+
+  it('a drop on "Always" takes it out of its set', () => {
+    const onMoveFrame = vi.fn(() => ({ ok: true }));
+    const root = mount(<FrameSetsList {...props({ onMoveFrame })} />);
+    dragTo(root, 'desk', '');
+    expect(onMoveFrame).toHaveBeenCalledWith('desk', null);
+  });
+
+  it('outlines the section a frame is over, and dims the frame being dragged', () => {
+    vi.useFakeTimers();
+    try {
+      const root = mount(<FrameSetsList {...props({ onMoveFrame: vi.fn(() => ({ ok: true })) })} />);
+      act(() => { grip(root, 'free').props.onDragStart({ stopPropagation: vi.fn(), dataTransfer: dt() }); });
+      act(() => { vi.runAllTimers(); });
+      act(() => { section(root, 'hol').props.onDragOver({ preventDefault: vi.fn(), dataTransfer: dt() }); });
+      expect(section(root, 'hol').props.className).toContain('outline-dashed');
+      expect(section(root, 'work').props.className).not.toContain('outline-dashed');
+      expect(byData(root, 'data-frame-row', 'free')[0].props.className).toContain('opacity-40');
+      act(() => { grip(root, 'free').props.onDragEnd(); });
+      expect(section(root, 'hol').props.className).not.toContain('outline-dashed');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says why a refused drop was refused, in the editor\'s words, and clears on the next good one', () => {
+    const onMoveFrame = vi.fn(() => ({ ok: false, overlap: { frame: { label: 'desk' }, days: [1, 2] } }));
+    const root = mount(<FrameSetsList {...props({ onMoveFrame })} />);
+    dragTo(root, 'beach', '');
+    const alert = byData(root, 'data-frame-move-refused', true)[0];
+    expect(text(alert)).toContain('Couldn\'t move "beach". Overlaps with "desk" on Mo, Tu');
+    onMoveFrame.mockReturnValue({ ok: true });
+    dragTo(root, 'free', 'hol');
+    expect(byData(root, 'data-frame-move-refused', true)).toHaveLength(0);
+  });
+
+  it('the grip does not open the editor; the rest of the row still does', () => {
+    const onEditFrame = vi.fn();
+    const root = mount(<FrameSetsList {...props({ onMoveFrame: vi.fn(), onEditFrame })} />);
+    const stopPropagation = vi.fn();
+    act(() => { grip(root, 'free').props.onClick({ stopPropagation }); });
+    expect(stopPropagation).toHaveBeenCalled();
+    act(() => { byData(root, 'data-frame-row', 'free')[0].props.onClick(); });
+    expect(onEditFrame).toHaveBeenCalledTimes(1);
+  });
+
+  it('no grips without a set to move to, while the sets are unread, or without the action', () => {
+    const grips = (over) => byData(mount(<FrameSetsList {...props(over)} />), 'data-frame-grip', 'free');
+    expect(grips({ onMoveFrame: vi.fn() })).toHaveLength(1);
+    expect(grips({ onMoveFrame: vi.fn(), frameSets: [], frames: [F('free')] })).toHaveLength(0);
+    expect(grips({ onMoveFrame: vi.fn(), frameSetsLoaded: false })).toHaveLength(0);
+    expect(grips({})).toHaveLength(0);
+  });
+
+  describe('by touch', () => {
+    // No DOM in this suite: a document with just what the touch path uses.
+    const fakeDocument = (sectionUnderFinger) => {
+      const listeners = {};
+      return {
+        listeners,
+        addEventListener: (type, fn) => { listeners[type] = fn; },
+        removeEventListener: (type) => { delete listeners[type]; },
+        elementFromPoint: () => ({ closest: () => (sectionUnderFinger == null ? null : { getAttribute: () => sectionUnderFinger }) }),
+      };
+    };
+    const withDocument = (doc, fn) => {
+      const was = globalThis.document;
+      globalThis.document = doc;
+      try { fn(); } finally { globalThis.document = was; }
+    };
+
+    it('drops on the section under the finger, and stops the page scrolling meanwhile', () => {
+      const onMoveFrame = vi.fn(() => ({ ok: true }));
+      const doc = fakeDocument('hol');
+      withDocument(doc, () => {
+        const root = mount(<FrameSetsList {...props({ onMoveFrame, isMobile: true })} />);
+        act(() => { grip(root, 'free').props.onTouchStart(); });
+        const preventDefault = vi.fn();
+        act(() => { doc.listeners.touchmove({ touches: [{ clientX: 10, clientY: 10 }], preventDefault }); });
+        expect(preventDefault).toHaveBeenCalled();
+        act(() => { doc.listeners.touchend(); });
+      });
+      expect(onMoveFrame).toHaveBeenCalledWith('free', 'hol');
+      expect(doc.listeners).toEqual({});
+    });
+
+    it('a tap on the grip, with no move, drops nowhere', () => {
+      const onMoveFrame = vi.fn();
+      const doc = fakeDocument('hol');
+      withDocument(doc, () => {
+        const root = mount(<FrameSetsList {...props({ onMoveFrame })} />);
+        act(() => { grip(root, 'free').props.onTouchStart(); });
+        act(() => { doc.listeners.touchend(); });
+      });
+      expect(onMoveFrame).not.toHaveBeenCalled();
+    });
+
+    it('a release away from any section drops nowhere', () => {
+      const onMoveFrame = vi.fn();
+      const doc = fakeDocument(null);
+      withDocument(doc, () => {
+        const root = mount(<FrameSetsList {...props({ onMoveFrame })} />);
+        act(() => { grip(root, 'free').props.onTouchStart(); });
+        act(() => { doc.listeners.touchmove({ touches: [{ clientX: 10, clientY: 10 }], preventDefault: vi.fn() }); });
+        act(() => { doc.listeners.touchend(); });
+      });
+      expect(onMoveFrame).not.toHaveBeenCalled();
+    });
+  });
+});

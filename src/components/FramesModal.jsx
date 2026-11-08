@@ -31,7 +31,7 @@ const FramesModal = () => {
     saveFrame, deleteFrame,
     multiUserEnabled, users, hrViewUserSyncId, setHrViewUserSyncId,
     managedBy, meUserSyncId, hasUnownedFrames, claimUnownedFrames,
-    frameSets, frameSetsLoaded, createFrameSet, renameFrameSet, switchFrameSet, setFrameSetPeriods, deleteFrameSet,
+    frameSets, frameSetsLoaded, createFrameSet, renameFrameSet, switchFrameSet, setFrameSetPeriods, deleteFrameSet, moveFrameToSet,
   } = useFeaturesCtx();
   // The set a new frame starts in, when it was added from a set's section.
   const [newFrameSetId, setNewFrameSetId] = useState(null);
@@ -153,6 +153,7 @@ const FramesModal = () => {
                       onRenameSet={renameFrameSet}
                       onSetPeriods={setFrameSetPeriods}
                       onDeleteSet={deleteFrameSet}
+                      onMoveFrame={moveFrameToSet}
                       onCreateSet={createFrameSet}
                       darkMode={darkMode}
                       textPrimary={textPrimary}

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, Pencil, Trash2, X, Layers } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Layers, GripVertical } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import useBackClose from '../hooks/useBackClose.js';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
 import { frameSetStatus } from '../utils/frameSetEdits.js';
+import useFrameDrag from './useFrameDrag.js';
 
 // The Frames list grouped by frame set (#2305), shared by the desktop Frames
 // modal and the mobile Frames settings page. Frames in no set (or in a set
@@ -12,6 +13,11 @@ import { frameSetStatus } from '../utils/frameSetEdits.js';
 // or off for today and opens its editor (name, planned periods, delete).
 //
 // Without any sets the list looks as it always did, plus a "New set" button.
+//
+// With sets, a frame is moved between them by dragging its grip onto another
+// section, "Always" included (#2335; useFrameDrag.js for mouse and touch).
+// A drop that would overlap another frame is refused with the editor's
+// reason (hooks/useFrameSetActions.js moveFrameToSet).
 
 const formatDay = (dateStr) => formatLocalizedDate(new Date(`${dateStr}T12:00:00`), { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -25,14 +31,28 @@ export function describePeriod(t, period) {
   return t('frames.sets.periodAlways');
 }
 
-function FrameRow({ frame, onEdit, dimmed, darkMode, textPrimary, textSecondary, borderClass, rowBg, hoverBg, formatTime, dayLabels, offLabel, t }) {
+function FrameRow({ frame, onEdit, dimmed, dragging, grip, darkMode, textPrimary, textSecondary, borderClass, rowBg, hoverBg, formatTime, dayLabels, offLabel, t }) {
   return (
     <div
       onClick={() => onEdit(frame)}
       data-frame-row={frame.id}
-      className={`p-3 rounded-lg border ${borderClass} ${rowBg} cursor-pointer ${hoverBg} transition-colors ${dimmed ? 'opacity-60' : ''}`}
+      className={`p-3 rounded-lg border ${borderClass} ${rowBg} cursor-pointer ${hoverBg} transition-colors ${dragging ? 'opacity-40' : dimmed ? 'opacity-60' : ''}`}
     >
       <div className="flex items-center gap-2">
+        {grip && (
+          <span
+            {...grip}
+            role="button"
+            tabIndex={-1}
+            aria-label={t('frames.sets.dragHandle', { name: frame.label })}
+            title={t('frames.sets.dragHandle', { name: frame.label })}
+            data-frame-grip={frame.id}
+            className={`-ml-1 p-0.5 rounded cursor-grab active:cursor-grabbing ${textSecondary}`}
+            style={{ touchAction: 'none' }}
+          >
+            <GripVertical size={14} />
+          </span>
+        )}
         <div className={`w-3 h-3 rounded-full ${frame.color}`} />
         <span className={`font-medium text-sm ${textPrimary}`}>{frame.label}</span>
         {frame.singleDate && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>{t('frames.oneTime')}</span>}
@@ -153,7 +173,7 @@ export function FrameSetEditor({ set, onSave, onDelete, onClose, isMobile, darkM
 export default function FrameSetsList({
   frames, frameSets, frameSetsLoaded, todayStr,
   onEditFrame, onAddFrame,
-  onSwitchSet, onRenameSet, onSetPeriods, onDeleteSet, onCreateSet,
+  onSwitchSet, onRenameSet, onSetPeriods, onDeleteSet, onCreateSet, onMoveFrame,
   darkMode, textPrimary, textSecondary, borderClass, hoverBg, rowBg = '',
   formatTime, dayLabels, offLabel, isMobile = false,
 }) {
@@ -165,6 +185,38 @@ export default function FrameSetsList({
   const inSet = (f) => f.setId != null && known.has(String(f.setId));
   const unassigned = frames.filter((f) => !inSet(f));
   const rowProps = { darkMode, textPrimary, textSecondary, borderClass, rowBg, hoverBg, formatTime, dayLabels, offLabel, t, onEdit: onEditFrame };
+
+  // Moving a frame between sets by dragging (#2335): only with a set to move
+  // to, and only once the sets are read (the actions refuse otherwise).
+  const [refusal, setRefusal] = useState(null);
+  const canMove = !!onMoveFrame && frameSetsLoaded && sets.length > 0;
+  const { dragFrameId, overSet, gripProps, dropProps } = useFrameDrag({
+    onDrop: (frameId, setKey) => {
+      const result = onMoveFrame(frameId, setKey === '' ? null : setKey) || {};
+      if (result.ok || !result.overlap) { setRefusal(null); return; }
+      const frame = frames.find((f) => String(f.id) === String(frameId));
+      const { frame: other, days } = result.overlap;
+      const reason = days
+        ? t('frames.overlapOnDays', { frame: other.label, days: days.map((d) => dayLabels[d]).join(', ') })
+        : t('frames.overlap', { frame: other.label });
+      setRefusal(t('frames.sets.moveRefused', { frame: frame?.label ?? '', reason }));
+    },
+  });
+  const row = (frame, extra = {}) => (
+    <FrameRow
+      key={frame.id}
+      frame={frame}
+      grip={canMove ? gripProps(frame.id) : null}
+      dragging={dragFrameId === String(frame.id)}
+      {...extra}
+      {...rowProps}
+    />
+  );
+  // A section a frame can be dropped on, outlined while one is over it.
+  const dropTarget = (setKey) => (canMove ? dropProps(setKey) : {});
+  const dropRing = (setKey) => (dragFrameId != null && overSet === setKey
+    ? 'outline-dashed outline-2 outline-offset-4 outline-blue-500 rounded-lg'
+    : '');
 
   const addButton = (setId, label) => (
     <button
@@ -191,14 +243,23 @@ export default function FrameSetsList({
         <p className={`text-xs ${textSecondary}`} data-frame-sets-unavailable>{t('frames.sets.unavailable')}</p>
       )}
 
-      <div className="space-y-2" data-frame-set-section="">
+      {refusal && (
+        <div role="alert" className="p-2 rounded-lg bg-red-500/10 text-red-500 text-sm flex items-start gap-2" data-frame-move-refused>
+          <span className="flex-1">{refusal}</span>
+          <button type="button" onClick={() => setRefusal(null)} aria-label={t('common.close')} className="p-0.5 rounded hover:bg-red-500/10">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      <div className={`space-y-2 ${dropRing('')}`} data-frame-set-section="" {...dropTarget('')}>
         {sets.length > 0 && (
           <div>
             <h4 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>{t('frames.sets.always')}</h4>
             <p className={`text-xs ${textSecondary}`}>{t('frames.sets.alwaysHint')}</p>
           </div>
         )}
-        {unassigned.map((frame) => <FrameRow key={frame.id} frame={frame} {...rowProps} />)}
+        {unassigned.map((frame) => row(frame))}
         {addButton(null, t('frames.addFrame'))}
       </div>
 
@@ -210,7 +271,7 @@ export default function FrameSetsList({
           : (status.next ? t('frames.sets.offNext', { period: describePeriod(t, status.next) }) : t('frames.sets.offToday'));
         const editing = editingSetId === String(set.id);
         return (
-          <section key={set.id} className={`space-y-2 pt-3 border-t ${borderClass}`} data-frame-set-section={set.id}>
+          <section key={set.id} className={`space-y-2 pt-3 border-t ${borderClass} ${dropRing(String(set.id))}`} data-frame-set-section={set.id} {...dropTarget(String(set.id))}>
             <div className="flex items-center gap-2">
               <Layers size={16} className={textSecondary} />
               <div className="flex-1 min-w-0">
@@ -245,7 +306,7 @@ export default function FrameSetsList({
               />
             )}
             {members.length === 0 && <p className={`text-xs ${textSecondary}`}>{t('frames.sets.empty')}</p>}
-            {members.map((frame) => <FrameRow key={frame.id} frame={frame} dimmed={!status.on} {...rowProps} />)}
+            {members.map((frame) => row(frame, { dimmed: !status.on }))}
             {addButton(set.id, t('frames.sets.addFrameToSet', { name: set.name }))}
           </section>
         );

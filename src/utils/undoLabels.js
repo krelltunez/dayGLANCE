@@ -45,6 +45,7 @@ export const UNDO_LABELS = [
   'frameSkipped',
   'frameAdjusted',
   'frameSetDeleted',
+  'frameMoved',
   'smartScheduled',
   'rescheduled',
   'voiceApplied',
