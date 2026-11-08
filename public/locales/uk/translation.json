@@ -3012,6 +3012,8 @@
     "title": "Фільтр календаря",
     "hideProjects": "Приховати проєкти",
     "showAll": "Показати все",
+    "hideGroup": "Приховати все в {{name}}",
+    "showGroup": "Показати все в {{name}}",
     "hidden_one": "{{count}} приховане",
     "hidden_few": "{{count}} приховані",
     "hidden_many": "{{count}} прихованих",

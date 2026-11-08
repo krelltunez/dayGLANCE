@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, EyeOff } from 'lucide-react';
+import { ChevronDown, ChevronRight, EyeOff, Minus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getProjectColor, taskColorToHex } from '../utils/colorUtils.js';
 import { groupInboxProjects } from '../utils/inboxProjectGroups.js';
+import { hiddenGroupState } from '../utils/calendarFilter.js';
 import { projectPickerRows } from '../utils/projectPickerRows.js';
 import { readRememberedOpen, rememberOpen } from '../hooks/useRememberedOpen.js';
 
@@ -14,6 +15,10 @@ import { readRememberedOpen, rememberOpen } from '../hooks/useRememberedOpen.js'
 // (areas, goals, then the standalone projects; utils/projectPickerRows.js).
 // A ticked project's tasks leave the calendar views on this device; they
 // still occupy their time everywhere else (utils/calendarFilter.js).
+//
+// An area, a goal or the standalone projects hides all of its projects at
+// once (#2332), as the Inbox filter selects them: the group's name, with a
+// box that reads partly ticked while only some are hidden. Its chevron folds.
 
 const OPEN_KEY = (key) => `day-planner-calendar-filter-open-${key}`;
 const NO_GROUPS = { areas: [], standalone: [], hasAreas: false };
@@ -45,7 +50,7 @@ export default function CalendarFilterProjects({ variant = 'popover', groups }) 
   const { t } = useTranslation();
   const {
     darkMode, textPrimary, textSecondary,
-    liveHiddenProjects, toggleHiddenProject, showAllProjects,
+    liveHiddenProjects, toggleHiddenProject, toggleHiddenProjectGroup, showAllProjects,
   } = useDayPlannerCtx();
   const { goals } = useFeaturesCtx() || {};
   const hidden = liveHiddenProjects || new Set();
@@ -54,10 +59,12 @@ export default function CalendarFilterProjects({ variant = 'popover', groups }) 
 
   // Folds remembered on this device, as the task editor's picker keeps its
   // own. A goal opens by default when it holds a hidden project, so what is
-  // hidden is never folded out of sight on first opening.
+  // hidden is never folded out of sight on first opening; not when every one
+  // of its projects is, since its own box says so (#2332).
   const [folds, setFolds] = useState({});
-  const goalHolds = new Map([['standalone', holdsHidden(groups.standalone)]]);
-  for (const area of groups.areas) for (const goal of area.goals) goalHolds.set(`goal-${goal.id}`, holdsHidden(goal.projects));
+  const holdsSome = (projects) => holdsHidden(projects) && !projects.every((p) => isHidden(p.id));
+  const goalHolds = new Map([['standalone', holdsSome(groups.standalone)]]);
+  for (const area of groups.areas) for (const goal of area.goals) goalHolds.set(`goal-${goal.id}`, holdsSome(goal.projects));
   const isOpen = (key, defaultOpen) => folds[key] ?? readRememberedOpen(OPEN_KEY(key), defaultOpen || !!goalHolds.get(key));
   const rows = projectPickerRows(groups, { isOpen });
   const toggleFold = (row) => {
@@ -65,6 +72,20 @@ export default function CalendarFilterProjects({ variant = 'popover', groups }) 
     rememberOpen(OPEN_KEY(row.key), next);
     setFolds((was) => ({ ...was, [row.key]: next }));
   };
+  // Hiding a group changes what its fold defaults to; keep it as it is on
+  // screen, so the row the user just clicked does not open or close under them.
+  const toggleGroupHidden = (row) => {
+    setFolds((was) => (row.key in was ? was : { ...was, [row.key]: row.open }));
+    toggleHiddenProjectGroup(row.ids);
+  };
+  const box = (state) => (
+    <span className={`${sheet ? 'w-5 h-5' : 'w-4 h-4'} rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
+      state !== 'none' ? 'bg-blue-500 border-blue-500' : darkMode ? 'border-gray-600' : 'border-stone-300'
+    }`}>
+      {state === 'all' && <EyeOff size={sheet ? 13 : 11} className="text-white" />}
+      {state === 'some' && <Minus size={sheet ? 13 : 11} className="text-white" />}
+    </span>
+  );
 
   const sheet = variant === 'sheet';
   const indent = (level) => ({ paddingLeft: `${0.75 + level}rem` });
@@ -100,22 +121,36 @@ export default function CalendarFilterProjects({ variant = 'popover', groups }) 
         {rows.map((row) => {
           if (row.type === 'group') {
             const title = groupTitle(row);
+            const state = hiddenGroupState(hidden, row.ids);
             return (
-              <button
-                key={row.key}
-                type="button"
-                data-calendar-filter-group={row.key}
-                aria-expanded={row.open}
-                aria-label={t(row.open ? 'inbox.filter.collapseGroup' : 'inbox.filter.expandGroup', { name: title })}
-                onClick={() => toggleFold(row)}
-                className={`w-full flex items-center gap-2 pr-3 ${sheet ? 'py-2' : 'py-1.5'} text-left rounded-md ${rowHover} ${textSecondary}`}
-                style={indent(row.level)}
-              >
-                {row.open ? <ChevronDown size={14} className="flex-shrink-0" /> : <ChevronRight size={14} className="flex-shrink-0" />}
-                {row.kind === 'goal' && row.color ? dot(row.color) : null}
-                <span className={`truncate ${row.kind === 'area' ? 'text-[11px] font-semibold uppercase tracking-wide' : 'text-xs font-medium'}`}>{title}</span>
-                <span className="text-xs opacity-60">{row.count}</span>
-              </button>
+              <div key={row.key} className="flex items-center gap-0.5 pr-3" style={indent(row.level)}>
+                <button
+                  type="button"
+                  data-calendar-filter-group={row.key}
+                  aria-expanded={row.open}
+                  aria-label={t(row.open ? 'inbox.filter.collapseGroup' : 'inbox.filter.expandGroup', { name: title })}
+                  onClick={() => toggleFold(row)}
+                  className={`flex-shrink-0 rounded-md ${sheet ? 'p-2 -ml-2' : 'p-1 -ml-1'} ${rowHover} ${textSecondary}`}
+                >
+                  {row.open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+                <button
+                  type="button"
+                  data-hide-group={row.key}
+                  data-group-state={state}
+                  aria-pressed={state === 'all' ? true : state === 'some' ? 'mixed' : false}
+                  title={t(state === 'all' ? 'calendarFilter.showGroup' : 'calendarFilter.hideGroup', { name: title })}
+                  onClick={() => toggleGroupHidden(row)}
+                  className={`flex-1 min-w-0 flex items-center gap-2 px-1.5 ${sheet ? 'py-2' : 'py-1.5'} text-left rounded-md transition-colors ${
+                    state === 'all' ? (darkMode ? 'bg-blue-500/20' : 'bg-blue-50') : rowHover
+                  } ${textSecondary}`}
+                >
+                  {box(state)}
+                  {row.kind === 'goal' && row.color ? dot(row.color) : null}
+                  <span className={`truncate ${row.kind === 'area' ? 'text-[11px] font-semibold uppercase tracking-wide' : 'text-xs font-medium'} ${state === 'all' ? 'line-through opacity-70' : ''}`}>{title}</span>
+                  <span className="text-xs opacity-60">{row.count}</span>
+                </button>
+              </div>
             );
           }
           const { project } = row;
@@ -133,11 +168,7 @@ export default function CalendarFilterProjects({ variant = 'popover', groups }) 
               }`}
               style={indent(row.level)}
             >
-              <span className={`${sheet ? 'w-5 h-5' : 'w-4 h-4'} rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
-                on ? 'bg-blue-500 border-blue-500' : darkMode ? 'border-gray-600' : 'border-stone-300'
-              }`}>
-                {on && <EyeOff size={sheet ? 13 : 11} className="text-white" />}
-              </span>
+              {box(on ? 'all' : 'none')}
               {dot(getProjectColor(project, goal))}
               <span className={`flex-1 truncate text-sm ${textPrimary} ${on ? 'line-through opacity-70' : ''}`}>{project.title}</span>
             </button>

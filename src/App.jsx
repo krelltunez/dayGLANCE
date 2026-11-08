@@ -650,7 +650,7 @@ const DayPlanner = () => {
   const [minimizedSections, setMinimizedSections] = useState(readMinimizedSections);
   const {
     selectedTags, setSelectedTags, showUntagged, setShowUntagged, showMobileTagFilter, setShowMobileTagFilter, toggleTag, clearTagFilter,
-    hiddenProjects, toggleHiddenProject, showAllProjects,
+    hiddenProjects, toggleHiddenProject, toggleHiddenProjectGroup, showAllProjects,
   } = useTagFilter();
   const [use24HourClock, setUse24HourClock] = useState(readUse24HourClock);
   const [inboxAutoArchiveDays, setInboxAutoArchiveDays] = useState(() => {
@@ -7102,7 +7102,7 @@ const DayPlanner = () => {
     showMobileTagFilter, setShowMobileTagFilter,
     allTags, filterableTags,
     // The calendar filter's Hide projects (#2307) and what it all leaves out.
-    hiddenProjects, liveHiddenProjects, toggleHiddenProject, showAllProjects,
+    hiddenProjects, liveHiddenProjects, toggleHiddenProject, toggleHiddenProjectGroup, showAllProjects,
     calendarHiddenCount,
 
     // ── Task modals & editing ─────────────────────────────────────────────────

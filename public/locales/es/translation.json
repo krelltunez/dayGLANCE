@@ -2887,6 +2887,8 @@
     "title": "Filtrar calendario",
     "hideProjects": "Ocultar proyectos",
     "showAll": "Mostrar todo",
+    "hideGroup": "Ocultar todo en {{name}}",
+    "showGroup": "Mostrar todo en {{name}}",
     "hidden_one": "{{count}} oculta",
     "hidden_other": "{{count}} ocultas",
     "hiddenHint_one": "Filtrar calendario: {{count}} tarea oculta en los días mostrados",
