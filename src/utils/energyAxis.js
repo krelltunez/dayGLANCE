@@ -52,3 +52,37 @@ export function deriveBlockEnergy(task) {
   }
   return ENERGY_EFFORT;
 }
+
+const isOverride = (energy) => energy === ENERGY_RESTORE || energy === ENERGY_EFFORT;
+
+/**
+ * What the block resolves to and why (#2331, the card's marker): `energy` as
+ * deriveBlockEnergy gives it, and `setByUser` when that is the user's own
+ * override rather than the derivation.
+ */
+export function blockEnergySource(task) {
+  return { energy: deriveBlockEnergy(task), setByUser: isOverride(task?.energy) };
+}
+
+/**
+ * The override a click on the card's marker writes: the other value, or null
+ * (back to auto) when the derivation already gives the other value. So an
+ * override is only ever stored where it disagrees with the derivation, and a
+ * second click undoes the first. The context menu's cycle, which can also
+ * return to auto, stays as it is.
+ *
+ * @returns 'effort' | 'restore' | null
+ */
+export function flipEnergyOverride(task) {
+  const target = deriveBlockEnergy(task) === ENERGY_RESTORE ? ENERGY_EFFORT : ENERGY_RESTORE;
+  const derived = deriveBlockEnergy({ ...task, energy: undefined });
+  return derived === target ? null : target;
+}
+
+/**
+ * The override, carried onto a task built from another (a series turned into
+ * a one-off and back, an occurrence moved to another date or postponed):
+ * every such path writes the new row field by field, and one that forgot
+ * `energy` dropped the user's word (#2331). Spread it beside carryCreatedAt.
+ */
+export const carryEnergy = (source) => (isOverride(source?.energy) ? { energy: source.energy } : {});
