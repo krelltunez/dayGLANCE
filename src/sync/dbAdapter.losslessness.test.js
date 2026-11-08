@@ -156,7 +156,10 @@ function buildFixture() {
     projects: [
       // targetDate: the project's OWN target date (2026-10-21), a plain record
       // field the whole-row vault roundtrip must carry like any other.
-      { id: 7001, title: 'Q3 launch', updatedAt: ts(60), goalId: 9101, targetDate: '2026-07-15', hyperglance: { enabled: false } },
+      // taskDefaults: the project's New task defaults (#2336), likewise a plain
+      // field of the row, nested, copied onto tasks created in it.
+      { id: 7001, title: 'Q3 launch', updatedAt: ts(60), goalId: 9101, targetDate: '2026-07-15', hyperglance: { enabled: false },
+        taskDefaults: { duration: 45, tags: ['launch'], notes: 'Summary:\nPurpose:\nResult:', subtasks: ['Draft', 'Review'] } },
     ],
     deletedProjectIds: { 7099: ts(990) },
     areas: [

@@ -2124,7 +2124,19 @@
     "showFilters": "Pokaż filtry",
     "hideFilters": "Ukryj filtry",
     "filtersActive": "Filtry aktywne",
-    "filterButton": "Filtruj"
+    "filterButton": "Filtruj",
+    "taskDefaults": {
+      "title": "Domyślne dla nowych zadań",
+      "hint": "Nowe zadania w tym projekcie zaczynają od tego. Późniejsze zmiany nie dotyczą istniejących zadań.",
+      "copyFrom": "Skopiuj z innego projektu…",
+      "duration": "Czas trwania (minuty)",
+      "tags": "Tagi",
+      "tagsPlaceholder": "#tag #inny",
+      "notes": "Notatki",
+      "notesPlaceholder": "Podsumowanie:\nCel:\nWynik:",
+      "subtasks": "Podzadania (jedno w wierszu)",
+      "subtasksPlaceholder": "Pierwszy krok\nDrugi krok"
+    }
   },
   "colors": {
     "gray": "Szary",

@@ -2030,7 +2030,19 @@
     "showFilters": "显示筛选",
     "hideFilters": "隐藏筛选",
     "filtersActive": "筛选已启用",
-    "filterButton": "筛选"
+    "filterButton": "筛选",
+    "taskDefaults": {
+      "title": "新任务默认值",
+      "hint": "在此项目中新建的任务会自动带上这些内容。之后修改不会影响已有任务。",
+      "copyFrom": "从其他项目复制…",
+      "duration": "时长（分钟）",
+      "tags": "标签",
+      "tagsPlaceholder": "#标签 #另一个",
+      "notes": "笔记",
+      "notesPlaceholder": "总结：\n目的：\n结果：",
+      "subtasks": "子任务（每行一个）",
+      "subtasksPlaceholder": "第一步\n第二步"
+    }
   },
   "colors": {
     "gray": "灰色",

@@ -9,6 +9,7 @@
 import { followUpDraft } from '../jobo/carryForward.js';
 import { TAG_NAME, splitTitleNoteLinks, stripMarkdownLinks, stripTags, tagsIn } from './taskUtils.js';
 import { parseRecurringId } from './recurringId.js';
+import { withTags } from './projectTaskDefaults.js';
 
 /** This device's tag for follow-ups, without its `#`; empty for none. */
 export const FOLLOW_UP_TAG_KEY = 'dg-follow-up-tag';
@@ -99,6 +100,9 @@ export function canFollowUp(task) {
  *   ("Waiting on Robin:") replaces it.
  * - Its colour and, while that project is open, its project, as JOBO's
  *   follow-up (`followUpDraft`). Never its time, notes or subtasks.
+ * - In a project, that project's New task defaults (#2336), as any task
+ *   created there: their tags, duration and checklist. `note` wins over
+ *   their notes, which fill in only without one.
  * - The Inbox, with no deadline yet: the deadline is the follow-up date.
  * - `note` as its notes: the line that links back.
  */
@@ -111,14 +115,17 @@ export function completionFollowUpDraft(task, { projects = [], prefix = '', tag 
   const head = [prefix.trim(), body].filter(Boolean).join(' ');
   const title = [head, ...tags.map(name => `#${name}`)].join(' ');
   return {
-    title,
+    // The project's default tags, which followUpDraft appended to its own.
+    title: withTags(title, tagsIn(base.title)),
     selection: [0, prefix.trim().length],
     ...(base.color ? { color: base.color } : {}),
     ...(base.projectId != null ? { projectId: base.projectId } : {}),
+    ...(base.duration ? { duration: base.duration } : {}),
+    ...(base.subtasks ? { subtasks: base.subtasks } : {}),
     openInInbox: true,
     deadline: null,
     priority: 0,
-    notes: note,
+    notes: note || base.notes || '',
   };
 }
 

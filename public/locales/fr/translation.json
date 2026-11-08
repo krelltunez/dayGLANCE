@@ -2033,7 +2033,19 @@
     "showFilters": "Afficher les filtres",
     "hideFilters": "Masquer les filtres",
     "filtersActive": "Filtres actifs",
-    "filterButton": "Filtrer"
+    "filterButton": "Filtrer",
+    "taskDefaults": {
+      "title": "Valeurs des nouvelles tâches",
+      "hint": "Les nouvelles tâches de ce projet commencent avec ceci. Les modifier ensuite ne change pas les tâches existantes.",
+      "copyFrom": "Copier depuis un autre projet…",
+      "duration": "Durée (minutes)",
+      "tags": "Étiquettes",
+      "tagsPlaceholder": "#étiquette #autre",
+      "notes": "Notes",
+      "notesPlaceholder": "Résumé :\nObjectif :\nRésultat :",
+      "subtasks": "Sous-tâches (une par ligne)",
+      "subtasksPlaceholder": "Première étape\nDeuxième étape"
+    }
   },
   "colors": {
     "gray": "Gris",

@@ -27,6 +27,7 @@ import { noteLinkOf } from '../../utils/obsidianProjectNotes.js';
 import { sortByProjectOrder, applyProjectReorder, orderProjectTasks, projectReorderIds, topProjectOrder } from '../../utils/projectOrder.js';
 import { beginLongPressReorder, isLongPressRowDevice } from '../../utils/longPressReorder.js';
 import { formatLocalizedDate } from '../../utils/localeFormatting.js';
+import { projectTaskFields } from '../../utils/projectTaskDefaults.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
 
@@ -341,16 +342,13 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     const newTask = {
       id: crypto.randomUUID(),
       projectOrder: topProjectOrder(projectUnscheduled),
-      title,
-      duration: 30,
-      color: projectColor,
+      // Title (with the default tags), colour, duration, notes, checklist and
+      // users: what the project gives a new task (utils/projectTaskDefaults.js).
+      ...projectTaskFields(project, parentGoal, { title }),
       completed: false,
       isAllDay: false,
-      notes: '',
-      subtasks: [],
       priority: 0,
       projectId: project.id,
-      ...(project.assignedUserSyncIds?.length ? { assignedUserSyncIds: project.assignedUserSyncIds } : {}),
       lastModified: new Date().toISOString(),
     };
     setUnscheduledTasks(prev => [...prev, newTask]);

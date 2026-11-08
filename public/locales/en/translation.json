@@ -2033,7 +2033,19 @@
     "showFilters": "Show filters",
     "hideFilters": "Hide filters",
     "filtersActive": "Filters active",
-    "filterButton": "Filter"
+    "filterButton": "Filter",
+    "taskDefaults": {
+      "title": "New task defaults",
+      "hint": "Tasks created in this project start with these. Changing them later doesn't change tasks it already has.",
+      "copyFrom": "Copy from another project…",
+      "duration": "Duration (minutes)",
+      "tags": "Tags",
+      "tagsPlaceholder": "#tag #another",
+      "notes": "Notes",
+      "notesPlaceholder": "Summary:\nPurpose:\nResult:",
+      "subtasks": "Subtasks (one per line)",
+      "subtasksPlaceholder": "First step\nSecond step"
+    }
   },
   "colors": {
     "gray": "Gray",
