@@ -2890,6 +2890,8 @@
     "title": "Filter calendar",
     "hideProjects": "Hide projects",
     "showAll": "Show all",
+    "hideGroup": "Hide all of {{name}}",
+    "showGroup": "Show all of {{name}}",
     "hidden_one": "{{count}} hidden",
     "hidden_other": "{{count}} hidden",
     "hiddenHint_one": "Filter calendar: {{count}} task hidden on the days shown",

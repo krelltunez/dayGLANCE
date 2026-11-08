@@ -62,6 +62,32 @@ export function liveHiddenProjectIds(hidden = [], projects = [], { enabled = tru
   return live.size ? live : NONE;
 }
 
+/**
+ * How much of a group (an area, a goal, the standalone projects) is hidden:
+ * 'all' | 'some' | 'none' of `ids` in the live hidden set (#2332).
+ */
+export function hiddenGroupState(liveHidden = NONE, ids = []) {
+  if (!ids.length) return 'none';
+  const hidden = ids.filter((id) => liveHidden.has(String(id))).length;
+  return hidden === 0 ? 'none' : hidden === ids.length ? 'all' : 'some';
+}
+
+/**
+ * Ticking a group in Hide projects (#2332), the Inbox filter's rule
+ * (toggleProjectGroup): every project in it hidden becomes none of them,
+ * anything less becomes all of them. The rest of the saved list, stale ids
+ * included, is kept as it was. Ids compare as strings, as everywhere the list
+ * is read. A group hides the projects it holds NOW: a project added to the
+ * goal later shows until it is ticked, as the Inbox filter selects.
+ */
+export function toggleHiddenGroup(hidden = [], ids = []) {
+  if (!ids.length) return hidden;
+  const saved = new Set(hidden.map(String));
+  const wanted = new Set(ids.map(String));
+  if (ids.every((id) => saved.has(String(id)))) return hidden.filter((id) => !wanted.has(String(id)));
+  return [...hidden, ...ids.filter((id) => !saved.has(String(id)))];
+}
+
 /** Whether hide-projects leaves this task out. A task with no project never is. */
 export function isHiddenByProject(task, liveHidden = NONE) {
   if (!liveHidden.size || !task) return false;

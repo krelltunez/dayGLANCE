@@ -2892,6 +2892,8 @@
     "title": "Filtra calendario",
     "hideProjects": "Nascondi progetti",
     "showAll": "Mostra tutto",
+    "hideGroup": "Nascondi tutto in {{name}}",
+    "showGroup": "Mostra tutto in {{name}}",
     "hidden_one": "{{count}} nascosta",
     "hidden_other": "{{count}} nascoste",
     "hiddenHint_one": "Filtra calendario: {{count}} attività nascosta nei giorni mostrati",

@@ -43,6 +43,12 @@ describe('on desktop', () => {
     expect(b.props.title).toBe('Restore, detected from the title. Click for Effort.');
   });
 
+  it('a Chinese title detected as Restore carries the leaf too (#2331\'s reporter)', () => {
+    const b = button(mount(task({ title: '中午吃饭' })).root);
+    expect(b.props['data-energy-marker']).toBe('restore');
+    expect(b.props.title).toBe('Restore, detected from the title. Click for Effort.');
+  });
+
   it('the same leaf for a hand-set Restore, and the tooltip says the user set it', () => {
     const b = button(mount(task({ energy: 'restore' })).root);
     expect(b.props['data-energy-marker']).toBe('restore');

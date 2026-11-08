@@ -8,7 +8,8 @@ import { extractTags } from './taskUtils.js';
 //
 // Resolution order:
 //   1. Explicit per-block override (task.energy) — the user's word is final.
-//   2. Keyword match on the block's #tags and title words → restore.
+//   2. Keyword match on the block's #tags and title words, or a Chinese
+//      phrase anywhere in the title → restore.
 //   3. Everything else → effort.
 //
 // Effort is the fallback because scheduled blocks are output by default; the
@@ -29,12 +30,72 @@ export const ENERGY_RESTORE = 'restore';
 // against whole words only, so "restaurant" never matches "rest". The Android
 // launcher provider keeps a copy for device events (LauncherDeviceEvents.kt);
 // launcherDeviceEvents.fixture.test.js holds the two equal.
-export const RESTORE_KEYWORDS = new Set([
-  'health', 'gym', 'workout', 'exercise', 'run', 'running', 'walk', 'yoga',
-  'meditate', 'meditation', 'breakfast', 'lunch', 'dinner', 'meal', 'eat',
-  'break', 'rest', 'nap', 'sleep', 'recharge', 'recovery',
-  'relax', 'relaxation', 'unwind', 'chill',
-]);
+//
+// Every language the app ships, matched whatever the interface language is: a
+// title is written in whatever the user thinks in (#2331, where every block a
+// Chinese-speaking user wrote resolved to Effort). Base forms only, and a word
+// that is also an ordinary word elsewhere is left out: French "repos" (rest)
+// is English "repos", "course" (run) is an errand, "marche" is "it works";
+// German and French "pause" is the English verb ("Pause the campaign"),
+// Polish "spacer" (walk) and "sen" (sleep) are "spacer" and "Sen."; German
+// "laufen" (run) is also software running. Inflected forms are a miss,
+// never a false match, and the override covers them.
+const RESTORE_WORDS = {
+  en: [
+    'health', 'gym', 'workout', 'exercise', 'run', 'running', 'walk', 'yoga',
+    'meditate', 'meditation', 'breakfast', 'lunch', 'dinner', 'meal', 'eat',
+    'break', 'rest', 'nap', 'sleep', 'recharge', 'recovery',
+    'relax', 'relaxation', 'unwind', 'chill',
+  ],
+  de: [
+    'fitnessstudio', 'joggen', 'spaziergang', 'spazieren', 'meditieren',
+    'frühstück', 'mittagessen', 'abendessen', 'essen', 'mittagspause',
+    'nickerchen', 'schlafen', 'schlaf', 'erholung', 'entspannen', 'entspannung',
+  ],
+  es: [
+    'gimnasio', 'ejercicio', 'correr', 'caminar', 'paseo', 'meditar', 'meditación',
+    'desayuno', 'almuerzo', 'comida', 'cena', 'comer', 'descanso', 'descansar',
+    'siesta', 'dormir', 'relajarse',
+  ],
+  fr: [
+    'exercice', 'courir', 'promenade', 'méditer', 'méditation', 'déjeuner',
+    'dîner', 'repas', 'manger', 'sieste', 'détente', 'détendre',
+  ],
+  it: [
+    'palestra', 'allenamento', 'esercizio', 'corsa', 'correre', 'camminata',
+    'passeggiata', 'meditare', 'meditazione', 'colazione', 'pranzo', 'pasto',
+    'mangiare', 'pausa', 'riposo', 'pisolino', 'dormire', 'rilassarsi',
+  ],
+  pl: [
+    'siłownia', 'trening', 'ćwiczenia', 'bieg', 'bieganie', 'spacerować', 'joga',
+    'medytacja', 'śniadanie', 'obiad', 'kolacja', 'posiłek', 'jedzenie',
+    'przerwa', 'odpoczynek', 'drzemka', 'spanie', 'relaks',
+  ],
+  pt: [
+    'ginásio', 'treino', 'exercício', 'corrida', 'caminhada', 'passeio',
+    'meditação', 'almoço', 'jantar', 'refeição', 'descanso', 'descansar',
+    'soneca', 'sesta', 'relaxar',
+  ],
+  uk: [
+    'спортзал', 'тренування', 'біг', 'прогулянка', 'йога', 'медитація',
+    'сніданок', 'обід', 'вечеря', 'їжа', 'перерва', 'відпочинок', 'сон',
+    'дрімота', 'релакс',
+  ],
+};
+export const RESTORE_KEYWORDS = new Set(Object.values(RESTORE_WORDS).flat());
+
+// Chinese puts no space between words, so no word can be split out of a
+// title; these are matched as substrings instead ("中午吃饭" holds "吃饭").
+// Two characters at least, each naming the restoring thing itself; a word
+// that also has a working sense is left out (锻炼 is to exercise and also to
+// build a skill, 运动 is also a campaign). Simplified, then the Traditional
+// forms where they differ.
+export const RESTORE_PHRASES = [
+  '早餐', '早饭', '午餐', '午饭', '晚餐', '晚饭', '吃饭', '用餐',
+  '午休', '午睡', '小睡', '休息', '睡觉', '健身', '跑步', '散步',
+  '瑜伽', '冥想', '放松',
+  '早飯', '午飯', '晚飯', '吃飯', '睡覺', '放鬆',
+];
 
 /**
  * @param task Timeline block (needs title; energy optional).
@@ -50,6 +111,7 @@ export function deriveBlockEnergy(task) {
   for (const w of words) {
     if (RESTORE_KEYWORDS.has(w)) return ENERGY_RESTORE;
   }
+  if (RESTORE_PHRASES.some((phrase) => title.includes(phrase))) return ENERGY_RESTORE;
   return ENERGY_EFFORT;
 }
 

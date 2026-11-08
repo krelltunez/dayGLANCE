@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { writeItem } from '../utils/storageWrites.js';
-import { HIDDEN_PROJECTS_KEY, readHiddenProjects } from '../utils/calendarFilter.js';
+import { HIDDEN_PROJECTS_KEY, readHiddenProjects, toggleHiddenGroup } from '../utils/calendarFilter.js';
 
 const useTagFilter = () => {
   const [selectedTags, setSelectedTags] = useState(() => {
@@ -65,6 +65,12 @@ const useTagFilter = () => {
     );
   };
 
+  // An area, a goal or the standalone projects at once (#2332): all hidden
+  // becomes none, anything less becomes all.
+  const toggleHiddenProjectGroup = (ids) => {
+    setHiddenProjects(prev => toggleHiddenGroup(prev, ids));
+  };
+
   // "Show all" in the Hide projects section: nothing hidden, stale ids included.
   const showAllProjects = () => {
     setHiddenProjects([]);
@@ -76,7 +82,7 @@ const useTagFilter = () => {
     showMobileTagFilter, setShowMobileTagFilter,
     toggleTag, clearTagFilter,
     hiddenProjects, setHiddenProjects,
-    toggleHiddenProject, showAllProjects,
+    toggleHiddenProject, toggleHiddenProjectGroup, showAllProjects,
   };
 };
 

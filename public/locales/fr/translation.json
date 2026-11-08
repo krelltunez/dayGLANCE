@@ -2890,6 +2890,8 @@
     "title": "Filtrer le calendrier",
     "hideProjects": "Masquer des projets",
     "showAll": "Tout afficher",
+    "hideGroup": "Tout masquer dans {{name}}",
+    "showGroup": "Tout afficher dans {{name}}",
     "hidden_one": "{{count}} masquée",
     "hidden_other": "{{count}} masquées",
     "hiddenHint_one": "Filtrer le calendrier : {{count}} tâche masquée sur les jours affichés",

@@ -18,8 +18,12 @@
  *   in force for a group, given its default
  * @param {boolean} [options.filtering]  a filter is typed: every group open
  * @param {string|null} [options.selectedId]  the task's project
+ *
+ * A group row carries the ids of every project under it (`ids`, folded or
+ * not), so a picker can act on the whole group: the calendar filter hides an
+ * area or a goal in one click (#2332).
  * @returns {Array<
- *   { type: 'group', key: string, kind: 'area'|'goal'|'standalone', level: number, title: string|null, color?: string, count: number, open: boolean }
+ *   { type: 'group', key: string, kind: 'area'|'goal'|'standalone', level: number, title: string|null, color?: string, count: number, ids: Array<string|number>, open: boolean }
  *   | { type: 'project', key: string, level: number, project: object }>}
  */
 export function projectPickerRows(groups, { isOpen = (_key, def) => def, filtering = false, selectedId = null } = {}) {
@@ -32,7 +36,7 @@ export function projectPickerRows(groups, { isOpen = (_key, def) => def, filteri
   const goalRows = (goal, level) => {
     const key = `goal-${goal.id}`;
     const open = fold(key, holds(goal.projects));
-    rows.push({ type: 'group', key, kind: 'goal', level, title: goal.title, color: goal.color, count: goal.projects.length, open });
+    rows.push({ type: 'group', key, kind: 'goal', level, title: goal.title, color: goal.color, count: goal.projects.length, ids: goal.projects.map((p) => p.id), open });
     if (open) projectRows(goal.projects, level + 1);
   };
 
@@ -40,14 +44,14 @@ export function projectPickerRows(groups, { isOpen = (_key, def) => def, filteri
     if (!groups.hasAreas) { area.goals.forEach((goal) => goalRows(goal, 0)); return; }
     const key = `area-${area.id ?? 'none'}`;
     const open = fold(key, true);
-    const count = area.goals.reduce((n, goal) => n + goal.projects.length, 0);
-    rows.push({ type: 'group', key, kind: 'area', level: 0, title: area.title, count, open });
+    const ids = area.goals.flatMap((goal) => goal.projects.map((p) => p.id));
+    rows.push({ type: 'group', key, kind: 'area', level: 0, title: area.title, count: ids.length, ids, open });
     if (open) area.goals.forEach((goal) => goalRows(goal, 1));
   });
 
   if (groups.standalone.length) {
     const open = fold('standalone', groups.areas.length === 0 || holds(groups.standalone));
-    rows.push({ type: 'group', key: 'standalone', kind: 'standalone', level: 0, title: null, count: groups.standalone.length, open });
+    rows.push({ type: 'group', key: 'standalone', kind: 'standalone', level: 0, title: null, count: groups.standalone.length, ids: groups.standalone.map((p) => p.id), open });
     if (open) projectRows(groups.standalone, 1);
   }
   return rows;

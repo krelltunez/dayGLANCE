@@ -3009,6 +3009,8 @@
     "title": "Filtruj kalendarz",
     "hideProjects": "Ukryj projekty",
     "showAll": "Pokaż wszystko",
+    "hideGroup": "Ukryj wszystko w {{name}}",
+    "showGroup": "Pokaż wszystko w {{name}}",
     "hidden_one": "{{count}} ukryte",
     "hidden_few": "{{count}} ukryte",
     "hidden_many": "{{count}} ukrytych",

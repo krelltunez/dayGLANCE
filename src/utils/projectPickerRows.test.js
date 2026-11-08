@@ -67,4 +67,14 @@ describe('projectPickerRows', () => {
     expect(work).toMatchObject({ kind: 'area', title: 'Work', count: 2 });
     expect(ship).toMatchObject({ kind: 'goal', title: 'Ship v6', color: 'bg-rose-500', count: 2 });
   });
+
+  it('a group row carries the ids of every project under it, folded or not (#2332)', () => {
+    const rows = projectPickerRows(groups);
+    const byKey = Object.fromEntries(rows.filter((r) => r.type === 'group').map((r) => [r.key, r]));
+    // Read more sits in no area, so "No defined area" holds it.
+    expect(byKey['area-a-work'].ids).toEqual(['p-api', 'p-docs']);
+    expect(byKey['goal-g-ship']).toMatchObject({ open: false, ids: ['p-api', 'p-docs'] });
+    expect(byKey['area-none'].ids).toEqual(['p-books']);
+    expect(byKey.standalone).toMatchObject({ open: false, ids: ['p-solo'] });
+  });
 });

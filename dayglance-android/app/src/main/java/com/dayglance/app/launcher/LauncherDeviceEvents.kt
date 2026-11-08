@@ -34,12 +34,36 @@ object LauncherDeviceEvents {
         val daysAfter: Int,
     )
 
-    /** utils/energyAxis.js RESTORE_KEYWORDS; the fixture's `restoreKeywords` holds the two equal. */
+    /** utils/energyAxis.js RESTORE_KEYWORDS (every shipped language); the fixture's `restoreKeywords` holds the two equal. */
     val RESTORE_KEYWORDS: Set<String> = setOf(
-        "health", "gym", "workout", "exercise", "run", "running", "walk", "yoga",
-        "meditate", "meditation", "breakfast", "lunch", "dinner", "meal", "eat",
-        "break", "rest", "nap", "sleep", "recharge", "recovery",
-        "relax", "relaxation", "unwind", "chill",
+        "health", "gym", "workout", "exercise", "run", "running", "walk", "yoga", "meditate",
+        "meditation", "breakfast", "lunch", "dinner", "meal", "eat", "break", "rest", "nap",
+        "sleep", "recharge", "recovery", "relax", "relaxation", "unwind", "chill",
+        "fitnessstudio", "joggen", "spaziergang", "spazieren", "meditieren", "frühstück",
+        "mittagessen", "abendessen", "essen", "mittagspause", "nickerchen", "schlafen",
+        "schlaf", "erholung", "entspannen", "entspannung", "gimnasio", "ejercicio", "correr",
+        "caminar", "paseo", "meditar", "meditación", "desayuno", "almuerzo", "comida", "cena",
+        "comer", "descanso", "descansar", "siesta", "dormir", "relajarse", "exercice", "courir",
+        "promenade", "méditer", "méditation", "déjeuner", "dîner", "repas", "manger", "sieste",
+        "détente", "détendre", "palestra", "allenamento", "esercizio", "corsa", "correre",
+        "camminata", "passeggiata", "meditare", "meditazione", "colazione", "pranzo", "pasto",
+        "mangiare", "pausa", "riposo", "pisolino", "dormire", "rilassarsi", "siłownia",
+        "trening", "ćwiczenia", "bieg", "bieganie", "spacerować", "joga", "medytacja",
+        "śniadanie", "obiad", "kolacja", "posiłek", "jedzenie", "przerwa", "odpoczynek",
+        "drzemka", "spanie", "relaks", "ginásio", "treino", "exercício", "corrida", "caminhada",
+        "passeio", "meditação", "almoço", "jantar", "refeição", "soneca", "sesta", "relaxar",
+        "спортзал", "тренування", "біг", "прогулянка", "йога", "медитація", "сніданок", "обід",
+        "вечеря", "їжа", "перерва", "відпочинок", "сон", "дрімота", "релакс",
+    )
+
+    /**
+     * utils/energyAxis.js RESTORE_PHRASES: Chinese has no spaces to split a
+     * title's words on, so these match as substrings. The fixture's
+     * `restorePhrases` holds the two equal.
+     */
+    val RESTORE_PHRASES: List<String> = listOf(
+        "早餐", "早饭", "午餐", "午饭", "晚餐", "晚饭", "吃饭", "用餐", "午休", "午睡", "小睡", "休息", "睡觉", "健身",
+        "跑步", "散步", "瑜伽", "冥想", "放松", "早飯", "午飯", "晚飯", "吃飯", "睡覺", "放鬆",
     )
 
     private val NON_LETTERS = Regex("[^\\p{L}]+")
@@ -179,9 +203,11 @@ object LauncherDeviceEvents {
         return row
     }
 
-    /** deriveBlockEnergy for a row with no explicit energy: a restore keyword among the title's words. */
+    /** deriveBlockEnergy for a row with no explicit energy: a restore keyword among the title's words, or a restore phrase anywhere in it. */
     fun energy(title: String): String =
-        if (title.lowercase(Locale.ROOT).split(NON_LETTERS).any { it in RESTORE_KEYWORDS }) "restore" else "effort"
+        if (title.lowercase(Locale.ROOT).split(NON_LETTERS).any { it in RESTORE_KEYWORDS } ||
+            RESTORE_PHRASES.any { title.contains(it) }
+        ) "restore" else "effort"
 
     /**
      * A timed event's duration, nativeEventDuration in utils/nativeCalendar.js

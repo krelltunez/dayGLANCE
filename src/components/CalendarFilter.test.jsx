@@ -30,6 +30,9 @@ const tags = ['errand', 'work'];
 const goal = { id: 'g1', title: 'Home life', color: 'bg-emerald-500', status: 'active' };
 const projects = [
   { id: 'p-home', title: 'Household', goalId: 'g1', status: 'active' },
+  // A second project, so hiding Household leaves the goal partly hidden and
+  // opened; a goal hidden whole stays folded behind its own ticked box (#2332).
+  { id: 'p-yard', title: 'Yard', goalId: 'g1', status: 'active' },
   { id: 'p-work', title: 'Day job', status: 'active' },
   { id: 'p-old', title: 'Old stuff', status: 'archived' },
   { id: 'p-done', title: 'Finished thing', status: 'completed' },
@@ -51,7 +54,7 @@ function contexts({ hidden = ['p-home'], count = 3, selectedTags = tags, goalsPr
     toggleTag: vi.fn(), selectAllTags: vi.fn(), clearTagFilter: vi.fn(),
     hiddenProjects: hidden,
     liveHiddenProjects: liveHiddenProjectIds(hidden, projects, { enabled: goalsProjectsEnabled }),
-    toggleHiddenProject: vi.fn(), showAllProjects: vi.fn(),
+    toggleHiddenProject: vi.fn(), toggleHiddenProjectGroup: vi.fn(), showAllProjects: vi.fn(),
     calendarHiddenCount: count,
     visibleDates: [new Date(`${TODAY}T12:00:00`)], weekViewDates: [], effectiveViewMode: 'multi',
     agendaNowMarker: { insideTask: false, insertAfterIndex: 0, nowTimeStr: '17:25' },
@@ -117,6 +120,14 @@ describe.each(['desktop', 'tablet', 'sheet'])('the %s calendar filter', (surface
     expect(html).toMatch(/data-hide-project="p-home" aria-pressed="true"/);
     expect(html).toContain('data-show-all-projects');
     expect(section(render(surface, { hidden: [] }))).not.toContain('data-show-all-projects');
+  });
+
+  it('ticks a goal, partly or whole, beside its own projects (#2332)', async () => {
+    expect(section(render(surface))).toMatch(/data-hide-group="goal-g1" data-group-state="some" aria-pressed="mixed"/);
+    const whole = section(render(surface, { hidden: ['p-home', 'p-yard'] }));
+    expect(whole).toMatch(/data-hide-group="goal-g1" data-group-state="all" aria-pressed="true"/);
+    expect(whole).toMatch(/data-calendar-filter-group="goal-g1" aria-expanded="false"/);
+    expect(whole).not.toContain('data-hide-project="p-home"');
   });
 
   it('ignores a stale id: nothing ticked, nothing to show', async () => {

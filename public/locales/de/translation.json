@@ -2890,6 +2890,8 @@
     "title": "Kalender filtern",
     "hideProjects": "Projekte ausblenden",
     "showAll": "Alle zeigen",
+    "hideGroup": "Alles in {{name}} ausblenden",
+    "showGroup": "Alles in {{name}} einblenden",
     "hidden_one": "{{count}} ausgeblendet",
     "hidden_other": "{{count}} ausgeblendet",
     "hiddenHint_one": "Kalender filtern: {{count}} Aufgabe an den angezeigten Tagen ausgeblendet",
