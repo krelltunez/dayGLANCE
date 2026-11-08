@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  calendarFilterDates, countHiddenOnDates, isHiddenByProject, liveHiddenProjectIds,
-  makeCalendarFilter, passesTagFilter, readHiddenProjects, HIDDEN_PROJECTS_KEY,
+  calendarFilterDates, countHiddenOnDates, hiddenGroupState, isHiddenByProject, liveHiddenProjectIds,
+  makeCalendarFilter, passesTagFilter, readHiddenProjects, toggleHiddenGroup, HIDDEN_PROJECTS_KEY,
 } from './calendarFilter.js';
 import { recurringTaskInstance } from './expandRecurringTasks.js';
 
@@ -43,6 +43,39 @@ describe('liveHiddenProjectIds: stale ids are ignored, never pruned', () => {
   it('tolerates a list that is not one', () => {
     expect(liveHiddenProjectIds(null, projects).size).toBe(0);
     expect(liveHiddenProjectIds('household', projects).size).toBe(0);
+  });
+});
+
+describe('a whole group at once (#2332)', () => {
+  it('reads all, some or none of a group as hidden, ids as strings', () => {
+    const live = new Set(['household', '7']);
+    expect(hiddenGroupState(live, ['household', 7])).toBe('all');
+    expect(hiddenGroupState(live, ['household', 'work'])).toBe('some');
+    expect(hiddenGroupState(live, ['work'])).toBe('none');
+    expect(hiddenGroupState(live, [])).toBe('none');
+  });
+
+  it('hides every project of a group that is not all hidden, keeping the rest of the list', () => {
+    expect(toggleHiddenGroup(['old'], ['household', 'work'])).toEqual(['old', 'household', 'work']);
+    // Partly hidden becomes all hidden, not none: the Inbox filter's rule.
+    expect(toggleHiddenGroup(['old', 'work'], ['household', 'work'])).toEqual(['old', 'work', 'household']);
+  });
+
+  it('unhides a group that is all hidden, and nothing else', () => {
+    expect(toggleHiddenGroup(['old', 'household', 'work'], ['household', 'work'])).toEqual(['old']);
+    // A saved number matches the group's string id, and the other way round.
+    expect(toggleHiddenGroup([7, 'old'], ['7'])).toEqual(['old']);
+    expect(toggleHiddenGroup(['7'], [7])).toEqual([]);
+  });
+
+  it('is its own inverse on a group nothing of which was hidden', () => {
+    const before = ['old'];
+    expect(toggleHiddenGroup(toggleHiddenGroup(before, ['household', 'work']), ['household', 'work'])).toEqual(before);
+  });
+
+  it('leaves the list as it is for an empty group', () => {
+    const hidden = ['old'];
+    expect(toggleHiddenGroup(hidden, [])).toBe(hidden);
   });
 });
 
