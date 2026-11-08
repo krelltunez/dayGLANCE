@@ -75,6 +75,28 @@ export function detachFramesFromSet(frames, setId, now) {
 }
 
 /**
+ * Move one frame into a set, or into none (`setId` null or ''), as a drag in
+ * the Frames list does (#2335). The same row the editor's save would write:
+ * `setId` set, or absent for no set (the shape a frame from before sets has),
+ * and a fresh `lastModified` so the move wins the merge on other devices.
+ * Returns `frames` itself when the frame is missing or already there. Whether
+ * the move would make an overlap is the caller's to check first
+ * (utils/frameOverlap.js).
+ */
+export function moveFrameToSet(frames, frameId, setId, now) {
+  if (!Array.isArray(frames)) return frames;
+  const target = setId == null || setId === '' ? undefined : setId;
+  const at = frames.findIndex((frame) => frame && String(frame.id) === String(frameId));
+  if (at < 0) return frames;
+  const frame = frames[at];
+  const current = frame.setId == null || frame.setId === '' ? undefined : frame.setId;
+  if (String(current) === String(target)) return frames;
+  const { setId: _old, ...rest } = frame;
+  const moved = target === undefined ? { ...rest, lastModified: now } : { ...rest, setId: target, lastModified: now };
+  return frames.map((f, i) => (i === at ? moved : f));
+}
+
+/**
  * Record the deletion tombstone for a set. The vault tier propagates the row's
  * delete only when a tombstone authorizes it (sync/snapshotDeleteGuard.js), and
  * the file tier drops copies older than it, so a delete without one would come

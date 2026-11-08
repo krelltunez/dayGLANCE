@@ -55,7 +55,7 @@ const MobileSettingsPanel = () => {
     smartScheduleAccepted, setSmartScheduleAccepted, runSmartSchedule,
     applySmartSchedule, aiConfig, aiSuppressed, users, multiUserEnabled,
     ownedBy, meUserSyncId,
-    frameSets, frameSetsLoaded, createFrameSet, renameFrameSet, switchFrameSet, setFrameSetPeriods, deleteFrameSet,
+    frameSets, frameSetsLoaded, createFrameSet, renameFrameSet, switchFrameSet, setFrameSetPeriods, deleteFrameSet, moveFrameToSet,
   } = useFeaturesCtx();
   // Frame sets (#2305), scoped like the frames this page lists (myFrames), and
   // the set a new frame starts in when it was added from a set's section.
@@ -426,6 +426,7 @@ const MobileSettingsPanel = () => {
                     onRenameSet={renameFrameSet}
                     onSetPeriods={setFrameSetPeriods}
                     onDeleteSet={deleteFrameSet}
+                    onMoveFrame={moveFrameToSet}
                     onCreateSet={createFrameSet}
                     darkMode={darkMode}
                     textPrimary={textPrimary}
