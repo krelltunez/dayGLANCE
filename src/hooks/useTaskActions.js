@@ -4,6 +4,7 @@ import { stripBucketId } from '../utils/bucketList.js';
 import { stripSpans } from '../utils/quickAddParser.js';
 import { dateToString, extractTags, formatDeadlineDate, completionTimestamp, stripWikilinks } from '../utils/taskUtils.js';
 import { carryCreatedAt, createdTimestamp } from '../utils/createdAt.js';
+import { carryEnergy } from '../utils/energyAxis.js';
 import { TASK_COLORS } from '../utils/colorUtils.js';
 import { triggerHaptic } from '../native.js';
 import { isCalendarEventRow } from '../utils/eventNotes.js';
@@ -615,6 +616,7 @@ export default function useTaskActions({
         startTime: isAllDay ? '00:00' : startTime, duration, color,
         isAllDay, date: nextDateStr, completed: false, notes: '', subtasks: [],
         ...carryCreatedAt(template),
+        ...carryEnergy(template),
       }]);
       setUndoToast({ message: said, actionable: true });
       playUISound('slide');

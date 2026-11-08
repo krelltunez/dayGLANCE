@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
 import { carryCreatedAt } from '../utils/createdAt.js';
+import { carryEnergy } from '../utils/energyAxis.js';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
 import { renderTitle } from '../utils/textFormatting.jsx';
 
@@ -64,6 +65,7 @@ const EditRecurrenceModal = () => {
                       subtasks: template.subtasks ? JSON.parse(JSON.stringify(template.subtasks)) : [],
                       date: dateStr,
                       ...carryCreatedAt(template),
+                      ...carryEnergy(template),
                     };
                     setTasks(prev => [...prev, regularTask]);
                     recordDeletedTaskTombstone(templateId);

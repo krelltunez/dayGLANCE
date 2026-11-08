@@ -58,7 +58,7 @@ const WeekViewTaskPopover = ({ task, anchor, onClose }) => {
   return (
     <div
       ref={popoverRef}
-      className={`fixed z-50 shadow-2xl rounded-xl border notes-panel-container text-white
+      className={`group/card fixed z-50 shadow-2xl rounded-xl border notes-panel-container text-white
         ${expandedNotesTaskId === task.id ? 'overflow-visible' : 'overflow-hidden'}
         ${task.joboDo ? pastDoColor(task) : task.isTaskCalendar ? '' : task.color}
         ${isCalendarEvent ? '' : ''}

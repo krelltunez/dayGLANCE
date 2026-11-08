@@ -10,6 +10,7 @@ import TaskTitleRenameField from './TaskTitleRenameField.jsx';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import TaskPlanHistory from './TaskPlanHistory.jsx';
 import TaskStarButton from './TaskStarButton.jsx';
+import TaskEnergyMarker from './TaskEnergyMarker.jsx';
 import UserAssignmentBadge from './UserAssignmentBadge.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import EventNotesPanel, { editsDeviceCalendar } from './EventNotesPanel.jsx';
@@ -252,6 +253,9 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                       >
                         {renderTitleWithoutTags(task.title)}
                       </div>
+                      {/* Energy (#2331): after the title, which truncates, so a leaf
+                          appearing on hover shortens it rather than moving it. */}
+                      <TaskEnergyMarker task={task} readOnly={isTablet} />
                     </div>
                   )}
                   {(extractTags(task.title).length > 0 || (goalsProjectsEnabled && task.projectId)) && (
@@ -317,6 +321,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                       >
                         {renderTitleWithoutTags(task.title)}
                       </div>
+                      <TaskEnergyMarker task={task} readOnly={isTablet} />
                     </div>
                   )}
                   {(extractTags(task.title).length > 0 || (goalsProjectsEnabled && task.projectId)) && (
