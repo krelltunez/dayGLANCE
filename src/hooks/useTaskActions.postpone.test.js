@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import useTaskActions from './useTaskActions.js';
+import { parseRecurringId } from '../utils/recurringId.js';
 
 // useTaskActions is a plain factory (no React hooks in its body), so it can be
 // called directly with just the deps postponeTask touches.
@@ -58,5 +59,42 @@ describe('postponeTask — all-day tasks', () => {
     postponeTask('t');
 
     expect(setTasks).not.toHaveBeenCalled();
+  });
+});
+
+// #2331: postponing one occurrence of a series makes a one-off on the next
+// day, written field by field. It used to leave the series' energy override
+// behind, so a block the user had marked Restore came back as Effort.
+describe('postponeTask — a recurring occurrence keeps the series energy', () => {
+  const build = (template) => {
+    let tasks = [];
+    let recurring = [template];
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { postponeTask } = useTaskActions({
+      tasks, setTasks: vi.fn(fn => { tasks = fn(tasks); }),
+      recurringTasks: recurring, setRecurringTasks: vi.fn(fn => { recurring = fn(recurring); }), parseRecurringId,
+      getAdjustedTimeForImportedConflicts: vi.fn(() => ({ conflicted: false })),
+      pushUndo: vi.fn(() => 'Postponed'), setUndoToast: vi.fn(), playUISound: vi.fn(),
+      setSyncNotification: vi.fn(),
+      onboardingProgress: { hasUsedActionButtons: true }, setOnboardingProgress: vi.fn(),
+    });
+    return { postponeTask, getTasks: () => tasks };
+  };
+  const series = (extra) => ({
+    id: 'tpl', title: 'Deep work', startTime: '14:00', duration: 60, color: 'bg-blue-500',
+    recurrence: { type: 'weekly', days: [1] }, exceptions: {}, ...extra,
+  });
+
+  it('carries the override onto the one-off', () => {
+    const { postponeTask, getTasks } = build(series({ energy: 'restore' }));
+    postponeTask('recurring-tpl-2026-11-09');
+    expect(getTasks()).toHaveLength(1);
+    expect(getTasks()[0]).toMatchObject({ date: '2026-11-10', energy: 'restore' });
+  });
+
+  it('adds no energy where the series had none', () => {
+    const { postponeTask, getTasks } = build(series());
+    postponeTask('recurring-tpl-2026-11-09');
+    expect(getTasks()[0]).not.toHaveProperty('energy');
   });
 });

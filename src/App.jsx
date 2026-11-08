@@ -171,7 +171,7 @@ import { resolveSyncTarget } from './sync/syncTarget.js';
 import useCloudSyncAfterEdit from './hooks/useCloudSyncAfterEdit.js';
 import { createDbEngine, resetVaultSyncCursor } from './sync/dbEngine.js';
 import useRosterVaultSync from './hooks/useRosterVaultSync.js';
-import { deriveBlockEnergy } from './utils/energyAxis.js';
+import { carryEnergy, deriveBlockEnergy } from './utils/energyAxis.js';
 import { isVaultEnabled } from './sync/vaultConfig.js';
 import { readThemePref, systemPrefersDark, resolveDarkMode, restoredThemePref, THEME_PREF_KEY } from './utils/themePref.js';
 import { keepImportedTask } from './sync/payloadExclusions.js';
@@ -4077,6 +4077,7 @@ const DayPlanner = () => {
             projectId: newTask.projectId || undefined,
             ...(mobileEditingTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds } : {}),
             ...carryCreatedAt(template),
+            ...carryEnergy(template),
           };
           setTasks(prev => [...prev, regularTask]);
           recordDeletedTaskTombstone(parsed.templateId);
@@ -4112,6 +4113,7 @@ const DayPlanner = () => {
               projectId: newTask.projectId || undefined,
               assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds,
               ...carryCreatedAt(recurringTasks.find(r => r.id === parsed.templateId)),
+              ...carryEnergy(recurringTasks.find(r => r.id === parsed.templateId)),
             }]);
           } else {
             // Scope picked in RecurringEditModal; nothing scoped changed when unset.
@@ -4149,8 +4151,10 @@ const DayPlanner = () => {
         exceptions: {},
         ...(newTask.projectId ? { projectId: newTask.projectId } : {}),
         assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? existingTask?.assignedUserSyncIds,
-        // The series is the one-off, repeated: it keeps the one-off's creation.
+        // The series is the one-off, repeated: it keeps the one-off's creation,
+        // and its energy override (series-level, as setTaskEnergy stores it).
         ...carryCreatedAt(existingTask),
+        ...carryEnergy(existingTask),
         lastModified: new Date().toISOString()
       };
       // The original is gone, replaced by a template under a NEW id. Tombstone
@@ -7260,7 +7264,7 @@ const DayPlanner = () => {
     updateRecurrenceEndCondition, updateRecurringTemplate,
     moveToRecycleBin, moveToInbox, undeleteTask,
     setDeadline, clearDeadline, postponeTask, postponeDeadlineTask,
-    cyclePriority, changeTaskColor,
+    cyclePriority, changeTaskColor, setTaskEnergy,
     toggleSubtask, addSubtask, deleteSubtask, updateSubtaskTitle, moveSubtask, updateTaskNotes,
     startEditingTask, saveTaskTitle, cancelEditingTask,
     applySuggestionForEdit, handleEditKeyDown, handleEditInputChange,

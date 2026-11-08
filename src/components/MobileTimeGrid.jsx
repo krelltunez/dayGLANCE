@@ -16,6 +16,7 @@ import PastDoCard from './jobo/PastDoCard.jsx';
 import { useTranslation } from 'react-i18next';
 import { MOBILE_HOUR_GUTTER_W } from '../constants/timeline.js';
 import ContinuationCard from './ContinuationCard.jsx';
+import TaskEnergyMarker from './TaskEnergyMarker.jsx';
 import { overnightSpillMinutes } from '@glance-apps/agenda-core';
 import { continuationLayoutRow } from '../utils/continuations.js';
 
@@ -599,6 +600,8 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                       <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
                         {renderTitle(task.title)}
                       </span>
+                      {/* Energy (#2331): shown, not set, on a phone; the long-press menu sets it. */}
+                      <TaskEnergyMarker task={task} size={11} readOnly />
                     </div>
                     {goalsProjectsEnabled && task.projectId ? (() => {
                       const proj = projects.find(p => p.id === task.projectId);
@@ -636,6 +639,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                         <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
                           {renderTitle(task.title)}
                         </span>
+                        <TaskEnergyMarker task={task} size={11} readOnly />
                       </div>
                       <div className="flex items-center gap-0.5 flex-shrink-0">
                         <MobileActionButtons />

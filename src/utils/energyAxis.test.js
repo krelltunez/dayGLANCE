@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { deriveBlockEnergy, ENERGY_EFFORT, ENERGY_RESTORE, RESTORE_KEYWORDS, RESTORE_PHRASES } from './energyAxis.js';
+import {
+  blockEnergySource, carryEnergy, deriveBlockEnergy, flipEnergyOverride,
+  ENERGY_EFFORT, ENERGY_RESTORE, RESTORE_KEYWORDS, RESTORE_PHRASES,
+} from './energyAxis.js';
 
 describe('deriveBlockEnergy', () => {
   it('defaults to effort — scheduled blocks are output unless argued otherwise', () => {
@@ -98,5 +101,41 @@ describe('deriveBlockEnergy in the languages the app ships', () => {
 
   it('every phrase is two characters or more, so no single character argues a block into restore', () => {
     for (const phrase of RESTORE_PHRASES) expect([...phrase].length, phrase).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('blockEnergySource', () => {
+  it('says whether the user set it or the title did', () => {
+    expect(blockEnergySource({ title: 'Lunch' })).toEqual({ energy: 'restore', setByUser: false });
+    expect(blockEnergySource({ title: 'Planning', energy: 'restore' })).toEqual({ energy: 'restore', setByUser: true });
+    expect(blockEnergySource({ title: 'Lunch', energy: 'effort' })).toEqual({ energy: 'effort', setByUser: true });
+    expect(blockEnergySource({ title: 'Planning', energy: 'banana' })).toEqual({ energy: 'effort', setByUser: false });
+  });
+});
+
+describe('flipEnergyOverride: the card marker\'s click', () => {
+  it('sets the other value where the title says otherwise', () => {
+    expect(flipEnergyOverride({ title: 'Planning' })).toBe('restore');
+    expect(flipEnergyOverride({ title: 'Lunch' })).toBe('effort');
+  });
+
+  it('goes back to auto where the title already gives the other value, so a second click undoes the first', () => {
+    expect(flipEnergyOverride({ title: 'Planning', energy: 'restore' })).toBeNull();
+    expect(flipEnergyOverride({ title: 'Lunch', energy: 'effort' })).toBeNull();
+  });
+
+  it('flips an override that agrees with the title', () => {
+    expect(flipEnergyOverride({ title: 'Lunch', energy: 'restore' })).toBe('effort');
+    expect(flipEnergyOverride({ title: 'Planning', energy: 'effort' })).toBe('restore');
+  });
+});
+
+describe('carryEnergy', () => {
+  it('carries an override, and nothing else', () => {
+    expect(carryEnergy({ energy: 'restore' })).toEqual({ energy: 'restore' });
+    expect(carryEnergy({ energy: 'effort' })).toEqual({ energy: 'effort' });
+    expect(carryEnergy({ energy: 'banana' })).toEqual({});
+    expect(carryEnergy({})).toEqual({});
+    expect(carryEnergy(undefined)).toEqual({});
   });
 });
