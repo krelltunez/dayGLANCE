@@ -454,6 +454,23 @@ describe('project writes carry the project-level target date (2026-10-21)', () =
       await h.close();
     }
   });
+
+  // A project's New task defaults (#2336) include its energy: the create tool
+  // says what a project task takes from them, energy among them.
+  it('create_task says a project task takes the project\'s New task defaults, energy included', async () => {
+    const bridge = fakeBridge(projectScript);
+    const h = await start({ writeDeps: writeDeps(bridge.bridge) });
+    try {
+      const client = await h.connect();
+      const { tools } = await client.listTools();
+      const tool = tools.find((x) => x.name === 'dayglance_create_task');
+      const projectField = JSON.stringify(tool.inputSchema.properties.project_id);
+      expect(projectField).toContain('New task defaults');
+      expect(projectField).toContain('an energy (effort or restore)');
+    } finally {
+      await h.close();
+    }
+  });
 });
 
 describe('repeating tasks over the wire (#2066)', () => {

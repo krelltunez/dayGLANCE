@@ -366,8 +366,8 @@ By-design `validation` rejections: priority/deadline with `start`; `all_day` + `
 **A project's New task defaults** (set in the project's form, #2336) are copied onto a task created in
 it, as the app's own create paths copy them, and fill only what the call leaves out: the duration
 when `duration_minutes` is absent (a series takes its duration from `start`), the notes when
-`notes` is absent or empty, the project's `#tags` appended to the title where it lacks them, and the
-project's checklist as subtasks. Later edits to the project never reach tasks already created.
+`notes` is absent or empty, the project's `#tags` appended to the title where it lacks them, the
+project's checklist as subtasks, and its energy (`effort` or `restore`) as the task's own. Later edits to the project never reach tasks already created.
 Unknown `assignee_id` → `not_found`.
 
 **`repeat`** mirrors what the app itself can repeat, and nothing more:

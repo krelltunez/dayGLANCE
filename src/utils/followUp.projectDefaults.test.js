@@ -29,3 +29,12 @@ describe('follow-ups in a project with New task defaults', () => {
     expect(completionFollowUpDraft(task('p-fit'), { projects: [fitness] }).notes).toBe('Goal:');
   });
 });
+
+describe('follow-ups in a project with an energy default', () => {
+  const calm = { id: 'p-calm', title: 'Unwind', status: 'active', taskDefaults: { energy: 'restore' } };
+  it('both follow-ups take it', () => {
+    expect(followUpDraft(task('p-calm'), { projects: [calm] }).energy).toBe('restore');
+    expect(completionFollowUpDraft(task('p-calm'), { projects: [calm] }).energy).toBe('restore');
+    expect(completionFollowUpDraft(task('p-plain'), { projects: [plain] })).not.toHaveProperty('energy');
+  });
+});

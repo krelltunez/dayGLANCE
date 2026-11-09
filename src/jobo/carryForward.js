@@ -7,7 +7,7 @@
 import { tagsIn } from '../utils/taskUtils.js';
 import { validCivilDate } from './viewDates.js';
 import { canLinkDo } from './core.js';
-import { taskDefaultsOf, withTags, defaultSubtasks } from '../utils/projectTaskDefaults.js';
+import { taskDefaultsOf, withTags, defaultSubtasks, defaultEnergy } from '../utils/projectTaskDefaults.js';
 
 export const CARRY_ACTION = Object.freeze({
   CONTINUE: 'continue',
@@ -105,7 +105,7 @@ const openProject = (projects, id) => (Array.isArray(projects) ? projects : []).
  *
  * In a project, it is a new task there, so it takes the project's New task
  * defaults (#2336): their tags after the task's own, and their duration,
- * notes and checklist where the project sets them.
+ * notes, checklist and energy where the project sets them.
  */
 export function followUpDraft(task, { projects = [] } = {}) {
   const seen = new Set();
@@ -119,6 +119,7 @@ export function followUpDraft(task, { projects = [] } = {}) {
     ...(defaults.duration ? { duration: defaults.duration } : {}),
     ...(defaults.notes ? { notes: defaults.notes } : {}),
     ...(defaults.subtasks ? { subtasks: defaultSubtasks(defaults.subtasks) } : {}),
+    ...defaultEnergy(defaults),
     ...(typeof task?.color === 'string' && task.color ? { color: task.color } : {}),
     ...(project
       ? { projectId: project.id, keepUnscheduled: true }

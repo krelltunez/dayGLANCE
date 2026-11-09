@@ -2154,7 +2154,9 @@
       "notes": "Нотатки",
       "notesPlaceholder": "Підсумок:\nМета:\nРезультат:",
       "subtasks": "Підзавдання (по одному в рядку)",
-      "subtasksPlaceholder": "Перший крок\nДругий крок"
+      "subtasksPlaceholder": "Перший крок\nДругий крок",
+      "energy": "Енергія",
+      "energyAuto": "За назвою"
     },
     "showCompletedGoals": "Показати завершені цілі",
     "hideCompletedGoals": "Сховати завершені цілі",

@@ -2053,7 +2053,9 @@
       "notes": "Notes",
       "notesPlaceholder": "Summary:\nPurpose:\nResult:",
       "subtasks": "Subtasks (one per line)",
-      "subtasksPlaceholder": "First step\nSecond step"
+      "subtasksPlaceholder": "First step\nSecond step",
+      "energy": "Energy",
+      "energyAuto": "From the title"
     },
     "showCompletedGoals": "Show completed goals",
     "hideCompletedGoals": "Hide completed goals",

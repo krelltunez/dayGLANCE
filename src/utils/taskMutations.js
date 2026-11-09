@@ -36,7 +36,7 @@ const createdStamp = (nowIso) => createdTimestamp(nowIso ? new Date(nowIso) : ne
 // can close a Focus session. The sync merge compares stamps as instants.
 const offsetStampAt = (nowIso) => completionTimestamp(Number.isFinite(Date.parse(nowIso)) ? new Date(nowIso) : new Date());
 import { getProjectColor } from './colorUtils.js';
-import { taskDefaultsOf, withTags, defaultSubtasks, DEFAULT_TASK_DURATION } from './projectTaskDefaults.js';
+import { taskDefaultsOf, withTags, defaultSubtasks, defaultEnergy, DEFAULT_TASK_DURATION } from './projectTaskDefaults.js';
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { applyRecurringInstanceEdit } from './recurringInstanceEdit.js';
 
@@ -266,6 +266,7 @@ export function applyCreateTask(state, {
     isAllDay: false,
     notes: typeof notes === 'string' && notes ? notes : (defaults.notes || ''),
     subtasks: defaultSubtasks(defaults.subtasks, subtaskIds(taskId)),
+    ...defaultEnergy(defaults),
     ...(projectId ? { projectId } : {}),
     ...(assignedUserSyncIds ? { assignedUserSyncIds } : {}),
     ...(transitionId ? { transitionId } : {}),
@@ -352,6 +353,7 @@ function createRecurringSeries(state, {
     isAllDay: allDay,
     notes: typeof notes === 'string' && notes ? notes : (defaults.notes || ''),
     subtasks: defaultSubtasks(defaults.subtasks, subtaskIds(taskId)),
+    ...defaultEnergy(defaults),
     recurrence: { ...recurrence, startDate: schedule.date },
     completedDates: [],
     exceptions: {},

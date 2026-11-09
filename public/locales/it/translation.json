@@ -2055,7 +2055,9 @@
       "notes": "Note",
       "notesPlaceholder": "Riepilogo:\nScopo:\nRisultato:",
       "subtasks": "Sottoattività (una per riga)",
-      "subtasksPlaceholder": "Primo passo\nSecondo passo"
+      "subtasksPlaceholder": "Primo passo\nSecondo passo",
+      "energy": "Energia",
+      "energyAuto": "Dal titolo"
     },
     "showCompletedGoals": "Mostra gli obiettivi completati",
     "hideCompletedGoals": "Nascondi gli obiettivi completati",

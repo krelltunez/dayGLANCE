@@ -56,3 +56,23 @@ describe('applyCreateTask in a project with New task defaults', () => {
     expect(r.template.subtasks.map((s) => s.id)).toEqual(['k7-st-1', 'k7-st-2']);
   });
 });
+
+describe('applyCreateTask: the energy default', () => {
+  const calm = { id: 'p-calm', title: 'Unwind', status: 'active', taskDefaults: { energy: 'restore' } };
+  const withCalm = () => ({ ...state(), projects: [fitness, plain, calm] });
+
+  it('a task created in a project with an energy default takes it, a project without one adds none', () => {
+    expect(applyCreateTask(withCalm(), { taskId: 'e1', title: 'Write the report', projectId: 'p-calm', nowIso: NOW }).task.energy).toBe('restore');
+    expect(applyCreateTask(withCalm(), { taskId: 'e2', title: 'Write the report', projectId: 'p-plain', nowIso: NOW }).task).not.toHaveProperty('energy');
+  });
+
+  it('so does a repeating series, on its template', () => {
+    const r = applyCreateTask(withCalm(), {
+      taskId: 'e3', title: 'Evening walk', projectId: 'p-calm', nowIso: NOW,
+      schedule: { date: '2026-11-10', startTime: '19:00', durationMinutes: 30, allDay: false },
+      recurrence: { type: 'daily', interval: 1 },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.template.energy).toBe('restore');
+  });
+});

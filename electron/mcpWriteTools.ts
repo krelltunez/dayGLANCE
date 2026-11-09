@@ -244,7 +244,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
     notes: z.string().optional(),
     project_id: z.string().optional().describe(
       'Attach to a project (see dayglance_get_goal_progress). An unscheduled project task may carry priority and deadline like any inbox task. ' +
-      'The task takes the project\'s colour and assignees, and its New task defaults where this call leaves them out: duration, notes, #tags appended to the title, a checklist.'),
+      'The task takes the project\'s colour and assignees, and its New task defaults where this call leaves them out: duration, notes, #tags appended to the title, a checklist, an energy (effort or restore).'),
     ...(multiUser ? {
       assignee_id: z.string().optional().describe(
         'Assign to one household member by their user id. Ids come from dayglance_list_users. Never guess from a name.'),

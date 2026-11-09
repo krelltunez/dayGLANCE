@@ -211,6 +211,9 @@ export default function useTaskActions({
         ...(obsidianMeta ? { createdAt: createdTimestamp() } : {}),
         ...(newTask.projectId ? { projectId: newTask.projectId } : {}),
         ...(newTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: newTask.assignedUserSyncIds } : {}),
+        // A project's energy default (#2336), which the form's project field
+        // puts on the draft (draftWithProjectDefaults).
+        ...carryEnergy(newTask),
       };
 
       // The id a new one-off task was saved under, for a Do this task was
@@ -251,6 +254,7 @@ export default function useTaskActions({
           // User assignment on recurring tasks is series-level: it lives on the
           // template so every materialised instance inherits it.
           ...(newTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: newTask.assignedUserSyncIds } : {}),
+          ...carryEnergy(newTask),
           lastModified: new Date().toISOString()
         };
         setRecurringTasks(prev => [...prev, template]);

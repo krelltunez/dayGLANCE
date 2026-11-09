@@ -12,6 +12,9 @@
 //   tags      appended to the title as #tags where it lacks them
 //   notes     the note a new task starts with (Summary / Purpose / Result…)
 //   subtasks  the checklist a new task starts with, one title each
+//   energy    'effort' or 'restore': the task's own energy, as if the user had
+//             set it, so a project of restoring things marks its tasks Restore
+//             whatever their titles say. None: the title decides, as before.
 //
 // One template per project, no goal or global level: goals hold no tasks of
 // their own, and the colour already falls back from project to goal
@@ -21,6 +24,7 @@
 // user has already changed); the defaults fill only what is missing.
 
 import { getProjectColor } from './colorUtils.js';
+import { ENERGY_EFFORT, ENERGY_RESTORE } from './energyAxis.js';
 import { extractTags, tagsIn } from './taskUtils.js';
 
 export const DEFAULT_TASK_DURATION = 30;
@@ -66,6 +70,7 @@ export function normalizeTaskDefaults(raw) {
   if (typeof raw.notes === 'string' && raw.notes.trim()) out.notes = raw.notes;
   const subtasks = parseSubtaskLines(raw.subtasks || []);
   if (subtasks.length) out.subtasks = subtasks;
+  if (raw.energy === ENERGY_EFFORT || raw.energy === ENERGY_RESTORE) out.energy = raw.energy;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -103,6 +108,9 @@ export function withoutTrailingTags(title, tags = []) {
   return out.length === text.length ? text : out;
 }
 
+/** The task's `energy` from the defaults, spread into a new row: nothing when the project sets none. */
+export const defaultEnergy = (defaults) => (defaults?.energy ? { energy: defaults.energy } : {});
+
 /** Fresh subtasks from the defaults' titles. */
 export const defaultSubtasks = (titles = [], newId = () => crypto.randomUUID()) =>
   titles.map((title) => ({ id: newId(), title, completed: false }));
@@ -124,6 +132,7 @@ export function projectTaskFields(project, parentGoal, given = {}, { newId } = {
     duration: Number.isFinite(given.duration) ? given.duration : (d.duration ?? DEFAULT_TASK_DURATION),
     notes: typeof given.notes === 'string' && given.notes ? given.notes : (d.notes || ''),
     subtasks: Array.isArray(given.subtasks) && given.subtasks.length ? given.subtasks : defaultSubtasks(d.subtasks, newId),
+    ...defaultEnergy(d),
     ...(project?.assignedUserSyncIds?.length ? { assignedUserSyncIds: project.assignedUserSyncIds } : {}),
   };
 }
@@ -160,6 +169,13 @@ export function draftWithProjectDefaults(draft, from, to, { newId } = {}) {
   const replaceable = subtasks.length === 0 || sameTitles(subtasks, was.subtasks);
   if (replaceable && !(subtasks.length === 0 && !next.subtasks)) {
     out.subtasks = defaultSubtasks(next.subtasks, newId);
+  }
+
+  // The form has no energy control: the draft's energy is the project's, and
+  // follows it from project to project unless something else set it.
+  if (draft.energy === was.energy && draft.energy !== next.energy) {
+    if (next.energy) out.energy = next.energy;
+    else delete out.energy;
   }
 
   const keep = new Set((next.tags || []).map((tag) => tag.toLowerCase()));

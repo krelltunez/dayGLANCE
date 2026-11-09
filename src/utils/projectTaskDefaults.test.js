@@ -117,3 +117,35 @@ describe('draftWithProjectDefaults: the new-task form when its project changes',
     expect(draftWithProjectDefaults(blank, null, plain, { newId })).toEqual(blank);
   });
 });
+
+// The energy default (#2336 follow-up): a project of restoring things marks its
+// new tasks Restore whatever their titles say, as the user's own word would.
+describe('the energy default', () => {
+  const calm = { id: 'p-calm', title: 'Unwind', color: 'bg-teal-500', taskDefaults: { energy: 'restore' } };
+  const busy = { id: 'p-busy', title: 'Work', taskDefaults: { energy: 'effort' } };
+  const blank = { title: 'Read a novel', duration: 30, notes: '', subtasks: [] };
+
+  it('keeps effort or restore, and drops anything else', () => {
+    expect(normalizeTaskDefaults({ energy: 'restore' })).toEqual({ energy: 'restore' });
+    expect(normalizeTaskDefaults({ energy: 'effort' })).toEqual({ energy: 'effort' });
+    expect(normalizeTaskDefaults({ energy: 'calm' })).toBeUndefined();
+    expect(normalizeTaskDefaults({ energy: '' })).toBeUndefined();
+  });
+
+  it('a row built in the project takes it; a project without one adds no energy field', () => {
+    expect(projectTaskFields(calm, null, { title: 'Read' })).toMatchObject({ energy: 'restore' });
+    expect(projectTaskFields(plain, null, { title: 'Read' })).not.toHaveProperty('energy');
+  });
+
+  it('the new-task form takes it with the project, swaps it with the project, and drops it with the project', () => {
+    const a = draftWithProjectDefaults(blank, null, calm, { newId });
+    expect(a.energy).toBe('restore');
+    expect(draftWithProjectDefaults(a, calm, busy, { newId }).energy).toBe('effort');
+    expect(draftWithProjectDefaults(a, calm, plain, { newId })).not.toHaveProperty('energy');
+    expect(draftWithProjectDefaults(a, calm, null, { newId })).not.toHaveProperty('energy');
+  });
+
+  it('a draft whose energy came from elsewhere keeps it', () => {
+    expect(draftWithProjectDefaults({ ...blank, energy: 'effort' }, null, calm, { newId }).energy).toBe('effort');
+  });
+});
