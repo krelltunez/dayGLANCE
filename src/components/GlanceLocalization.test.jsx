@@ -191,7 +191,8 @@ describe.each(['zh-CN', 'en'])('%s GLANCE detail labels', (language) => {
 
 it('uses 领域 consistently for Chinese Areas without changing regional settings', async () => {
   const zhCN = await loaders['zh-CN']();
-  expect(zhCN.common.addArea).toBe('添加领域');
+  // Manage Areas' "Add area", the label the app shows for adding one.
+  expect(zhCN.goals.addAreaCta).toBe('添加领域');
   for (const [key, label] of Object.entries(zhCN.goals).filter(([key]) => /area/i.test(key))) {
     expect(label, key).toContain('领域');
     expect(label, key).not.toContain('区域');
