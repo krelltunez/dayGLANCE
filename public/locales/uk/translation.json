@@ -822,7 +822,10 @@
       "getOnPlay": "Завантажити з Google Play",
       "getIt": "Отримати",
       "notNow": "Не зараз"
-    }
+    },
+    "taskCards": "Картки завдань",
+    "showCardSubtasks": "Показувати підзавдання на картках",
+    "showCardSubtasksHint": "Коли на картці є місце. Підзавдання повторюваних завдань показано без прапорців."
   },
   "dailyNotes": {
     "quickNotes": "Швидкі нотатки",
@@ -1004,7 +1007,15 @@
     "earlierMoves_many": "+{{count}} раніше",
     "earlierMoves_other": "+{{count}} раніше",
     "continuesFrom": "з {{day}}",
-    "continuesFromLabel": "{{title}}, продовження з {{day}}"
+    "continuesFromLabel": "{{title}}, продовження з {{day}}",
+    "cardSubtasksMore_one": "+ще {{count}}",
+    "cardSubtasksMore_few": "+ще {{count}}",
+    "cardSubtasksMore_many": "+ще {{count}}",
+    "cardSubtasksMore_other": "+ще {{count}}",
+    "cardSubtasksCount_one": "{{count}} підзавдання",
+    "cardSubtasksCount_few": "{{count}} підзавдання",
+    "cardSubtasksCount_many": "{{count}} підзавдань",
+    "cardSubtasksCount_other": "{{count}} підзавдання"
   },
   "recurrence": {
     "ordinal_ordinal_few": "{{count}}-го",

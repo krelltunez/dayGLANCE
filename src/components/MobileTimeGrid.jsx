@@ -17,6 +17,8 @@ import { useTranslation } from 'react-i18next';
 import { MOBILE_HOUR_GUTTER_W } from '../constants/timeline.js';
 import ContinuationCard from './ContinuationCard.jsx';
 import TaskEnergyMarker from './TaskEnergyMarker.jsx';
+import CardSubtasks from './CardSubtasks.jsx';
+import { mobileCardReservedPx } from '../utils/cardSubtasks.js';
 import { overnightSpillMinutes } from '@glance-apps/agenda-core';
 import { continuationLayoutRow } from '../utils/continuations.js';
 
@@ -71,6 +73,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
     setInboxProjectFilter, setInboxPriorityFilter, setHideCompletedInbox,
     setHideProjectTasksInbox, setHideStandaloneTasksInbox,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
+    showCardSubtasks,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
@@ -665,6 +668,21 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                     })() : height >= 55 ? (
                       <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</div>
                     ) : null}
+                    {/* Subtasks, as many as the card has room for (wide cards
+                        only; a repeating task's without checkboxes). */}
+                    {showCardSubtasks !== false && task.subtasks?.length > 0 && (
+                      <CardSubtasks
+                        task={task}
+                        height={height}
+                        reservedPx={mobileCardReservedPx({
+                          height,
+                          hasProjectRow: goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId),
+                        })}
+                        readOnly={isRecurring}
+                        onToggle={(subtaskId) => toggleSubtask(task.id, subtaskId, false)}
+                        onMore={() => setExpandedNotesTaskId(task.id)}
+                      />
+                    )}
                   </div>
                 )}
                 </div>{/* end content */}

@@ -271,6 +271,7 @@ import { dayViewColumnsFor } from './utils/dayViewColumns.js';
 import { schedRollingWindow } from './utils/schedAgenda.js';
 import useTrayPopupVisible from './hooks/useTrayPopupVisible.js';
 import { writeItem } from './utils/storageWrites.js';
+import { CARD_SUBTASKS_KEY, readShowCardSubtasks } from './utils/cardSubtasks.js';
 
 
 
@@ -705,6 +706,9 @@ const DayPlanner = () => {
   });
   useEffect(() => { writeItem('day-planner-weather-enabled', JSON.stringify(weatherEnabled)); }, [weatherEnabled]);
   useEffect(() => { writeItem('day-planner-daily-content-enabled', JSON.stringify(dailyContentEnabled)); }, [dailyContentEnabled]);
+  // Subtasks on timeline cards (utils/cardSubtasks.js), per device.
+  const [showCardSubtasks, setShowCardSubtasks] = useState(() => readShowCardSubtasks());
+  useEffect(() => { writeItem(CARD_SUBTASKS_KEY, JSON.stringify(showCardSubtasks)); }, [showCardSubtasks]);
   const [syncUrl, setSyncUrl] = useState('');
   // When multi-user is on, whether to include CalDAV credentials (not just URLs)
   // in the per-user calendar config that syncs across this user's devices. Only
@@ -7173,6 +7177,7 @@ const DayPlanner = () => {
     dailyContent, setDailyContent,
     contentRotation, setContentRotation,
     dailyContentEnabled, setDailyContentEnabled,
+    showCardSubtasks, setShowCardSubtasks,
 
     // ── Onboarding / welcome ──────────────────────────────────────────────────
     showWelcome, setShowWelcome,

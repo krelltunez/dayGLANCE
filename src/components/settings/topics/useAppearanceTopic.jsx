@@ -3,7 +3,7 @@
 // for the keys this topic lists in settingsTopics.js; the dialog builds
 // its topic list, search and page from them.
 import React from 'react';
-import { LayoutGrid, Moon, Sun } from 'lucide-react';
+import { LayoutGrid, ListChecks, Moon, Sun } from 'lucide-react';
 import { DESKTOP_VIEW_MODES, NARROW_DESKTOP_VIEW_MODES, MOBILE_VIEW_MODES, VIEW_LABEL_KEYS, enabledViews, offeredViews } from '../../../constants/views.js';
 import ViewToggles from '../../ViewToggles.jsx';
 import { THEME_PREFS, themeLabel } from '../../../utils/themePref.js';
@@ -23,6 +23,7 @@ export default function useAppearanceTopic() {
     setWeekViewMode, canShowViewCycler, schedOnlyCycler, setViewMode, glancePage,
     setGlancePage, mobileViewMode, setMobileViewMode, mobileDefaultView,
     setMobileDefaultView, listEndOfDayTime, setListEndOfDayTime, formatTime,
+    showCardSubtasks, setShowCardSubtasks,
   } = useDayPlannerCtx();
   const {
     habitsEnabled, joboEnabled, goalsProjectsEnabled,
@@ -414,6 +415,29 @@ export default function useAppearanceTopic() {
               </>
             )}
         </>
+      ),
+    },
+    // Subtasks on timeline cards (utils/cardSubtasks.js), every device: the
+    // phone's GRID shows them too.
+    cardSubtasks: {
+      show: typeof setShowCardSubtasks === 'function',
+      node: (
+        <div className="space-y-3" data-card-subtasks-setting>
+          <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+            <ListChecks size={16} className={textSecondary} />
+            {t('settings.taskCards')}
+          </h4>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div className="relative">
+              <input type="checkbox" checked={showCardSubtasks !== false} onChange={(e) => setShowCardSubtasks(e.target.checked)} className="sr-only" data-card-subtasks-toggle />
+              <div className={`w-10 h-6 rounded-full transition-colors ${showCardSubtasks !== false ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${showCardSubtasks !== false ? 'translate-x-5' : 'translate-x-1'}`} />
+              </div>
+            </div>
+            <span className={`text-sm ${textPrimary}`}>{t('settings.showCardSubtasks')}</span>
+          </label>
+          <p className={`text-[10px] ${textSecondary} opacity-70`}>{t('settings.showCardSubtasksHint')}</p>
+        </div>
       ),
     },
     cardSize: {

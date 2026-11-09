@@ -10,6 +10,8 @@ import TaskTitleRenameField from './TaskTitleRenameField.jsx';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import TaskPlanHistory from './TaskPlanHistory.jsx';
 import TaskStarButton from './TaskStarButton.jsx';
+import CardSubtasks from './CardSubtasks.jsx';
+import { desktopCardReservedPx } from '../utils/cardSubtasks.js';
 import TaskEnergyMarker from './TaskEnergyMarker.jsx';
 import UserAssignmentBadge from './UserAssignmentBadge.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
@@ -38,6 +40,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
     setInboxProjectFilter, setInboxPriorityFilter, setHideCompletedInbox,
     setHideProjectTasksInbox, setHideStandaloneTasksInbox,
+    showCardSubtasks,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
@@ -359,6 +362,21 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                 <Clock size={10} />
                 {formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration, defaultValue: '{{count}} min' })}
               </div>
+            )}
+            {/* Subtasks, as many as the card has room for (wide cards only;
+                a repeating task's without checkboxes, CardSubtasks.jsx). */}
+            {!isImported && showCardSubtasks !== false && task.subtasks?.length > 0 && (
+              <CardSubtasks
+                task={task}
+                height={height}
+                reservedPx={desktopCardReservedPx({
+                  height,
+                  hasMetaRow: extractTags(task.title).length > 0 || (goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId)),
+                })}
+                readOnly={isRecurringTask}
+                onToggle={(subtaskId) => toggleSubtask(task.id, subtaskId, false)}
+                onMore={() => setExpandedNotesTaskId(task.id)}
+              />
             )}
           </>
         )}

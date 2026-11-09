@@ -818,7 +818,10 @@
       "getOnPlay": "Pobierz z Google Play",
       "getIt": "Pobierz",
       "notNow": "Nie teraz"
-    }
+    },
+    "taskCards": "Karty zadań",
+    "showCardSubtasks": "Pokazuj podzadania na kartach zadań",
+    "showCardSubtasksHint": "Gdy na karcie jest miejsce. Podzadania zadań cyklicznych są wyświetlane bez pól wyboru."
   },
   "dailyNotes": {
     "quickNotes": "Szybkie notatki",
@@ -1000,7 +1003,15 @@
     "earlierMoves_many": "+{{count}} wcześniej",
     "earlierMoves_other": "+{{count}} wcześniej",
     "continuesFrom": "od {{day}}",
-    "continuesFromLabel": "{{title}}, kontynuacja z {{day}}"
+    "continuesFromLabel": "{{title}}, kontynuacja z {{day}}",
+    "cardSubtasksMore_one": "+{{count}} więcej",
+    "cardSubtasksMore_few": "+{{count}} więcej",
+    "cardSubtasksMore_many": "+{{count}} więcej",
+    "cardSubtasksMore_other": "+{{count}} więcej",
+    "cardSubtasksCount_one": "{{count}} podzadanie",
+    "cardSubtasksCount_few": "{{count}} podzadania",
+    "cardSubtasksCount_many": "{{count}} podzadań",
+    "cardSubtasksCount_other": "{{count}} podzadania"
   },
   "recurrence": {
     "ordinal_ordinal_other": "{{count}}.",

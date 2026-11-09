@@ -799,7 +799,10 @@
       "getOnPlay": "Disponibile su Google Play",
       "getIt": "Scarica",
       "notNow": "Non ora"
-    }
+    },
+    "taskCards": "Schede delle attività",
+    "showCardSubtasks": "Mostra le sottoattività sulle schede",
+    "showCardSubtasksHint": "Quando la scheda ha spazio. Le sottoattività delle attività ricorrenti sono elencate senza caselle."
   },
   "dailyNotes": {
     "quickNotes": "Note rapide",
@@ -971,7 +974,11 @@
     "earlierMoves": "+1 precedente",
     "earlierMoves_other": "+{{count}} precedenti",
     "continuesFrom": "da {{day}}",
-    "continuesFromLabel": "{{title}}, continua da {{day}}"
+    "continuesFromLabel": "{{title}}, continua da {{day}}",
+    "cardSubtasksMore_one": "+{{count}} altra",
+    "cardSubtasksMore_other": "+{{count}} altre",
+    "cardSubtasksCount_one": "{{count}} sottoattività",
+    "cardSubtasksCount_other": "{{count}} sottoattività"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}",
