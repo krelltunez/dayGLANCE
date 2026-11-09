@@ -25,7 +25,11 @@ const flush = async () => { for (let i = 0; i < 100; i++) await Promise.resolve(
 // Each envelope a second later than the last: event ids are time-ordered at
 // second granularity, and the cursor is the highest id handled, so two built
 // in one second would be ordered by their random suffix.
-let emitted = Date.parse('2026-10-10T12:00:00.000Z');
+// The clock is pinned beside them (beforeEach): the folder reader drops
+// envelopes past the retention window (30 days by default, retentionMsFrom),
+// so against the real clock these fixed dates aged out on 2026-11-09.
+const START = Date.parse('2026-10-10T12:00:00.000Z');
+let emitted = START;
 const foreign = (title) => buildEnvelope({ action: 'notify', emittedBy: 'app.testglance', emittedAt: new Date(emitted += 1000), payload: {
   event_id: 'evt', source_app: 'app.testglance', source_entity_id: 'se-1', event: 'completed', task_id: 'task-1', title, timestamp: '2026-10-01T00:00:00.000Z', entity_type: 'task',
 } });
@@ -56,6 +60,8 @@ const mount = (transport) => {
 describe('useDirectAccessIntents', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    // An hour after the first envelope: every one is well inside retention.
+    vi.setSystemTime(START + 60 * 60 * 1000);
     global.localStorage = mem();
     global.document = { hidden: false, addEventListener: vi.fn(), removeEventListener: vi.fn() };
     handled.length = 0;
