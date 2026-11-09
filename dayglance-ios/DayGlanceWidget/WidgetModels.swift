@@ -129,6 +129,12 @@ struct ProjectSummary: Codable {
     var completedTasks: Int?
 }
 
+extension ProjectSummary {
+    /// A goal's project paused in the app (`status: "on-hold"`): the Goal
+    /// widget lists it after the active ones and says "On hold" for its count.
+    var isOnHold: Bool { status == "on-hold" }
+}
+
 struct ProjectData: Codable {
     var id: String?
     var title: String?
