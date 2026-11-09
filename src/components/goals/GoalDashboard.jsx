@@ -2827,6 +2827,9 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
     [activeGoals, goalsAreaFilter, areas, showCompletedGoals],
   );
   const hiddenCompletedCount = showCompletedGoals ? 0 : completedGoalsCount;
+  // The Goals tab counts the open goals, as the Projects tab counts the open
+  // projects, whichever list is showing.
+  const openGoalCount = useMemo(() => activeGoals.filter(g => g.status !== 'completed').length, [activeGoals]);
   // A goal a request goes to (a ring, a widget, a link) that the filters hide:
   // widen the area filter, and show completed goals for a completed one.
   const revealGoal = (goal) => {
@@ -3269,7 +3272,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
             <MobileGoalsTabs
               tab={sidebarTab}
               onTabChange={setSidebarTab}
-              goalCount={activeGoals.length}
+              goalCount={openGoalCount}
               openCount={openStandalone.length}
               controlsCollapsed={controlsCollapsed}
               onToggleControls={toggleControls}
@@ -3340,7 +3343,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
         tab={sidebarTab}
         onTabChange={setSidebarTab}
         goals={sortedGoals}
-        goalCount={activeGoals.length}
+        goalCount={openGoalCount}
         selectedGoalId={selectedGoal?.id ?? null}
         onSelectGoal={selectGoal}
         standaloneProjects={shownStandalone}

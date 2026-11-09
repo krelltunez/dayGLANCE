@@ -109,8 +109,8 @@ describe('GoalDashboard desktop space', () => {
     ]);
     const sidebar = html.slice(html.indexOf('data-goals-sidebar'), html.indexOf('data-goals-main'));
     expect(sidebar).toContain('App Development');
-    expect(sidebar).toContain('Goals <span');
-    expect(sidebar).toContain('>3</span>');
+    // the Goals tab counts OPEN goals, as the Projects tab counts open projects
+    expect(sidebar).toMatch(/Goals <span[^>]*>2<\/span>/);
     // the Projects tab counts OPEN standalone projects
     expect(sidebar).toContain('Projects <span');
     expect(sidebar).toContain('>1</span>');
@@ -301,12 +301,14 @@ describe('GoalDashboard embedded (phone) mode', () => {
     expect(html).not.toContain('data-goals-main');
   });
 
-  it('opens with Goals | Projects on top, counting every active goal and the OPEN standalone projects', () => {
+  it('opens with Goals | Projects on top, counting the OPEN goals and the OPEN standalone projects', () => {
     const tabs = section(phone(), 'data-goals-tabs');
     // Goals is the selected tab (the tablist's own label also says "Projects")
     expect(tabs).toMatch(/aria-selected="true"[^>]*>(?:<svg[\s\S]*?<\/svg>)? <span[^>]*>Goals<\/span>/);
     expect(tabs).toMatch(/aria-selected="false"[^>]*>(?:<svg[\s\S]*?<\/svg>)? <span[^>]*>Projects<\/span>/);
-    expect(tabs).toMatch(/Goals<\/span> <span[^>]*>3<\/span>/);
+    // Two open goals: the completed one is not counted, shown or not.
+    expect(tabs).toMatch(/Goals<\/span> <span[^>]*>2<\/span>/);
+    expect(section(phone({}, { showCompletedGoals: true }), 'data-goals-tabs')).toMatch(/Goals<\/span> <span[^>]*>2<\/span>/);
     expect(tabs).toMatch(/Projects<\/span> <span[^>]*>1<\/span>/);
     // the tabs come before the goals-only controls
     const html = phone();
