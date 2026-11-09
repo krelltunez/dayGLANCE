@@ -2055,7 +2055,14 @@
       "subtasks": "Subtareas (una por línea)",
       "subtasksPlaceholder": "Primer paso\nSegundo paso",
       "energy": "Energía",
-      "energyAuto": "Según el título"
+      "energyAuto": "Según el título",
+      "forNewProjects": "Valores para proyectos nuevos",
+      "goalHint": "Los proyectos nuevos de este objetivo empiezan con estos como sus valores para tareas nuevas. Un campo vacío aquí se toma del área del objetivo. Cambiarlos no afecta a los proyectos existentes.",
+      "areaHint": "Los proyectos nuevos de los objetivos de esta área empiezan con estos como sus valores para tareas nuevas, en los campos que su objetivo no define. Cambiarlos no afecta a los proyectos existentes.",
+      "applyToProjects": "Aplicar a los proyectos abiertos ({{count}})…",
+      "applyGoalConfirm": "¿Guardar y reemplazar con estos los valores para tareas nuevas de los proyectos abiertos de este objetivo ({{count}})?",
+      "applyAreaConfirm": "¿Guardar y reemplazar los valores para tareas nuevas de los proyectos abiertos de los objetivos de esta área ({{count}})? Un campo que define el objetivo de un proyecto conserva el valor del objetivo.",
+      "applySave": "Guardar y aplicar"
     },
     "showCompletedGoals": "Mostrar objetivos completados",
     "hideCompletedGoals": "Ocultar objetivos completados",

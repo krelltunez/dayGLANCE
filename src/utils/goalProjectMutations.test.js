@@ -216,3 +216,17 @@ describe('applyGoalProjectUndoOps', () => {
     expect('targetDate' in removed.projects[0]).toBe(false);
   });
 });
+
+// #2336: a project created over MCP under a goal starts with the New task
+// defaults the goal (else its area) holds for new projects, as the form's do.
+describe('applyCreateProject and the goal\'s defaults for new projects', () => {
+  it('copies the goal\'s, else the area\'s, at creation; a standalone project gets none', () => {
+    const s = state({
+      goals: [{ id: 'g1', title: 'Health', status: 'active', areaId: 'a1', taskDefaults: { duration: 45 } }],
+      areas: [{ id: 'a1', name: 'Life', taskDefaults: { energy: 'restore' } }],
+    });
+    expect(applyCreateProject(s, { projectId: 'p-n', title: 'Run', goalId: 'g1', nowIso: NOW }).project.taskDefaults)
+      .toEqual({ duration: 45, energy: 'restore' });
+    expect(applyCreateProject(s, { projectId: 'p-s', title: 'Solo', nowIso: NOW }).project).not.toHaveProperty('taskDefaults');
+  });
+});

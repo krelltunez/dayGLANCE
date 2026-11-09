@@ -96,3 +96,22 @@ describe('the new project\'s colour is the one the task shows', () => {
     expect(task.color).toBe('bg-blue-500');
   });
 });
+
+// #2336: a project named in the task modal starts with the New task defaults
+// its goal (else the goal's area) holds for new projects.
+describe('a new project from the task modal and its goal\'s defaults', () => {
+  const area = { id: 'a1', taskDefaults: { energy: 'restore', notes: 'Why:' } };
+  const inArea = { ...goal, areaId: 'a1', taskDefaults: { duration: 45 } };
+
+  it('takes the goal\'s, else the area\'s; a standalone project or a goal without any gets no field', () => {
+    expect(newProjectFields({ title: 'Run', goal: inArea, area }).taskDefaults).toEqual({ duration: 45, notes: 'Why:', energy: 'restore' });
+    expect(newProjectFields({ title: 'Run', goal })).not.toHaveProperty('taskDefaults');
+    expect(newProjectFields({ title: 'Solo', goal: null, area })).not.toHaveProperty('taskDefaults');
+  });
+
+  it('createPendingProject finds the goal\'s area', () => {
+    const addProject = added();
+    createPendingProject({ title: 'x', projectId: NEW_PROJECT_ID, newProject: { title: 'Run', goalId: 'g1' } }, { addProject, goals: [inArea], areas: [area] });
+    expect(addProject.mock.calls[0][0].taskDefaults).toEqual({ duration: 45, notes: 'Why:', energy: 'restore' });
+  });
+});

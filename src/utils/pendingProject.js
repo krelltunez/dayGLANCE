@@ -11,6 +11,7 @@
 // newTask (addTask, saveMobileEditTask) passes it through createPendingProject
 // first, which swaps in the real id.
 import { PROJECT_FALLBACK_COLOR } from './colorUtils.js';
+import { seedTaskDefaults } from './projectTaskDefaults.js';
 
 export const NEW_PROJECT_ID = '__new-project__';
 
@@ -18,13 +19,17 @@ export const NEW_PROJECT_ID = '__new-project__';
  * The fields a new project is created with. Its colour is the one the task
  * shows in the modal, so a colour picked there is the project's too;
  * without one, its goal's, as the project form defaults it, then blue.
+ * Under a goal, it starts with the New task defaults the goal (else its
+ * area) holds for new projects, as the project form seeds them.
  */
-export function newProjectFields({ title, goal, color = null }) {
+export function newProjectFields({ title, goal, area = null, color = null }) {
+  const taskDefaults = goal ? seedTaskDefaults(goal, area) : undefined;
   return {
     title: title.trim(),
     ...(goal ? { goalId: goal.id } : {}),
     color: color || goal?.color || PROJECT_FALLBACK_COLOR,
     assignedUserSyncIds: goal?.assignedUserSyncIds || [],
+    ...(taskDefaults ? { taskDefaults } : {}),
   };
 }
 
@@ -65,13 +70,14 @@ export function withPendingProject(newTask, newProject, goals = []) {
  *
  * @returns {{ newTask: object, project: object | null }}
  */
-export function createPendingProject(newTask, { addProject, goals = [] }) {
+export function createPendingProject(newTask, { addProject, goals = [], areas = [] }) {
   if (newTask?.projectId !== NEW_PROJECT_ID) return { newTask, project: null };
   const { newProject, projectId: _placeholder, ...rest } = newTask;
   const title = (newProject?.title || '').trim();
   if (!title) return { newTask: rest, project: null };
   const goal = newProject.goalId ? goals.find((g) => g.id === newProject.goalId) || null : null;
-  const project = addProject(newProjectFields({ title, goal, color: rest.color }));
+  const area = goal?.areaId ? areas.find((a) => a.id === goal.areaId) || null : null;
+  const project = addProject(newProjectFields({ title, goal, area, color: rest.color }));
   // The task takes the project's colour, which is the one it showed, or the
   // project's default where it showed the default.
   return { newTask: { ...rest, projectId: project.id, color: project.color }, project };

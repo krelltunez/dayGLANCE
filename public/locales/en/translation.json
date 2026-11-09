@@ -2055,7 +2055,14 @@
       "subtasks": "Subtasks (one per line)",
       "subtasksPlaceholder": "First step\nSecond step",
       "energy": "Energy",
-      "energyAuto": "From the title"
+      "energyAuto": "From the title",
+      "forNewProjects": "Defaults for new projects",
+      "goalHint": "New projects in this goal start with these as their New task defaults. A field left empty here comes from the goal's area. Changing them doesn't change existing projects.",
+      "areaHint": "New projects in this area's goals start with these as their New task defaults, wherever their goal doesn't set the field. Changing them doesn't change existing projects.",
+      "applyToProjects": "Apply to open projects ({{count}})…",
+      "applyGoalConfirm": "Save, and replace the New task defaults of this goal's open projects ({{count}}) with these?",
+      "applyAreaConfirm": "Save, and replace the New task defaults of the open projects in this area's goals ({{count}})? A field a project's goal sets keeps the goal's value.",
+      "applySave": "Save and apply"
     },
     "showCompletedGoals": "Show completed goals",
     "hideCompletedGoals": "Hide completed goals",

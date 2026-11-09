@@ -455,6 +455,21 @@ describe('project writes carry the project-level target date (2026-10-21)', () =
     }
   });
 
+  // A goal's or an area's defaults for new projects (#2336): the create tool
+  // says a project under a goal starts with them.
+  it('create_project says a project under a goal takes the defaults its goal or area holds for new projects', async () => {
+    const bridge = fakeBridge(projectScript);
+    const h = await start({ writeDeps: writeDeps(bridge.bridge) });
+    try {
+      const client = await h.connect();
+      const { tools } = await client.listTools();
+      const tool = tools.find((x) => x.name === 'dayglance_create_project');
+      expect(tool.description).toContain('New task defaults the goal (else its area) holds for new projects');
+    } finally {
+      await h.close();
+    }
+  });
+
   // A project's New task defaults (#2336) include its energy: the create tool
   // says what a project task takes from them, energy among them.
   it('create_task says a project task takes the project\'s New task defaults, energy included', async () => {

@@ -2150,7 +2150,14 @@
       "subtasks": "Podzadania (jedno w wierszu)",
       "subtasksPlaceholder": "Pierwszy krok\nDrugi krok",
       "energy": "Energia",
-      "energyAuto": "Na podstawie tytułu"
+      "energyAuto": "Na podstawie tytułu",
+      "forNewProjects": "Domyślne dla nowych projektów",
+      "goalHint": "Nowe projekty w tym celu zaczynają z tymi wartościami jako domyślnymi dla nowych zadań. Puste tu pole pochodzi z obszaru celu. Późniejsze zmiany nie dotyczą istniejących projektów.",
+      "areaHint": "Nowe projekty w celach tego obszaru zaczynają z tymi wartościami jako domyślnymi dla nowych zadań, tam gdzie ich cel nie ustawia pola. Późniejsze zmiany nie dotyczą istniejących projektów.",
+      "applyToProjects": "Zastosuj do otwartych projektów ({{count}})…",
+      "applyGoalConfirm": "Zapisać i zastąpić tymi wartościami domyślne dla nowych zadań w otwartych projektach tego celu ({{count}})?",
+      "applyAreaConfirm": "Zapisać i zastąpić domyślne dla nowych zadań w otwartych projektach celów tego obszaru ({{count}})? Pole ustawione przez cel projektu zachowuje wartość celu.",
+      "applySave": "Zapisz i zastosuj"
     },
     "showCompletedGoals": "Pokaż ukończone cele",
     "hideCompletedGoals": "Ukryj ukończone cele",

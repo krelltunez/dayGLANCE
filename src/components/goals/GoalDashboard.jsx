@@ -56,7 +56,8 @@ import useProjectDrag from './useProjectDrag.js';
 import { useTranslation } from 'react-i18next';
 import GoalProgress from './GoalProgress.jsx';
 import ProjectCard from '../projects/ProjectCard.jsx';
-import ProjectTaskDefaultsFields, { taskDefaultsForm, taskDefaultsFromForm } from '../projects/ProjectTaskDefaultsFields.jsx';
+import ProjectTaskDefaultsFields, { ApplyTaskDefaults, taskDefaultsForm, taskDefaultsFromForm } from '../projects/ProjectTaskDefaultsFields.jsx';
+import { applyTargets, seedTaskDefaultsFor } from '../../utils/projectTaskDefaults.js';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import ArchivedProjectReview from './ArchivedProjectReview.jsx';
 import { groupArchivedProjects, restoredStatus } from '../../utils/archiveCascade.js';
@@ -135,10 +136,13 @@ function findDefaultActiveIdx(sortedGoals) {
 export const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mobile, showLifeGlanceCheckbox = false }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, isMobile } =
     useDayPlannerCtx();
-  const { multiUserEnabled, users, areas = [] } = useFeaturesCtx();
+  const { multiUserEnabled, users, areas = [], goals: allGoals = [], projects: allProjects = [] } = useFeaturesCtx();
   const { t } = useTranslation();
 
   const [title, setTitle] = useState(initial?.title || '');
+  // The New task defaults this goal holds for its NEW projects (#2336), as
+  // typed (utils/projectTaskDefaults.js, seedTaskDefaults).
+  const [taskDefaults, setTaskDefaults] = useState(() => taskDefaultsForm(initial));
   // A NEW goal's description only. An existing goal's description is edited
   // in the notes box on its detail (#2076), as a project's is in the Project
   // Planner, which also handles a description that lives in a linked note.
@@ -172,8 +176,10 @@ export const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDele
   const sortedAreas = [...areas].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const startAfterTarget = !!(startDate && targetDate && startDate > targetDate);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  // `applyToProjects`: "Apply to open projects", which saves and then replaces
+  // the goal's open projects' defaults with what a new project there gets.
+  const handleSubmit = (e, applyToProjects = false) => {
+    e?.preventDefault?.();
     if (!title.trim()) return;
     // description is edited on the goal's detail once it exists; omitting it
     // here preserves the existing value on save (updateGoal merges).
@@ -183,8 +189,9 @@ export const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDele
     const fromTitle = noteLinkFromTitle(title);
     const savedTitle = fromTitle ? fromTitle.title : title.trim();
     const linkNotePath = fromTitle?.path;
-    onSave({ title: savedTitle, ...(initial ? {} : { description: description.trim() }), areaId: areaId || undefined, startDate: startDate || undefined, targetDate: targetDate || undefined, color, status, assignedUserSyncIds, hideStalled, trackInLifeGlance: showLifeGlanceCheckbox && !alreadyShared && trackInLifeGlance, createNote: !initial && createNote && !linkNotePath, linkNotePath });
+    onSave({ title: savedTitle, ...(initial ? {} : { description: description.trim() }), areaId: areaId || undefined, startDate: startDate || undefined, targetDate: targetDate || undefined, color, status, assignedUserSyncIds, hideStalled, taskDefaults: taskDefaultsFromForm(taskDefaults), applyToProjects, trackInLifeGlance: showLifeGlanceCheckbox && !alreadyShared && trackInLifeGlance, createNote: !initial && createNote && !linkNotePath, linkNotePath });
   };
+  const applyCount = initial ? applyTargets({ scope: 'goal', id: initial.id, goals: allGoals, projects: allProjects }).length : 0;
 
   return (
     <form
@@ -315,6 +322,28 @@ export const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDele
         borderClass={borderClass}
         textSecondary={textSecondary}
       />
+
+      {/* Defaults for the goal's new projects (#2336): copied into a project
+          created under it; applied to the open ones only on request. */}
+      <ProjectTaskDefaultsFields
+        value={taskDefaults}
+        onChange={setTaskDefaults}
+        title={t('goals.taskDefaults.forNewProjects')}
+        hint={t('goals.taskDefaults.goalHint')}
+        darkMode={darkMode}
+        borderClass={borderClass}
+        textSecondary={textSecondary}
+        hoverBg={hoverBg}
+      >
+        <ApplyTaskDefaults
+          count={applyCount}
+          confirmText={t('goals.taskDefaults.applyGoalConfirm', { count: applyCount })}
+          onApply={() => handleSubmit(null, true)}
+          borderClass={borderClass}
+          textSecondary={textSecondary}
+          hoverBg={hoverBg}
+        />
+      </ProjectTaskDefaultsFields>
 
       {/* Status — edit only */}
       {initial && (
@@ -563,15 +592,22 @@ const CreateNoteCheckbox = ({ checked, onChange }) => {
   );
 };
 
+/** Two New task defaults forms hold the same text. */
+const sameTaskDefaultsForm = (a, b) => ['duration', 'tags', 'notes', 'subtasks', 'energy'].every((k) => (a?.[k] || '') === (b?.[k] || ''));
+
 export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, tasks, unscheduledTasks, use24HourClock, isMobile, isTablet } =
     useDayPlannerCtx();
-  const { multiUserEnabled, users, projects: allProjects } = useFeaturesCtx();
+  const { multiUserEnabled, users, projects: allProjects, areas = [] } = useFeaturesCtx();
   const { t } = useTranslation();
 
   const [title, setTitle] = useState(initial?.title || '');
-  // New task defaults (#2336), as typed; stored by taskDefaultsFromForm.
-  const [taskDefaults, setTaskDefaults] = useState(() => taskDefaultsForm(initial));
+  // New task defaults (#2336), as typed; stored by taskDefaultsFromForm. A NEW
+  // project starts from what its goal (else the goal's area) holds for new
+  // projects, and follows the goal picker while the fields are still as that
+  // seed left them; an existing project keeps its own.
+  const seedForm = (id) => taskDefaultsForm({ taskDefaults: seedTaskDefaultsFor(id, { goals, areas }) });
+  const [taskDefaults, setTaskDefaults] = useState(() => (initial ? taskDefaultsForm(initial) : seedForm(defaultGoalId)));
   const [goalId, setGoalId] = useState(initial?.goalId || defaultGoalId || '');
   const [status, setStatus] = useState(initial?.status || 'active');
   // The project's own target date (local calendar date, absent = none). This
@@ -652,6 +688,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
           onChange={e => {
             const nextGoalId = e.target.value;
             setGoalId(nextGoalId);
+            if (!initial && sameTaskDefaultsForm(taskDefaults, seedForm(goalId))) setTaskDefaults(seedForm(nextGoalId));
             const goal = nextGoalId ? goals.find(g => g.id === nextGoalId) : null;
             if (!colorTouched) setColor(goal?.color || PROJECT_FALLBACK_COLOR);
             if (!usersTouched) setAssignedUserSyncIds(goal?.assignedUserSyncIds || []);
@@ -2380,7 +2417,64 @@ const ArchivedSection = ({ archivedGoals, archivedProjects, onReviewProject, gri
 
 // ─── Manage Areas modal ────────────────────────────────────────────────────────
 
-const ManageAreas = ({ onClose }) => {
+/**
+ * An area's New task defaults for new projects in its goals (#2336), under
+ * its row in Manage Areas. The rest of that dialog saves as you edit; these
+ * fields are saved with their own button, so typing a note does not stamp the
+ * area on every key. "Apply to open projects" saves and replaces the open
+ * projects' defaults in the area's goals (a goal's own field still wins).
+ */
+export const AreaTaskDefaults = ({ area }) => {
+  const { darkMode, borderClass, textSecondary, hoverBg } = useDayPlannerCtx();
+  const { updateArea, applyTaskDefaultsToProjects, goals = [], projects = [] } = useFeaturesCtx();
+  const { t } = useTranslation();
+  const [form, setForm] = useState(() => taskDefaultsForm(area));
+  const stored = taskDefaultsForm(area);
+  const dirty = !sameTaskDefaultsForm(form, stored);
+  const applyCount = applyTargets({ scope: 'area', id: area.id, goals, projects }).length;
+  const save = (apply = false) => {
+    const defaults = taskDefaultsFromForm(form);
+    updateArea(area.id, { taskDefaults: defaults });
+    if (apply) applyTaskDefaultsToProjects?.({ scope: 'area', id: area.id, defaults });
+  };
+  return (
+    <div className="px-1" data-area-task-defaults={area.id}>
+      <ProjectTaskDefaultsFields
+        value={form}
+        onChange={setForm}
+        title={t('goals.taskDefaults.forNewProjects')}
+        hint={t('goals.taskDefaults.areaHint')}
+        darkMode={darkMode}
+        borderClass={borderClass}
+        textSecondary={textSecondary}
+        hoverBg={hoverBg}
+      >
+        <div className="flex flex-wrap items-start gap-2">
+          {dirty && (
+            <button
+              type="button"
+              onClick={() => save(false)}
+              className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium"
+              data-area-task-defaults-save
+            >
+              {t('common.save')}
+            </button>
+          )}
+          <ApplyTaskDefaults
+            count={applyCount}
+            confirmText={t('goals.taskDefaults.applyAreaConfirm', { count: applyCount })}
+            onApply={() => save(true)}
+            borderClass={borderClass}
+            textSecondary={textSecondary}
+            hoverBg={hoverBg}
+          />
+        </div>
+      </ProjectTaskDefaultsFields>
+    </div>
+  );
+};
+
+export const ManageAreas = ({ onClose }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
   const { areas = [], addArea, updateArea, deleteArea, reorderAreas } = useFeaturesCtx();
   const { t } = useTranslation();
@@ -2463,6 +2557,7 @@ const ManageAreas = ({ onClose }) => {
                   ))}
                 </div>
               )}
+              <AreaTaskDefaults area={area} />
               {/* Inline delete confirm */}
               {confirmDeleteId === area.id && (
                 <div className="flex items-center gap-2 px-1">
@@ -2746,7 +2841,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
     goalsDashboardFocusProjectId, setGoalsDashboardFocusProjectId,
     goalsDashboardFocusTab, setGoalsDashboardFocusTab,
     addGoal, updateGoal, deleteGoal,
-    addProject, updateProject, moveProject,
+    addProject, updateProject, moveProject, applyTaskDefaultsToProjects,
     plannerProjectId, setPlannerProjectId,
     isVisibleForUser,
     aspireEnabled = false,
@@ -3025,7 +3120,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
   }, [desktop, isActive, goalsSpaceKeysRef]);
 
   const handleSaveGoal = (fields) => {
-    const { trackInLifeGlance, createNote, linkNotePath, ...goalFields } = fields;
+    const { trackInLifeGlance, createNote, linkNotePath, applyToProjects, ...goalFields } = fields;
     if (goalForm.editing) {
       // Archiving cascades to the goal's projects inside updateGoal, and a
       // restore puts them back (utils/archiveCascade.js, #2260).
@@ -3036,6 +3131,11 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
         && !goalForm.editing.synced_to_lifeglance
         && goalForm.editing.source_app !== 'app.lifeglance';
       updateGoal(goalForm.editing.id, { ...goalFields, ...(shareNow ? { synced_to_lifeglance: true } : {}) });
+      // "Apply to open projects" (#2336): the goal's open projects take what a
+      // new project under it would start with, from the defaults just saved.
+      if (applyToProjects) {
+        applyTaskDefaultsToProjects?.({ scope: 'goal', id: goalForm.editing.id, defaults: goalFields.taskDefaults, areaId: goalFields.areaId });
+      }
       if (shareNow) emitGoalCreate({ ...goalForm.editing, ...goalFields, synced_to_lifeglance: true });
       if (linkNotePath) linkProjectNote?.('goal', goalForm.editing.id, linkNotePath);
     } else {

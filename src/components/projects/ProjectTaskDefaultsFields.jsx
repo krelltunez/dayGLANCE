@@ -9,8 +9,12 @@ import { normalizeTaskDefaults, taskDefaultsOf } from '../../utils/projectTaskDe
 // taskDefaultsFromForm on save. Folded unless the project has some, so a
 // project without defaults keeps the short form it always had.
 //
-// "Copy from…" fills the fields from another project's defaults: the way to
-// share one setup between related projects without a goal-level template.
+// "Copy from…" fills the fields from another project's defaults.
+//
+// The goal and area forms use the same fields for the defaults they hold for
+// NEW PROJECTS (projectTaskDefaults.js, seedTaskDefaults): their own title and
+// hint, no "Copy from…", and an "Apply to projects" control below the fields
+// (ApplyTaskDefaults) that replaces the open projects' defaults on save.
 
 /** The form's text fields for a project's stored defaults. */
 export function taskDefaultsForm(project) {
@@ -27,7 +31,10 @@ export function taskDefaultsForm(project) {
 /** What the project stores for the form's text: undefined for nothing. */
 export const taskDefaultsFromForm = (form) => normalizeTaskDefaults(form);
 
-export default function ProjectTaskDefaultsFields({ value, onChange, projects = [], selfId = null, darkMode, borderClass, textSecondary, hoverBg }) {
+export default function ProjectTaskDefaultsFields({
+  value, onChange, projects = [], selfId = null, darkMode, borderClass, textSecondary, hoverBg,
+  title, hint, children,
+}) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(() => !!taskDefaultsFromForm(value));
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value });
@@ -46,11 +53,11 @@ export default function ProjectTaskDefaultsFields({ value, onChange, projects = 
         data-project-task-defaults-toggle
       >
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        {t('goals.taskDefaults.title')}
+        {title || t('goals.taskDefaults.title')}
       </button>
       {open && (
         <div className="flex flex-col gap-3 pl-1">
-          <p className={`text-xs ${textSecondary}`}>{t('goals.taskDefaults.hint')}</p>
+          <p className={`text-xs ${textSecondary}`}>{hint || t('goals.taskDefaults.hint')}</p>
           {sources.length > 0 && (
             <select
               value=""
@@ -112,8 +119,50 @@ export default function ProjectTaskDefaultsFields({ value, onChange, projects = 
               data-project-task-defaults-subtasks
             />
           </label>
+          {children}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * "Apply to open projects (N)…" under a goal's or an area's defaults: asks
+ * first, inline, then `onApply` saves the form and replaces the projects'
+ * defaults. Nothing to show without an open project to apply to.
+ */
+export function ApplyTaskDefaults({ count, confirmText, onApply, borderClass, textSecondary, hoverBg }) {
+  const { t } = useTranslation();
+  const [asking, setAsking] = useState(false);
+  if (!count) return null;
+  if (!asking) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAsking(true)}
+        className={`self-start text-xs font-medium px-2.5 py-1.5 rounded-lg border ${borderClass} ${textSecondary} ${hoverBg}`}
+        data-apply-task-defaults
+      >
+        {t('goals.taskDefaults.applyToProjects', { count })}
+      </button>
+    );
+  }
+  return (
+    <div className={`flex flex-col gap-2 rounded-lg border ${borderClass} p-2.5`} data-apply-task-defaults-confirm>
+      <p className={`text-xs ${textSecondary}`}>{confirmText}</p>
+      <div className="flex gap-2 justify-end">
+        <button type="button" onClick={() => setAsking(false)} className={`px-2.5 py-1 text-xs rounded-lg ${hoverBg} ${textSecondary}`}>
+          {t('common.cancel')}
+        </button>
+        <button
+          type="button"
+          onClick={onApply}
+          className="px-3 py-1 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium"
+          data-apply-task-defaults-save
+        >
+          {t('goals.taskDefaults.applySave')}
+        </button>
+      </div>
     </div>
   );
 }

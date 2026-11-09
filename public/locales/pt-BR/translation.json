@@ -2055,7 +2055,14 @@
       "subtasks": "Subtarefas (uma por linha)",
       "subtasksPlaceholder": "Primeiro passo\nSegundo passo",
       "energy": "Energia",
-      "energyAuto": "Pelo título"
+      "energyAuto": "Pelo título",
+      "forNewProjects": "Padrões para novos projetos",
+      "goalHint": "Os novos projetos desta meta começam com estes como padrões para novas tarefas. Um campo vazio aqui vem da área da meta. Alterar depois não muda os projetos existentes.",
+      "areaHint": "Os novos projetos das metas desta área começam com estes como padrões para novas tarefas, onde a meta não define o campo. Alterar depois não muda os projetos existentes.",
+      "applyToProjects": "Aplicar aos projetos abertos ({{count}})…",
+      "applyGoalConfirm": "Salvar e substituir por estes os padrões para novas tarefas dos projetos abertos desta meta ({{count}})?",
+      "applyAreaConfirm": "Salvar e substituir os padrões para novas tarefas dos projetos abertos das metas desta área ({{count}})? Um campo definido pela meta de um projeto mantém o valor da meta.",
+      "applySave": "Salvar e aplicar"
     },
     "showCompletedGoals": "Mostrar objetivos concluídos",
     "hideCompletedGoals": "Ocultar objetivos concluídos",

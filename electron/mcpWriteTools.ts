@@ -661,7 +661,8 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
     {
       description:
         'Create a dayGLANCE project, standalone or under a goal (goal_id). A project under a goal takes the goal\'s ' +
-        'colour and assignees at creation. Returns the project as dayglance_get_goal_progress reports it.' + NO_ARCHIVE,
+        'colour and assignees at creation, and the New task defaults the goal (else its area) holds for new projects. ' +
+        'Returns the project as dayglance_get_goal_progress reports it.' + NO_ARCHIVE,
       inputSchema: z.object({
         title: z.string().describe('Project title. Required, non-empty.'),
         goal_id: z.string().optional().describe('The parent goal. Omit for a standalone project.'),

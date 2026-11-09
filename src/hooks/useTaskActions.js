@@ -96,6 +96,7 @@ export default function useTaskActions({
   // A project named in the task modal is created as the task is saved.
   addProject,
   goals,
+  areas,
 }) {
   const colors = TASK_COLORS;
 
@@ -151,7 +152,7 @@ export default function useTaskActions({
   // Its project becomes the picker's "last used" on this device (#2274).
   const addTask = (toInbox = false) => {
     if (!newTask.title.trim()) return;
-    const ready = createPendingProject(newTask, { addProject, goals });
+    const ready = createPendingProject(newTask, { addProject, goals, areas });
     addTaskFrom(ready.newTask, toInbox, ready.project);
     rememberLastUsedProject(ready.newTask.projectId);
   };

@@ -16,9 +16,13 @@
 //             set it, so a project of restoring things marks its tasks Restore
 //             whatever their titles say. None: the title decides, as before.
 //
-// One template per project, no goal or global level: goals hold no tasks of
-// their own, and the colour already falls back from project to goal
-// (getProjectColor). A project can copy another's defaults in the form.
+// Tasks read their project's defaults only. A goal and an area can hold
+// defaults too, but those are for NEW PROJECTS, one level at a time: a project
+// created under a goal starts with a copy, each field from the goal, else from
+// its area (seedTaskDefaults), and never follows them afterwards. Changing a
+// goal's or an area's defaults reaches existing projects only through the
+// explicit "Apply to projects" action (appliedTaskDefaults), which replaces
+// theirs. A project can also copy another's defaults in the form.
 //
 // Values given explicitly win (an MCP create's notes or duration, a draft the
 // user has already changed); the defaults fill only what is missing.
@@ -184,3 +188,74 @@ export function draftWithProjectDefaults(draft, from, to, { newId } = {}) {
   if (title !== (draft.title || '')) out.title = title;
   return out;
 }
+
+// ─── Goal and area defaults: seeding new projects ────────────────────────────
+
+const FIELDS = ['duration', 'tags', 'notes', 'subtasks', 'energy'];
+
+/**
+ * The New task defaults a project created under `goal` starts with: each
+ * field the goal sets, else the one its `area` sets. Undefined when neither
+ * sets any (a standalone project, with no goal, gets none).
+ */
+export function seedTaskDefaults(goal, area) {
+  const fromGoal = normalizeTaskDefaults(goal?.taskDefaults) || {};
+  const fromArea = normalizeTaskDefaults(area?.taskDefaults) || {};
+  const out = {};
+  for (const field of FIELDS) {
+    if (fromGoal[field] !== undefined) out[field] = fromGoal[field];
+    else if (fromArea[field] !== undefined) out[field] = fromArea[field];
+  }
+  return normalizeTaskDefaults(out);
+}
+
+/** seedTaskDefaults for a goal named by id, its area looked up in `areas`. */
+export function seedTaskDefaultsFor(goalId, { goals = [], areas = [] } = {}) {
+  const goal = goalId ? goals.find((g) => g.id === goalId) : null;
+  if (!goal) return undefined;
+  const area = goal.areaId ? areas.find((a) => a.id === goal.areaId) : null;
+  return seedTaskDefaults(goal, area);
+}
+
+/** Open: still taking new tasks (active or on hold), not completed or archived. */
+const isOpenProject = (p) => !!p && !p.archived && p.status !== 'archived' && p.status !== 'completed';
+
+/**
+ * The projects an "Apply to projects" on a goal or an area replaces the
+ * defaults of: the goal's open projects, or the open projects of the area's
+ * goals that are not archived.
+ *
+ * @param {{ scope: 'goal'|'area', id: string, goals?: object[], projects?: object[] }} input
+ */
+export function applyTargets({ scope, id, goals = [], projects = [] }) {
+  const goalIds = scope === 'goal'
+    ? new Set([id])
+    : new Set(goals.filter((g) => g.areaId === id && g.status !== 'archived').map((g) => g.id));
+  return projects.filter((p) => isOpenProject(p) && p.goalId && goalIds.has(p.goalId));
+}
+
+/**
+ * `projects` after an "Apply to projects" on a goal or an area whose defaults
+ * are being saved as `defaults`: each target's defaults become what a new
+ * project in its goal would start with now (seedTaskDefaults), with the saved
+ * value in place of the goal's or the area's. A goal's own field still wins
+ * over its area's. A target left with none loses the field. Every target is
+ * stamped, so the change syncs; nothing else is touched.
+ */
+export function appliedTaskDefaults(projects = [], options = {}) {
+  const { scope, id, defaults, goals = [], areas = [], nowIso } = options;
+  const saved = normalizeTaskDefaults(defaults);
+  // A goal saved in the same step may have moved to another area: `areaId`,
+  // when given (undefined for none), is the one its fallback comes from.
+  const areaOf = (g) => (Object.prototype.hasOwnProperty.call(options, 'areaId') ? { areaId: options.areaId } : { areaId: g.areaId });
+  const goalsNow = scope === 'goal' ? goals.map((g) => (g.id === id ? { ...g, ...areaOf(g), taskDefaults: saved } : g)) : goals;
+  const areasNow = scope === 'area' ? areas.map((a) => (a.id === id ? { ...a, taskDefaults: saved } : a)) : areas;
+  const targets = new Set(applyTargets({ scope, id, goals: goalsNow, projects }).map((p) => p.id));
+  return projects.map((p) => {
+    if (!targets.has(p.id)) return p;
+    const seed = seedTaskDefaultsFor(p.goalId, { goals: goalsNow, areas: areasNow });
+    const { taskDefaults: _old, ...rest } = p;
+    return { ...rest, ...(seed ? { taskDefaults: seed } : {}), updatedAt: nowIso };
+  });
+}
+
