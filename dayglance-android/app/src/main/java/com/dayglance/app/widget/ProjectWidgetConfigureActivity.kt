@@ -171,13 +171,13 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
             textSize = 15f
             setTextColor(resolveAttrColor(android.R.attr.textColorPrimary))
         })
-        val progress = if (total > 0) {
+        val progressText = if (total > 0) {
             getString(R.string.config_task_progress, done, total) + "  ·  $pct%"
         } else {
             "$pct%"
         }
         // A project on hold is still offered, and says so.
-        val subtitle = if (onHold) getString(R.string.widget_on_hold) + "  ·  " + progress else progress
+        val subtitle = if (onHold) getString(R.string.widget_on_hold) + "  ·  " + progressText else progressText
         textCol.addView(TextView(this).apply {
             text = subtitle
             textSize = 12f
