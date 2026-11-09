@@ -478,7 +478,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           <div data-project-title-block className="flex-1 min-w-0 flex flex-col items-start gap-1">
             {/* On hold sits with the title it describes, not among the buttons;
                 on a narrow card it wraps under the title. */}
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 max-w-full min-w-0">
+            <div data-project-title-row className="flex flex-wrap items-center gap-x-1.5 gap-y-1 max-w-full min-w-0">
               <span className={`text-sm font-semibold ${textPrimary} leading-tight break-words max-w-full`}>
                 {project.title}
               </span>

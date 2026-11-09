@@ -113,8 +113,13 @@ describe('the project card\'s target-date badge', () => {
 
   it('sits under the title, not beside it, so the header buttons cannot squeeze the title under it', async () => {
     const html = await renderCard({ ...card, title: 'GLANCElauncher', targetDate: '2026-10-25' });
-    const block = /<div data-project-title-block="true"[^>]*>([\s\S]*?)<\/div>/.exec(html)?.[1] ?? '';
-    expect(block).toMatch(/GLANCElauncher<\/span><span data-project-target-date="true"/);
+    // The title (with an On hold chip, when there is one) is a row of its
+    // own; the date comes after that row, under it, never inside it.
+    const block = html.slice(html.indexOf('data-project-title-block'));
+    const row = /<div data-project-title-row="true"[^>]*>([\s\S]*?)<\/div>/.exec(block)?.[1] ?? '';
+    expect(row).toContain('GLANCElauncher');
+    expect(row).not.toContain('data-project-target-date');
+    expect(block).toMatch(/GLANCElauncher<\/span><\/div><span data-project-target-date="true"/);
     // A one-word title wraps rather than running out of its box.
     expect(/<span class="([^"]*)">GLANCElauncher</.exec(block)?.[1]).toContain('break-words');
   });
