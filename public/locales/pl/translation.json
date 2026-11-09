@@ -2147,7 +2147,13 @@
       "notesPlaceholder": "Podsumowanie:\nCel:\nWynik:",
       "subtasks": "Podzadania (jedno w wierszu)",
       "subtasksPlaceholder": "Pierwszy krok\nDrugi krok"
-    }
+    },
+    "showCompletedGoals": "Pokaż ukończone cele",
+    "hideCompletedGoals": "Ukryj ukończone cele",
+    "allCompletedHidden_one": "Jedyny cel tutaj jest ukończony.",
+    "allCompletedHidden_few": "Wszystkie {{count}} cele tutaj są ukończone.",
+    "allCompletedHidden_many": "Wszystkie {{count}} celów tutaj jest ukończonych.",
+    "allCompletedHidden_other": "Wszystkie {{count}} celu tutaj są ukończone."
   },
   "colors": {
     "gray": "Szary",

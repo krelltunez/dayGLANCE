@@ -59,6 +59,7 @@ import ProjectTaskDefaultsFields, { taskDefaultsForm, taskDefaultsFromForm } fro
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import ArchivedProjectReview from './ArchivedProjectReview.jsx';
 import { groupArchivedProjects, restoredStatus } from '../../utils/archiveCascade.js';
+import { goalsForView, goalRevealFilters } from '../../utils/goalFilters.js';
 import AspireModal from '../AspireModal.jsx';
 import GoalsAddMenu from './GoalsAddMenu.jsx';
 import UserAssignmentPicker from '../UserAssignmentPicker.jsx';
@@ -1329,6 +1330,8 @@ const GoalSpaceSidebar = ({
   standaloneProjects, standaloneCount, focusedProjectId, onProjectRowClick,
   projectQuery, onProjectQueryChange, filterInputRef,
   drag, onManageAreas,
+  completedGoalsCount = 0,   // completed goals the area filter lets through
+  hiddenCompletedCount = 0,  // ...of which hidden
 }) => {
   const { darkMode, cardBg, borderClass, textSecondary } = useDayPlannerCtx();
   const { moveProject } = useFeaturesCtx();
@@ -1372,7 +1375,7 @@ const GoalSpaceSidebar = ({
 
       {tab === 'goals' ? (
         <div className="px-3 pt-3 flex-shrink-0">
-          <AreaFilter onManageAreas={onManageAreas} iconOnly />
+          <AreaFilter onManageAreas={onManageAreas} iconOnly completedGoalsCount={completedGoalsCount} />
         </div>
       ) : (
         /* Project filter: '/' focuses it; Escape clears it (GoalDashboard's
@@ -1385,7 +1388,8 @@ const GoalSpaceSidebar = ({
       <div className={`flex-1 overflow-y-auto px-2 py-2 ${darkMode ? 'dark-scrollbar' : ''}`}>
         {tab === 'goals' ? (
           goals.length === 0 ? (
-            <p className={`text-xs ${textSecondary} opacity-60 text-center px-4 py-6`}>{t('goals.noGoalsYet')}</p>
+            hiddenCompletedCount > 0 ? <HiddenCompletedGoals count={hiddenCompletedCount} />
+              : <p className={`text-xs ${textSecondary} opacity-60 text-center px-4 py-6`}>{t('goals.noGoalsYet')}</p>
           ) : (
             <div className="flex flex-col gap-1">
               {goals.map(g => (
@@ -1627,6 +1631,8 @@ const MobileDashboard = ({
   isActive = false,
   controlsCollapsed = false,
   onPageGoalChange,   // the carousel's goal, for the "+" (GoalsAddMenu)
+  hiddenCompletedCount = 0,   // completed goals the toggle hides
+  onRevealGoal,       // widen the filters that hide a goal (utils/goalFilters.js)
 }) => {
   const { darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass } = useDayPlannerCtx();
   const {
@@ -1736,7 +1742,10 @@ const MobileDashboard = ({
     if (!goalsDashboardFocusId || !isActive) return;
     const idx = goals.findIndex(g => g.id === goalsDashboardFocusId);
     if (idx === -1) {
-      if (allGoals.some(g => g.id === goalsDashboardFocusId)) { setGoalsAreaFilter('all'); return; }
+      // Hidden by the area filter or for being completed: reveal it, and the
+      // goals change, which runs this again.
+      const hidden = allGoals.find(g => g.id === goalsDashboardFocusId);
+      if (hidden) { onRevealGoal?.(hidden); return; }
       setGoalsDashboardFocusId(null);
       return;
     }
@@ -1770,7 +1779,7 @@ const MobileDashboard = ({
     const { project, goalId } = target;
     if (goalId) {
       const idx = goals.findIndex(g => g.id === goalId);
-      if (idx === -1) { setGoalsAreaFilter('all'); return; }
+      if (idx === -1) { onRevealGoal?.(allGoals.find(g => g.id === goalId)); return; }
       onTabChange('goals');
       setSelectedId(goalId);
     } else {
@@ -1934,7 +1943,8 @@ const MobileDashboard = ({
     <div className="flex flex-col flex-1 min-h-0">
       {tab === 'goals' ? (
         goals.length === 0 ? (
-          emptyState(t('goals.noGoalsYet'), t('goals.emptyHint'))
+          hiddenCompletedCount > 0 ? <HiddenCompletedGoals count={hiddenCompletedCount} />
+            : emptyState(t('goals.noGoalsYet'), t('goals.emptyHint'))
         ) : (
           <>
             {/* The goal chips: the sidebar's list, laid on its side. Hidden
@@ -2130,7 +2140,58 @@ const MobileDashboard = ({
 // the sidebar's Goals tab (only goals have areas) and the List/Roadmap toggle
 // in the main area's toolbar. The phone keeps them in one row (GoalControls).
 
-export const AreaFilter = ({ onManageAreas, iconOnly = false }) => {
+// Completed goals, shown or hidden in the Goals view (utils/goalFilters.js):
+// beside the area filter, as it filters the same list, in List and Roadmap.
+// Highlighted while they are shown, with how many the area filter lets
+// through; not drawn while there are none.
+export const CompletedGoalsToggle = ({ count = 0, compact = false }) => {
+  const { darkMode, textSecondary, borderClass } = useDayPlannerCtx();
+  const { showCompletedGoals, setShowCompletedGoals } = useFeaturesCtx();
+  const { t } = useTranslation();
+  if (!count || typeof setShowCompletedGoals !== 'function') return null;
+  const on = !!showCompletedGoals;
+  const label = t(on ? 'goals.hideCompletedGoals' : 'goals.showCompletedGoals');
+  return (
+    <button
+      type="button"
+      data-completed-goals-toggle
+      aria-pressed={on}
+      onClick={() => setShowCompletedGoals(!on)}
+      title={label}
+      aria-label={label}
+      className={`shrink-0 flex items-center gap-1.5 ${compact ? 'px-2' : 'px-2.5'} py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+        on ? 'bg-blue-600 text-white border-blue-600' : `${textSecondary} ${borderClass} ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'}`
+      }`}
+    >
+      <CircleCheckBig size={13} />
+      <span className={`min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold flex items-center justify-center ${
+        on ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'
+      }`}>{count}</span>
+    </button>
+  );
+};
+
+// Where every goal in view is completed and hidden: say so, and offer to
+// show them, rather than "no goals yet".
+const HiddenCompletedGoals = ({ count }) => {
+  const { textSecondary } = useDayPlannerCtx();
+  const { setShowCompletedGoals } = useFeaturesCtx();
+  const { t } = useTranslation();
+  return (
+    <div data-hidden-completed-goals className="flex flex-col items-center gap-2 text-center px-4 py-6">
+      <p className={`text-xs ${textSecondary}`}>{t('goals.allCompletedHidden', { count })}</p>
+      <button
+        type="button"
+        onClick={() => setShowCompletedGoals?.(true)}
+        className="text-xs font-medium text-blue-500 hover:text-blue-600"
+      >
+        {t('goals.showCompletedGoals')}
+      </button>
+    </div>
+  );
+};
+
+export const AreaFilter = ({ onManageAreas, iconOnly = false, completedGoalsCount = 0 }) => {
   const { darkMode, textSecondary, borderClass } = useDayPlannerCtx();
   const { areas = [], goalsAreaFilter, setGoalsAreaFilter } = useFeaturesCtx();
   const { t } = useTranslation();
@@ -2152,6 +2213,7 @@ export const AreaFilter = ({ onManageAreas, iconOnly = false }) => {
           <option key={a.id} value={a.id}>{a.name || t('goals.untitledArea')}</option>
         ))}
       </select>
+      <CompletedGoalsToggle count={completedGoalsCount} compact={iconOnly} />
       <button
         type="button"
         onClick={onManageAreas}
@@ -2201,9 +2263,9 @@ export const ViewToggle = ({ className = '', compact = false }) => {
 // language's labels leave the select less than that, List | Roadmap wraps
 // onto its own line (French, Spanish, Ukrainian at 360px; German at 320px)
 // rather than squeezing the select. The chevron hides the row either way.
-const GoalControls = ({ onManageAreas }) => (
+const GoalControls = ({ onManageAreas, completedGoalsCount = 0 }) => (
   <div data-goal-controls className="flex flex-wrap items-center gap-2 mb-4">
-    <AreaFilter onManageAreas={onManageAreas} />
+    <AreaFilter onManageAreas={onManageAreas} completedGoalsCount={completedGoalsCount} />
     <ViewToggle compact />
   </div>
 );
@@ -2664,6 +2726,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
   const {
     goals, projects, setProjects,
     areas = [], goalsAreaFilter, setGoalsAreaFilter, goalsViewMode,
+    showCompletedGoals, setShowCompletedGoals,
     goalsDashboardFocusId, setGoalsDashboardFocusId,
     goalsDashboardFocusProjectId, setGoalsDashboardFocusProjectId,
     goalsDashboardFocusTab, setGoalsDashboardFocusTab,
@@ -2755,15 +2818,22 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
   const activeGoals = useMemo(() => visibleGoals.filter(g => g.status !== 'archived'), [visibleGoals]);
   const activeProjects = useMemo(() => visibleProjects.filter(p => p.status !== 'archived'), [visibleProjects]);
 
-  // Area filter (dashboard-level). Standalone projects are area-agnostic and are
-  // NOT filtered — activeProjects is passed through whole so they always show.
-  const filteredGoals = useMemo(() => {
-    if (!goalsAreaFilter || goalsAreaFilter === 'all') return activeGoals;
-    if (goalsAreaFilter === 'uncategorized') {
-      return activeGoals.filter(g => !g.areaId || !areas.some(a => a.id === g.areaId));
-    }
-    return activeGoals.filter(g => g.areaId === goalsAreaFilter);
-  }, [activeGoals, goalsAreaFilter, areas]);
+  // Area filter (dashboard-level), and completed goals hidden unless shown
+  // (utils/goalFilters.js), in List and Roadmap alike. Standalone projects are
+  // area-agnostic and are NOT filtered — activeProjects is passed through
+  // whole so they always show.
+  const { goals: filteredGoals, completedCount: completedGoalsCount } = useMemo(
+    () => goalsForView(activeGoals, { areaFilter: goalsAreaFilter, areas, showCompleted: !!showCompletedGoals }),
+    [activeGoals, goalsAreaFilter, areas, showCompletedGoals],
+  );
+  const hiddenCompletedCount = showCompletedGoals ? 0 : completedGoalsCount;
+  // A goal a request goes to (a ring, a widget, a link) that the filters hide:
+  // widen the area filter, and show completed goals for a completed one.
+  const revealGoal = (goal) => {
+    const reveal = goalRevealFilters(goal, { areaFilter: goalsAreaFilter, areas, showCompleted: !!showCompletedGoals });
+    if (reveal.areaFilter) setGoalsAreaFilter(reveal.areaFilter);
+    if (reveal.showCompleted) setShowCompletedGoals?.(true);
+  };
 
   // Roadmap detail-panel selection: clear it when the goal leaves the filtered
   // view or when we switch away from the roadmap.
@@ -2832,7 +2902,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
       setSidebarTab('goals');
       setSelectedGoalId(goal.id);
       if (goalsViewMode === 'timeline') setSelectedRoadmapGoalId(goal.id);
-      if (!filteredGoals.some(g => g.id === goal.id)) setGoalsAreaFilter('all');
+      if (!filteredGoals.some(g => g.id === goal.id)) revealGoal(goal);
     }
     setGoalsDashboardFocusId(null);
   }, [goalsDashboardFocusId, isActive]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2868,7 +2938,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
       setSidebarTab('goals');
       setSelectedGoalId(goalId);
       if (goalsViewMode === 'timeline') setSelectedRoadmapGoalId(goalId);
-      if (!filteredGoals.some(g => g.id === goalId)) setGoalsAreaFilter('all');
+      if (!filteredGoals.some(g => g.id === goalId)) revealGoal(activeGoals.find(g => g.id === goalId));
     } else {
       setSidebarTab('projects');
       setProjectsFilter(project.status === 'completed' ? 'completed' : 'open');
@@ -3071,6 +3141,10 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
       )}
     </>
   );
+  // Every goal in view completed and hidden: say so rather than draw an empty chart.
+  const roadmapView = filteredGoals.length === 0 && hiddenCompletedCount > 0
+    ? <HiddenCompletedGoals count={hiddenCompletedCount} />
+    : roadmap;
 
   const formOverlays = (
     <>
@@ -3207,12 +3281,12 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
           {/* Area filter, Manage Areas and List | Roadmap: goals only (D8, D9) */}
           {goalsTab && !controlsCollapsed && (
             <div className="px-3 flex-shrink-0">
-              <GoalControls onManageAreas={() => setShowManageAreas(true)} />
+              <GoalControls onManageAreas={() => setShowManageAreas(true)} completedGoalsCount={completedGoalsCount} />
             </div>
           )}
           {goalsTab && goalsViewMode === 'timeline' ? (
             <div className="flex-1 overflow-y-auto px-3 pb-24">
-              {roadmap}
+              {roadmapView}
             </div>
           ) : (
             <MobileDashboard
@@ -3234,6 +3308,8 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
               isActive={isActive}
               controlsCollapsed={controlsCollapsed}
               onPageGoalChange={setMobilePageGoalId}
+              hiddenCompletedCount={hiddenCompletedCount}
+              onRevealGoal={revealGoal}
             />
           )}
           {fabStack('absolute bottom-4 right-4')}
@@ -3276,6 +3352,8 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
         filterInputRef={filterInputRef}
         drag={drag}
         onManageAreas={() => setShowManageAreas(true)}
+        completedGoalsCount={completedGoalsCount}
+        hiddenCompletedCount={hiddenCompletedCount}
       />
 
       {/* border-x like the calendar area, so the divider between the sidebar and
@@ -3316,7 +3394,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
         <div className={`flex-1 overflow-y-auto overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''}`}>
           <div className="p-6 pb-28">
             {goalsTab ? (
-              goalsViewMode === 'timeline' ? roadmap
+              goalsViewMode === 'timeline' ? roadmapView
               : selectedGoal ? (
                 <GoalListView
                   goal={selectedGoal}
@@ -3330,7 +3408,8 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
                   onMoveToClick={setMoveToProject}
                   focusedProjectId={focusedProjectId}
                 />
-              ) : emptyState(t('goals.noGoalsYet'), t('goals.emptyHint'))
+              ) : hiddenCompletedCount > 0 ? <HiddenCompletedGoals count={hiddenCompletedCount} />
+              : emptyState(t('goals.noGoalsYet'), t('goals.emptyHint'))
             ) : shownStandalone.length > 0 ? (
               <ProjectCardGroup
                 projects={shownStandalone}

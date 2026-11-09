@@ -2052,7 +2052,11 @@
       "notesPlaceholder": "Resumo:\nPropósito:\nResultado:",
       "subtasks": "Subtarefas (uma por linha)",
       "subtasksPlaceholder": "Primeiro passo\nSegundo passo"
-    }
+    },
+    "showCompletedGoals": "Mostrar objetivos concluídos",
+    "hideCompletedGoals": "Ocultar objetivos concluídos",
+    "allCompletedHidden_one": "O único objetivo aqui está concluído.",
+    "allCompletedHidden_other": "Os {{count}} objetivos aqui estão concluídos."
   },
   "colors": {
     "gray": "Cinzento",
