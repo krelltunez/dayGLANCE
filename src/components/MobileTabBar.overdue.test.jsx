@@ -51,6 +51,8 @@ describe('MobileTabBar overdue badge', () => {
       { id: 'p3', status: 'archived', targetDate: PAST },
       { id: 'p4', status: 'active', targetDate: PAST, hidden: true },
       { id: 'p5', status: 'active', targetDate: '2999-01-01' },
+      // On hold: paused, so it stops asking for attention.
+      { id: 'p6', status: 'on-hold', targetDate: PAST },
     ])).toBe(false);
   });
 

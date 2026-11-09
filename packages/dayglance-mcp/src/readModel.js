@@ -410,7 +410,10 @@ export function buildGoalProgress(state, params) {
     return { notFound: false, invalid: `window must be 'active' or 'all', got ${JSON.stringify(windowParam)}` };
   }
 
-  const inScope = (entity) => scope === 'all' || entity.status === 'active';
+  // 'active' is everything but archived and completed, as documented: an
+  // on-hold project is open, and reports its status so the reader knows it
+  // is paused.
+  const inScope = (entity) => scope === 'all' || (entity.status !== 'archived' && entity.status !== 'completed');
   const allTasks = [...tasks, ...unscheduledTasks].filter(isVisibleForUser);
   // Progress denominators deliberately exclude device calendar events: they are
   // not completable dayGLANCE work and would dilute every percentage.

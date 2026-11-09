@@ -82,6 +82,8 @@ describe('restoring a project', () => {
   it('returns to the status the project had', () => {
     expect(restoredStatus(archivedProject())).toBe('active');
     expect(restoredStatus({ status: 'archived', archiveRecord: { priorStatus: 'completed' } })).toBe('completed');
+    // #2260: a project archived while on hold comes back on hold.
+    expect(restoredStatus({ status: 'archived', archiveRecord: { priorStatus: 'on-hold' } })).toBe('on-hold');
     expect(restoredStatus({ status: 'archived' })).toBe('active');
   });
 });

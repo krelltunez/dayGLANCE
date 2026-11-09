@@ -52,6 +52,17 @@ function optionalStatus(value: unknown): 'active' | 'completed' | Reject | undef
   return reject(`status must be "active" or "completed", got ${JSON.stringify(value)}`);
 }
 
+// A project can also be put on hold (src/utils/projectStatus.js): paused,
+// not done and not put away. Goals have no such status.
+function optionalProjectStatus(value: unknown): 'active' | 'on-hold' | 'completed' | Reject | undefined {
+  if (value === 'on-hold') return value;
+  if (value === undefined || value === 'active' || value === 'completed') return value;
+  if (value === 'archived') {
+    return reject('Archiving is not available over MCP by design: it is a step the user takes in dayGLANCE. status accepts "active", "on-hold" or "completed".');
+  }
+  return reject(`status must be "active", "on-hold" or "completed", got ${JSON.stringify(value)}`);
+}
+
 function clearList(value: unknown, allowed: readonly string[], multiUser: boolean): string[] | Reject {
   if (value === undefined) return [];
   if (!Array.isArray(value)) return reject(`clear_fields must be an array of field names, got ${JSON.stringify(value)}`);
@@ -182,7 +193,7 @@ export const PROJECT_CLEARABLE = ['description', 'goal', 'assignees', 'target_da
 
 export interface UpdateProjectPlan {
   projectId: string;
-  set: { title?: string; description?: string; descriptionBase?: string; goalId?: string; status?: 'active' | 'completed'; targetDate?: string; assigneeSyncIds?: string[] };
+  set: { title?: string; description?: string; descriptionBase?: string; goalId?: string; status?: 'active' | 'on-hold' | 'completed'; targetDate?: string; assigneeSyncIds?: string[] };
   clear: string[];
 }
 
@@ -198,7 +209,7 @@ export function planUpdateProject(args: Record<string, unknown>, multiUser: bool
   if (args['goal_id'] !== undefined) { const g = nonEmpty(args['goal_id'], 'goal_id'); if (isReject(g)) return g; set.goalId = g; }
   const targetDate = optionalDate(args['target_date'], 'target_date'); if (isReject(targetDate)) return targetDate;
   if (targetDate) set.targetDate = targetDate;
-  const status = optionalStatus(args['status']); if (isReject(status)) return status;
+  const status = optionalProjectStatus(args['status']); if (isReject(status)) return status;
   if (status) set.status = status;
   const assigneeSyncIds = optionalIds(args['assignee_ids'], 'assignee_ids', multiUser); if (isReject(assigneeSyncIds)) return assigneeSyncIds;
   if (assigneeSyncIds) set.assigneeSyncIds = assigneeSyncIds;

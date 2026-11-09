@@ -9,6 +9,7 @@ import { filterProjectGroups, groupInboxProjects } from '../utils/inboxProjectGr
 import { projectPickerRows } from '../utils/projectPickerRows.js';
 import { readRememberedOpen, rememberOpen } from '../hooks/useRememberedOpen.js';
 import { pinnedLastUsedProject, readLastUsedProject } from '../utils/lastUsedProject.js';
+import { isOnHold } from '../utils/projectStatus.js';
 
 // The task editor's project picker (#2279), desktop and phone. A native
 // <select> could only group the projects one level, by goal, and could not
@@ -262,7 +263,14 @@ export default function TaskProjectPicker({ id, value, onChange }) {
     let content;
     if (row.type === 'project') {
       const goal = row.project.goalId ? goals.find((g) => g.id === row.project.goalId) : null;
-      content = <>{dot(getProjectColor(row.project, goal))}<span className="truncate flex-1">{row.project.title}</span></>;
+      content = (
+        <>
+          {dot(getProjectColor(row.project, goal))}
+          <span className="truncate flex-1">{row.project.title}</span>
+          {/* Offered after the active projects (utils/projectStatus.js), and says why. */}
+          {isOnHold(row.project) && <span data-picker-on-hold className="text-xs opacity-60 flex-shrink-0">{t('goals.onHold')}</span>}
+        </>
+      );
     } else if (row.key === 'new') {
       content = <><Plus size={14} className="flex-shrink-0 text-blue-500" /><span className="truncate flex-1">{t('task.newProjectOption')}</span></>;
     } else {

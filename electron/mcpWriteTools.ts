@@ -566,8 +566,15 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
   // message the planner carries (mcpGoalArgs.ts optionalStatus). The planner
   // still rejects every value but the two.
   const STATUS_ARG = '"active" or "completed". Archiving is not available over MCP by design and is refused with a validation error naming that.';
+  // A project can also be put on hold: paused, still listed and intact, but no
+  // longer asking for attention (no stalled flag, target-date warnings or
+  // hyperGLANCE sessions). Goals have no such status.
+  const PROJECT_STATUS_ARG = '"active", "on-hold" (paused: still listed and intact, but not flagged stalled, not warned about its target date, no hyperGLANCE sessions) or "completed". Archiving is not available over MCP by design and is refused with a validation error naming that.';
   const NO_ARCHIVE =
     ' Status may be "active" or "completed"; archiving is not available over MCP by design and returns a ' +
+    'validation error, as deleting does not exist.';
+  const PROJECT_NO_ARCHIVE =
+    ' Status may be "active", "on-hold" or "completed"; archiving is not available over MCP by design and returns a ' +
     'validation error, as deleting does not exist.';
   // A linked entity's description is the opening section of its Obsidian
   // note (companion spec §4.3). The write goes through the app's own section
@@ -685,7 +692,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
         'Edit a dayGLANCE project. Absent leaves a field alone, present sets it, a name in clear_fields removes it ' +
         '("goal" detaches the project from its goal, making it standalone). Completing a project is allowed only once ' +
         'every one of its tasks is completed (the app\'s own rule). ' + LINKED_DESCRIPTION +
-        'Returns the resulting project.' + NO_ARCHIVE,
+        'Returns the resulting project.' + PROJECT_NO_ARCHIVE,
       inputSchema: z.object({
         project_id: z.string(),
         title: z.string().optional().describe('New title. Can be set, never cleared.'),
@@ -693,7 +700,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
         description_base: z.string().optional().describe(DESCRIPTION_BASE_ARG),
         goal_id: z.string().optional().describe('Move the project under this goal.'),
         target_date: z.string().optional().describe('Local calendar date, strict YYYY-MM-DD — the project\'s own target date. Name "target_date" in clear_fields to remove it.'),
-        status: z.string().optional().describe(STATUS_ARG),
+        status: z.string().optional().describe(PROJECT_STATUS_ARG),
         ...assigneeIdsArg,
         clear_fields: z.array(z.string()).optional().describe(
           `Field names to REMOVE: ${PROJECT_CLEARABLE.filter((f) => multiUser || f !== 'assignees').map((f) => `"${f}"`).join(', ')}.`),

@@ -1497,7 +1497,9 @@
     "nextPage": "Página seguinte",
     "close": "Fechar a revisão semanal",
     "habits": "Hábitos",
-    "openReview": "Abrir revisão"
+    "openReview": "Abrir revisão",
+    "onHoldHint": "Projetos em pausa. Retome um ou arquive-o no formulário do projeto.",
+    "resumeProject": "Retomar"
   },
   "reminders": {
     "dismissAll": "Dispensar tudo",
@@ -2052,7 +2054,9 @@
       "notesPlaceholder": "Resumo:\nPropósito:\nResultado:",
       "subtasks": "Subtarefas (uma por linha)",
       "subtasksPlaceholder": "Primeiro passo\nSegundo passo"
-    }
+    },
+    "onHold": "Em pausa",
+    "noOnHoldProjects": "Nenhum projeto em pausa"
   },
   "colors": {
     "gray": "Cinzento",

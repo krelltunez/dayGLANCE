@@ -435,6 +435,25 @@ describe('project writes carry the project-level target date (2026-10-21)', () =
       await h.close();
     }
   });
+
+  // On hold (src/utils/projectStatus.js): the tool says it takes the status,
+  // and passes it to the app, whose mutation accepts it for projects.
+  it('update_project takes status "on-hold", and its schema says so', async () => {
+    const bridge = fakeBridge(projectScript);
+    const h = await start({ writeDeps: writeDeps(bridge.bridge) });
+    try {
+      const client = await h.connect();
+      const { tools } = await client.listTools();
+      const tool = tools.find((x) => x.name === 'dayglance_update_project');
+      expect(JSON.stringify(tool.inputSchema.properties.status)).toContain('on-hold');
+      expect(tool.description).toContain('"on-hold"');
+      const r = await client.callTool({ name: 'dayglance_update_project', arguments: { project_id: 'p1', status: 'on-hold' } });
+      expect(r.isError).toBeFalsy();
+      expect(bridge.calls[0]).toMatchObject({ method: 'update_project', params: { projectId: 'p1', set: { status: 'on-hold' } } });
+    } finally {
+      await h.close();
+    }
+  });
 });
 
 describe('repeating tasks over the wire (#2066)', () => {

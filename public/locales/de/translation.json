@@ -1497,7 +1497,9 @@
     "nextPage": "Nächste Seite",
     "close": "Wochenrückblick schließen",
     "habits": "Gewohnheiten",
-    "openReview": "Wochenrückblick öffnen"
+    "openReview": "Wochenrückblick öffnen",
+    "onHoldHint": "Pausierte Projekte. Setze eines fort oder archiviere es im Projektformular.",
+    "resumeProject": "Fortsetzen"
   },
   "reminders": {
     "dismissAll": "Alle schließen",
@@ -2052,7 +2054,9 @@
       "notesPlaceholder": "Zusammenfassung:\nZweck:\nErgebnis:",
       "subtasks": "Unteraufgaben (eine pro Zeile)",
       "subtasksPlaceholder": "Erster Schritt\nZweiter Schritt"
-    }
+    },
+    "onHold": "Pausiert",
+    "noOnHoldProjects": "Keine pausierten Projekte"
   },
   "colors": {
     "gray": "Grau",

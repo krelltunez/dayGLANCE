@@ -452,3 +452,36 @@ describe('GoalDashboard embedded (phone) mode', () => {
     expect(render({})).toBe('');
   });
 });
+
+// Projects on hold (utils/projectStatus.js): a third list on the Projects
+// tab, and after the active projects within a goal.
+describe('projects on hold', () => {
+  const withPaused = {
+    projects: [
+      ...PROJECTS,
+      { id: 'paused-solo', title: 'Paused side project', status: 'on-hold' },
+      { id: 'paused-ios', title: 'Paused iOS work', goalId: 'ios', status: 'on-hold', sortOrder: -10 },
+    ],
+  };
+
+  it('the Projects tab has Open | On hold | Completed, each with its count, Open leaving the paused one out', () => {
+    const main = section(render({ desktop: true, isActive: true, initialSidebarTab: 'projects' }, withPaused), 'data-goals-main');
+    expect(main).toContain('lucide-circle-pause');
+    expect(main).toMatch(/Open<span class="[^"]*">1<\/span>/);
+    expect(main).toMatch(/On hold<span class="[^"]*">1<\/span>/);
+    expect(main).toMatch(/Completed<span class="[^"]*">0<\/span>/);
+    expect(cards(main)).toEqual(['dg']);
+  });
+
+  it('within a goal, a paused project comes after the active ones, before the completed', () => {
+    // Its sortOrder would put it first; on hold puts it after.
+    const main = section(render({ desktop: true, isActive: true }, withPaused), 'data-goals-main');
+    expect(cards(main)).toEqual(['asc', 'paused-ios', 'billing']);
+  });
+
+  it('on the phone, the same three lists', () => {
+    const html = render({ embedded: true, isActive: true, initialSidebarTab: 'projects' }, withPaused);
+    expect(html).toMatch(/On hold<span class="[^"]*">1<\/span>/);
+  });
+});
+

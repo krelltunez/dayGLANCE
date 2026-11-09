@@ -1550,7 +1550,9 @@
     "nextPage": "Następna strona",
     "close": "Zamknij przegląd tygodnia",
     "habits": "Nawyki",
-    "openReview": "Otwórz przegląd"
+    "openReview": "Otwórz przegląd",
+    "onHoldHint": "Wstrzymane projekty. Wznów któryś albo zarchiwizuj go w formularzu projektu.",
+    "resumeProject": "Wznów"
   },
   "reminders": {
     "dismissAll": "Odrzuć wszystkie",
@@ -2147,7 +2149,9 @@
       "notesPlaceholder": "Podsumowanie:\nCel:\nWynik:",
       "subtasks": "Podzadania (jedno w wierszu)",
       "subtasksPlaceholder": "Pierwszy krok\nDrugi krok"
-    }
+    },
+    "onHold": "Wstrzymane",
+    "noOnHoldProjects": "Brak wstrzymanych projektów"
   },
   "colors": {
     "gray": "Szary",

@@ -4,6 +4,7 @@ import { isNativeAndroid } from '../native.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
+import { isOnHold } from '../utils/projectStatus.js';
 
 const MobileTabBar = () => {
   const {
@@ -30,7 +31,7 @@ const MobileTabBar = () => {
   // A project's own target date (#2160) counts the same way: an overdue one
   // turns the Goals badge red too. Only the active user's, as for goals.
   const hasOverdueGoal = activeGoals.some(overdue) || (goalsProjectsEnabled && (projects || []).some(p =>
-    p.status !== 'archived' && !p.archived && isVisibleForUser(p) && overdue(p)));
+    p.status !== 'archived' && !p.archived && !isOnHold(p) && isVisibleForUser(p) && overdue(p)));
 
   const tabCount = 4 + (goalsProjectsEnabled ? 1 : 0);
   const showLabels = tabCount <= 5;

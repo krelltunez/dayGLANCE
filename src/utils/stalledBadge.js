@@ -1,5 +1,6 @@
 import { isProjectStalled } from './projectProgress.js';
 import { getActiveHGInstance } from '../hooks/useHyperGlance.js';
+import { isOnHold } from './projectStatus.js';
 
 /**
  * Whether a project SHOWS the Stalled badge — the one gate every surface in
@@ -13,10 +14,10 @@ import { getActiveHGInstance } from '../hooks/useHyperGlance.js';
  *     no per-project opt-out, and momentum on them is the Weekly Review's job
  *   - that goal has not opted out (hideStalled)
  *   - it has no active hyperGLANCE session (a session IS the plan)
- *   - it is not completed
+ *   - it is not completed, nor on hold (a paused project is not stalled)
  */
 export function isProjectFlaggedStalled(project, parentGoal, allTasks, recurringTasks, nowMinutes) {
-  if (!project || !project.goalId || project.status === 'completed') return false;
+  if (!project || !project.goalId || project.status === 'completed' || isOnHold(project)) return false;
   if (parentGoal?.hideStalled) return false;
   if (project.hyperglance?.enabled && getActiveHGInstance(project, nowMinutes)) return false;
   return isProjectStalled(project.id, allTasks, project, recurringTasks);

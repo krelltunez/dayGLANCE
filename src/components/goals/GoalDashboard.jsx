@@ -13,6 +13,7 @@ import {
   ChevronDown,
   CircleCheckBig,
   CircleDashed,
+  CirclePause,
   ChevronLeft,
   ChevronRight,
   Edit2,
@@ -59,6 +60,7 @@ import ProjectTaskDefaultsFields, { taskDefaultsForm, taskDefaultsFromForm } fro
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import ArchivedProjectReview from './ArchivedProjectReview.jsx';
 import { groupArchivedProjects, restoredStatus } from '../../utils/archiveCascade.js';
+import { hyperGlanceRuns, isOnHold, pausedLast } from '../../utils/projectStatus.js';
 import AspireModal from '../AspireModal.jsx';
 import GoalsAddMenu from './GoalsAddMenu.jsx';
 import UserAssignmentPicker from '../UserAssignmentPicker.jsx';
@@ -741,6 +743,8 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
           <div className={`flex rounded-lg border ${borderClass} overflow-hidden`}>
             {[
               { value: 'active', label: t('common.active') },
+              // On hold (utils/projectStatus.js): paused, not done and not put away.
+              { value: 'on-hold', label: t('goals.onHold') },
               { value: 'completed', label: t('common.completed'), disabled: !canComplete },
               { value: 'archived', label: t('common.archived') },
             ].map(opt => (
@@ -1008,7 +1012,8 @@ const ProjectCardGroup = ({ projects, goalId, drag, projectCardRefs, onEditProje
   const { moveProject } = useFeaturesCtx();
   const { dragProjectId, dropInsertBeforeId, setDropInsertBeforeId, endDrag, dragHandleProps } = drag;
   const goalAttr = goalId ?? '';
-  const activeProjs = projects.filter(p => p.status !== 'completed');
+  // On hold after the active ones, before the completed (utils/projectStatus.js).
+  const activeProjs = pausedLast(projects.filter(p => p.status !== 'completed'));
   const doneProjs = projects.filter(p => p.status === 'completed');
   const groupRef = useRef(null);
   const scale = useSpaceCardScale();
@@ -1261,6 +1266,7 @@ const ProjectSidebarRow = ({ project, focused, onSelect }) => {
   const { t } = useTranslation();
   const hex = toHex(getProjectColor(project, project.goalId ? goals.find(g => g.id === project.goalId) : null));
   const isCompleted = project.status === 'completed';
+  const onHold = isOnHold(project);
   const allTasks = useMemo(() => [...tasks, ...unscheduledTasks].filter(isVisibleForUser), [tasks, unscheduledTasks, isVisibleForUser]);
   const projectTasks = useMemo(() => allTasks.filter(tk => tk.projectId === project.id && !tk.archived), [allTasks, project.id]);
   const done = projectTasks.filter(tk => tk.completed).length;
@@ -1269,7 +1275,7 @@ const ProjectSidebarRow = ({ project, focused, onSelect }) => {
   // The card's gate, so the row never flags what the card does not (standalone
   // projects are never flagged; see utils/stalledBadge.js).
   const stalled = isProjectFlaggedStalled(project, project.goalId ? goals.find(g => g.id === project.goalId) : null, allTasks, recurringTasks, currentTimeMinutes);
-  const session = !isCompleted && project.hyperglance?.enabled ? getActiveHGInstance(project, currentTimeMinutes) : null;
+  const session = !isCompleted && hyperGlanceRuns(project) ? getActiveHGInstance(project, currentTimeMinutes) : null;
   const noteLink = noteLinkOf(project);
   // 18px ring: r=7 → circumference ≈ 44
   const C = 2 * Math.PI * 7;
@@ -1286,7 +1292,7 @@ const ProjectSidebarRow = ({ project, focused, onSelect }) => {
           ? (darkMode ? 'bg-blue-900/30 border-blue-700/60' : 'bg-blue-50 border-blue-200')
           : `border-transparent ${hoverBg}`
       }`}
-      style={{ opacity: isCompleted ? 0.55 : 1 }}
+      style={{ opacity: isCompleted ? 0.55 : onHold ? 0.7 : 1 }}
     >
       <svg width="18" height="18" viewBox="0 0 18 18" className="flex-shrink-0" aria-hidden="true">
         <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2.5" stroke={hex} strokeOpacity="0.2" />
@@ -1470,13 +1476,19 @@ export const CardSizeToggle = () => {
   );
 };
 
-export const ProjectsStatusToggle = ({ value, onChange, openCount, completedCount, className = '', compact = false }) => {
+/** The Projects tab list a project is on: 'open' | 'onHold' | 'completed'. */
+const projectsListOf = (project) => (project?.status === 'completed' ? 'completed' : isOnHold(project) ? 'onHold' : 'open');
+
+// Open | On hold | Completed (utils/projectStatus.js): a paused project leaves
+// the Open list for its own, as a completed one does.
+export const ProjectsStatusToggle = ({ value, onChange, openCount, onHoldCount = 0, completedCount, className = '', compact = false }) => {
   const { darkMode, textSecondary, borderClass } = useDayPlannerCtx();
   const { t } = useTranslation();
   return (
     <div role="group" aria-label={t('goals.projects')} className={`shrink-0 flex rounded-lg border ${borderClass} overflow-hidden ${className}`}>
       {[
         { key: 'open', label: t('goals.openProjects'), count: openCount, Icon: CircleDashed },
+        { key: 'onHold', label: t('goals.onHold'), count: onHoldCount, Icon: CirclePause },
         { key: 'completed', label: t('common.completed'), count: completedCount, Icon: CircleCheckBig },
       ].map(({ key, label, count, Icon }) => {
         const active = value === key;
@@ -1616,6 +1628,7 @@ const MobileDashboard = ({
   activeProjects,
   standaloneProjects,   // after Open | Completed and the filter field
   openCount,
+  onHoldCount = 0,
   completedCount,
   projectsFilter,
   onProjectsFilterChange,
@@ -1775,7 +1788,7 @@ const MobileDashboard = ({
       setSelectedId(goalId);
     } else {
       onTabChange('projects');
-      onProjectsFilterChange(project.status === 'completed' ? 'completed' : 'open');
+      onProjectsFilterChange(projectsListOf(project));
       onProjectQueryChange('');
     }
     setGoalsDashboardFocusProjectId(null);
@@ -1985,7 +1998,7 @@ const MobileDashboard = ({
             >
               {goals.map((goal) => {
                 const children = sortByOrder(activeProjects.filter(p => p.goalId === goal.id));
-                const activeProjs = children.filter(p => p.status !== 'completed');
+                const activeProjs = pausedLast(children.filter(p => p.status !== 'completed'));
                 const doneProjs = children.filter(p => p.status === 'completed');
                 return (
                   <div
@@ -2042,6 +2055,7 @@ const MobileDashboard = ({
                 value={projectsFilter}
                 onChange={onProjectsFilterChange}
                 openCount={openCount}
+                onHoldCount={onHoldCount}
                 completedCount={completedCount}
                 compact={filterOpen || !!projectQuery}
               />
@@ -2083,6 +2097,7 @@ const MobileDashboard = ({
               </div>
             ) : projectQuery.trim() ? emptyState(t('goals.noProjectsMatch'), null, null)
               : projectsFilter === 'completed' ? emptyState(t('goals.noCompletedProjects'), null, null)
+              : projectsFilter === 'onHold' ? emptyState(t('goals.noOnHoldProjects'), null, null)
               : emptyState(
                 t('goals.noStandaloneProjects'),
                 null,
@@ -2498,7 +2513,7 @@ const GoalDetailPanel = ({ goal, projects, onEditGoal, onEditProject, onNewProje
     () => sortByOrder(projects.filter(p => p.goalId === goal.id && p.status !== 'archived')),
     [projects, goal.id]
   );
-  const activeProjs = childProjects.filter(p => p.status !== 'completed');
+  const activeProjs = pausedLast(childProjects.filter(p => p.status !== 'completed'));
   const doneProjs = childProjects.filter(p => p.status === 'completed');
 
   // ── Within-goal reorder: HTML5 drag (desktop) + touch drag (iOS) ─────────────
@@ -2785,13 +2800,15 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
   const sortedGoals = useMemo(() => sortGoalsForCarousel(filteredGoals), [filteredGoals]);
   const sortedAllGoals = useMemo(() => sortGoalsForCarousel(activeGoals), [activeGoals]);
   const standaloneProjects = useMemo(() => sortByOrder(activeProjects.filter(p => !p.goalId)), [activeProjects]);
-  const openStandalone = useMemo(() => standaloneProjects.filter(p => p.status !== 'completed'), [standaloneProjects]);
+  const openStandalone = useMemo(() => standaloneProjects.filter(p => p.status !== 'completed' && !isOnHold(p)), [standaloneProjects]);
+  const onHoldStandalone = useMemo(() => standaloneProjects.filter(isOnHold), [standaloneProjects]);
   const completedStandalone = useMemo(() => standaloneProjects.filter(p => p.status === 'completed'), [standaloneProjects]);
   const shownStandalone = useMemo(() => {
-    const byStatus = projectsFilter === 'completed' ? completedStandalone : openStandalone;
+    const byStatus = projectsFilter === 'completed' ? completedStandalone
+      : projectsFilter === 'onHold' ? onHoldStandalone : openStandalone;
     const q = projectQuery.trim().toLowerCase();
     return q ? byStatus.filter(p => (p.title || '').toLowerCase().includes(q)) : byStatus;
-  }, [projectsFilter, completedStandalone, openStandalone, projectQuery]);
+  }, [projectsFilter, completedStandalone, onHoldStandalone, openStandalone, projectQuery]);
   const selectedGoal = useMemo(
     () => sortedGoals.find(g => g.id === selectedGoalId) || sortedGoals[findDefaultActiveIdx(sortedGoals)] || null,
     [sortedGoals, selectedGoalId]
@@ -2871,7 +2888,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
       if (!filteredGoals.some(g => g.id === goalId)) setGoalsAreaFilter('all');
     } else {
       setSidebarTab('projects');
-      setProjectsFilter(project.status === 'completed' ? 'completed' : 'open');
+      setProjectsFilter(projectsListOf(project));
       setProjectQuery('');
     }
     setFocusedProjectId(project.id);
@@ -3201,7 +3218,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
               onToggleControls={toggleControls}
               filtersActive={goalsTab
                 ? !!goalsAreaFilter && goalsAreaFilter !== 'all'
-                : projectsFilter === 'completed' || !!projectQuery.trim()}
+                : projectsFilter !== 'open' || !!projectQuery.trim()}
             />
           </div>
           {/* Area filter, Manage Areas and List | Roadmap: goals only (D8, D9) */}
@@ -3223,6 +3240,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
               activeProjects={activeProjects}
               standaloneProjects={shownStandalone}
               openCount={openStandalone.length}
+              onHoldCount={onHoldStandalone.length}
               completedCount={completedStandalone.length}
               projectsFilter={projectsFilter}
               onProjectsFilterChange={setProjectsFilter}
@@ -3296,6 +3314,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
               value={projectsFilter}
               onChange={setProjectsFilter}
               openCount={openStandalone.length}
+              onHoldCount={onHoldStandalone.length}
               completedCount={completedStandalone.length}
             />
           )}
@@ -3348,6 +3367,10 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
               null
             ) : projectsFilter === 'completed' ? emptyState(
               t('goals.noCompletedProjects'),
+              null,
+              null
+            ) : projectsFilter === 'onHold' ? emptyState(
+              t('goals.noOnHoldProjects'),
               null,
               null
             ) : emptyState(

@@ -1497,7 +1497,9 @@
     "nextPage": "Page suivante",
     "close": "Fermer le bilan hebdomadaire",
     "habits": "Habitudes",
-    "openReview": "Ouvrir la revue hebdomadaire"
+    "openReview": "Ouvrir la revue hebdomadaire",
+    "onHoldHint": "Projets en pause. Reprenez-en un, ou archivez-le depuis son formulaire.",
+    "resumeProject": "Reprendre"
   },
   "reminders": {
     "dismissAll": "Tout fermer",
@@ -2052,7 +2054,9 @@
       "notesPlaceholder": "Résumé :\nObjectif :\nRésultat :",
       "subtasks": "Sous-tâches (une par ligne)",
       "subtasksPlaceholder": "Première étape\nDeuxième étape"
-    }
+    },
+    "onHold": "En pause",
+    "noOnHoldProjects": "Aucun projet en pause"
   },
   "colors": {
     "gray": "Gris",

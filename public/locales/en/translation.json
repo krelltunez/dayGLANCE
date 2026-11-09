@@ -1497,7 +1497,9 @@
     "nextPage": "Next page",
     "close": "Close weekly review",
     "habits": "Habits",
-    "openReview": "Open Review"
+    "openReview": "Open Review",
+    "onHoldHint": "Paused projects. Resume one, or archive it from its project form.",
+    "resumeProject": "Resume"
   },
   "reminders": {
     "dismissAll": "Dismiss all",
@@ -2052,7 +2054,9 @@
       "notesPlaceholder": "Summary:\nPurpose:\nResult:",
       "subtasks": "Subtasks (one per line)",
       "subtasksPlaceholder": "First step\nSecond step"
-    }
+    },
+    "onHold": "On hold",
+    "noOnHoldProjects": "No projects on hold"
   },
   "colors": {
     "gray": "Gray",

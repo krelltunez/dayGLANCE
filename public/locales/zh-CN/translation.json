@@ -1492,7 +1492,9 @@
     "nextPage": "下一页",
     "close": "关闭每周回顾",
     "habits": "习惯",
-    "openReview": "打开回顾"
+    "openReview": "打开回顾",
+    "onHoldHint": "已暂停的项目。可以恢复，或在项目表单中将其归档。",
+    "resumeProject": "恢复"
   },
   "reminders": {
     "dismissAll": "全部关闭",
@@ -2047,7 +2049,9 @@
       "notesPlaceholder": "总结：\n目的：\n结果：",
       "subtasks": "子任务（每行一个）",
       "subtasksPlaceholder": "第一步\n第二步"
-    }
+    },
+    "onHold": "已暂停",
+    "noOnHoldProjects": "没有已暂停的项目"
   },
   "colors": {
     "gray": "灰色",

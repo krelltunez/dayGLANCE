@@ -225,8 +225,10 @@ export function applyUpdateProject(state, { projectId, set = {}, clear = [], now
 
   if (set.status !== undefined) {
     if (set.status === 'archived') return err(WRITE_ERROR_CODES.VALIDATION, ARCHIVE_MSG('project'));
-    if (set.status !== 'active' && set.status !== 'completed') {
-      return err(WRITE_ERROR_CODES.VALIDATION, `status must be "active" or "completed", got ${JSON.stringify(set.status)}`);
+    // On hold (utils/projectStatus.js) is a project's own status: paused, not
+    // done and not put away, so it is open to an assistant as the form offers it.
+    if (set.status !== 'active' && set.status !== 'on-hold' && set.status !== 'completed') {
+      return err(WRITE_ERROR_CODES.VALIDATION, `status must be "active", "on-hold" or "completed", got ${JSON.stringify(set.status)}`);
     }
     if (set.status === 'completed' && project.status !== 'completed'
       && !projectCanComplete(projectId, state.tasks, state.unscheduledTasks)) {
