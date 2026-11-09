@@ -20,6 +20,7 @@ export function taskDefaultsForm(project) {
     tags: (d.tags || []).map((tag) => `#${tag}`).join(' '),
     notes: d.notes || '',
     subtasks: (d.subtasks || []).join('\n'),
+    energy: d.energy || '',
   };
 }
 
@@ -73,6 +74,19 @@ export default function ProjectTaskDefaultsFields({ value, onChange, projects = 
               placeholder="30" className={`${inputClass} w-28`}
               data-project-task-defaults-duration
             />
+          </label>
+          {/* Energy: the task's own, as if set from its marker; empty leaves it to the title. */}
+          <label className="flex flex-col gap-1">
+            <span className={`text-xs ${textSecondary}`}>{t('goals.taskDefaults.energy')}</span>
+            <select
+              value={value.energy || ''} onChange={set('energy')}
+              className={`${inputClass} w-56`}
+              data-project-task-defaults-energy
+            >
+              <option value="">{t('goals.taskDefaults.energyAuto')}</option>
+              <option value="effort">{t('strip.effort')}</option>
+              <option value="restore">{t('strip.restore')}</option>
+            </select>
           </label>
           <label className="flex flex-col gap-1">
             <span className={`text-xs ${textSecondary}`}>{t('goals.taskDefaults.tags')}</span>

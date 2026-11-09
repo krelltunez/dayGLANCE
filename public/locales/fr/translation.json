@@ -2053,7 +2053,9 @@
       "notes": "Notes",
       "notesPlaceholder": "Résumé :\nObjectif :\nRésultat :",
       "subtasks": "Sous-tâches (une par ligne)",
-      "subtasksPlaceholder": "Première étape\nDeuxième étape"
+      "subtasksPlaceholder": "Première étape\nDeuxième étape",
+      "energy": "Énergie",
+      "energyAuto": "D’après le titre"
     },
     "showCompletedGoals": "Afficher les objectifs terminés",
     "hideCompletedGoals": "Masquer les objectifs terminés",

@@ -102,7 +102,7 @@ export function canFollowUp(task) {
  * - Its colour and, while that project is open, its project, as JOBO's
  *   follow-up (`followUpDraft`). Never its time, notes or subtasks.
  * - In a project, that project's New task defaults (#2336), as any task
- *   created there: their tags, duration and checklist. `note` wins over
+ *   created there: their tags, duration, checklist and energy. `note` wins over
  *   their notes, which fill in only without one.
  * - The Inbox, with no deadline yet: the deadline is the follow-up date.
  * - `note` as its notes: the line that links back.
@@ -123,6 +123,7 @@ export function completionFollowUpDraft(task, { projects = [], prefix = '', tag 
     ...(base.projectId != null ? { projectId: base.projectId } : {}),
     ...(base.duration ? { duration: base.duration } : {}),
     ...(base.subtasks ? { subtasks: base.subtasks } : {}),
+    ...(base.energy ? { energy: base.energy } : {}),
     openInInbox: true,
     deadline: null,
     priority: 0,

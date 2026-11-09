@@ -95,4 +95,30 @@ describe('ProjectForm: New task defaults', () => {
     f.submit();
     expect(onSave.mock.calls[0][0].taskDefaults).toEqual(fitness.taskDefaults);
   });
+
+  it('an energy default is chosen, shown again, copied, and cleared back to the title\'s', async () => {
+    const onSave = vi.fn();
+    const f = await renderForm({ onSave });
+    f.title('Unwind');
+    f.toggle();
+    const options = f.byData('data-project-task-defaults-energy').findAll((n) => n.type === 'option').map((o) => o.props.value);
+    expect(options).toEqual(['', 'effort', 'restore']);
+    f.type('data-project-task-defaults-energy', 'restore');
+    f.submit();
+    expect(onSave.mock.calls[0][0].taskDefaults).toEqual({ energy: 'restore' });
+
+    const calm = { id: 'p-calm', title: 'Unwind', status: 'active', taskDefaults: { energy: 'restore' } };
+    const again = vi.fn();
+    const g = await renderForm({ initial: calm, onSave: again }, [calm]);
+    expect(g.byData('data-project-task-defaults-energy').props.value).toBe('restore');
+    g.type('data-project-task-defaults-energy', '');
+    g.submit();
+    expect(again.mock.calls[0][0]).toHaveProperty('taskDefaults', undefined);
+
+    const copied = vi.fn();
+    const h = await renderForm({ initial: { id: 'p-new', title: 'Spa', status: 'active', taskDefaults: { duration: 10 } }, onSave: copied }, [calm]);
+    act(() => { h.byData('data-project-task-defaults-copy').props.onChange({ target: { value: 'p-calm' } }); });
+    h.submit();
+    expect(copied.mock.calls[0][0].taskDefaults).toEqual({ energy: 'restore' });
+  });
 });

@@ -2148,7 +2148,9 @@
       "notes": "Notatki",
       "notesPlaceholder": "Podsumowanie:\nCel:\nWynik:",
       "subtasks": "Podzadania (jedno w wierszu)",
-      "subtasksPlaceholder": "Pierwszy krok\nDrugi krok"
+      "subtasksPlaceholder": "Pierwszy krok\nDrugi krok",
+      "energy": "Energia",
+      "energyAuto": "Na podstawie tytułu"
     },
     "showCompletedGoals": "Pokaż ukończone cele",
     "hideCompletedGoals": "Ukryj ukończone cele",
