@@ -29,7 +29,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 // Not on imported events, whose energy cannot be set (the context menu leaves
 // them out too). A recurring occurrence is fine: setTaskEnergy stores the
 // override on its series, the block's nature recurring with it.
-export default function TaskEnergyMarker({ task, size = 12, readOnly = false }) {
+export default function TaskEnergyMarker({ task, size = 12, pad = 'p-0.5', readOnly = false }) {
   const { t } = useTranslation();
   const setTaskEnergy = useDayPlannerCtx()?.setTaskEnergy;
   if (!task || task.imported) return null;
@@ -40,7 +40,13 @@ export default function TaskEnergyMarker({ task, size = 12, readOnly = false }) 
 
   if (readOnly || !setTaskEnergy) {
     return restore
-      ? <Leaf size={size} className="flex-shrink-0" data-energy-marker="restore" role="img" aria-label={name(energy)} />
+      // The same padding as the control, so a read-only leaf among a card's
+      // action buttons (a tablet) lines up with them.
+      ? (
+        <span className={`${pad} flex-shrink-0 inline-flex`}>
+          <Leaf size={size} data-energy-marker="restore" role="img" aria-label={name(energy)} />
+        </span>
+      )
       : null;
   }
 
@@ -59,7 +65,7 @@ export default function TaskEnergyMarker({ task, size = 12, readOnly = false }) 
         e.stopPropagation();
         setTaskEnergy(task.id, flipEnergyOverride(task), false);
       }}
-      className={`rounded p-0.5 flex-shrink-0 transition-opacity hover:bg-white/20 ${
+      className={`rounded ${pad} flex-shrink-0 transition-opacity hover:bg-white/20 ${
         restore ? 'opacity-90 hover:opacity-100' : 'opacity-0 group-hover/card:opacity-40 focus-visible:opacity-70'
       }`}
       title={label}

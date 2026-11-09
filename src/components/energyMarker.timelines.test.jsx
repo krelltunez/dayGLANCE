@@ -32,7 +32,7 @@ const dateStrOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.ge
 const lunch = { id: 'lunch', title: 'Lunch with Sam', date: WED, startTime: '12:00', duration: 60, color: 'bg-blue-500' };
 const work = { id: 'work', title: 'Write the report', date: WED, startTime: '14:00', duration: 60, color: 'bg-blue-500' };
 
-function setup({ tasks = [lunch, work], dates = [at(WED)], resizePreview = null, drag = null, isTablet = false } = {}) {
+function setup({ tasks = [lunch, work], dates = [at(WED)], resizePreview = null, drag = null, isTablet = false, widths = {} } = {}) {
   const forDate = (d) => tasks.filter((t) => t.date === dateStrOf(d));
   const noop = () => {};
   fixture.ctx = {
@@ -44,7 +44,7 @@ function setup({ tasks = [lunch, work], dates = [at(WED)], resizePreview = null,
     getTasksForDate: forDate, getDayDisplayForDate: forDate,
     getContinuationsForDate: (d) => continuationsFromPreviousDay(forDate(at(shiftDateStr(dateStrOf(d), -1)))),
     getTaskCalendarStyle: () => ({}),
-    taskWidths: { lunch: 400, work: 400 }, conflicts: [], tasks,
+    taskWidths: { lunch: 400, work: 400, ...widths }, conflicts: [], tasks,
     setTaskRef: () => noop,
     calculateConflictPosition: () => ({ left: 2, right: 2, width: null }),
     // MULTI reads positions off its rendered rows; here, 2px a minute.
@@ -103,6 +103,26 @@ describe('the energy marker on the timelines', () => {
   it('on a phone: the leaf on Restore only, and not a control', () => {
     setup();
     expect(markers(renderToStaticMarkup(<MobileTimeGrid />))).toEqual({ lunch: { energy: 'restore', control: false } });
+  });
+
+  // Where it sits: a wide card's leaf is the first of its action buttons, at
+  // their size, so it lines up with them whether or not the card has a tags
+  // row; a narrow card (actions in its overflow menu) keeps it in the title row.
+  const cardHtml = (html, id) => html.split('data-task-id="').find((c) => c.startsWith(`${id}"`)) || '';
+  const leafBeforeNotes = /data-energy-marker="restore"[^>]*>(?:(?!<button)[\s\S])*<\/button><button[^>]*title="sched\.notesSubtasks"/;
+
+  it('a wide card draws the leaf as the first action button, at the actions\' size', () => {
+    setup({ tasks: [{ ...lunch, title: 'Lunch with Sam #friends' }] });
+    const card = cardHtml(renderToStaticMarkup(<TimeGrid />), 'lunch');
+    expect(card).toMatch(leafBeforeNotes);
+    expect(card).toMatch(/<button[^>]*data-energy-marker="restore"[^>]*class="rounded p-1 /);
+  });
+
+  it('a narrow card keeps it in the title row', () => {
+    setup({ tasks: [lunch], widths: { lunch: 200 } });
+    const card = cardHtml(renderToStaticMarkup(<TimeGrid />), 'lunch');
+    expect(card).toContain('data-energy-marker="restore"');
+    expect(card).not.toMatch(leafBeforeNotes);
   });
 
   it('a hand-set override is drawn as its value, the same leaf as a derived one', () => {
