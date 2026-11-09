@@ -80,7 +80,7 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
 
         // Group by goal for display. Collect goal-linked projects first, then standalone.
         data class ProjectEntry(val id: String, val title: String, val goalId: String, val goalTitle: String,
-            val colorHex: String, val pct: Int, val done: Int, val total: Int)
+            val colorHex: String, val pct: Int, val done: Int, val total: Int, val onHold: Boolean)
 
         val entries = mutableListOf<ProjectEntry>()
         for (i in 0 until (allProjects?.length() ?: 0)) {
@@ -96,6 +96,7 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
                 pct       = p.optInt("progressPct", 0),
                 done      = p.optInt("completedTasks", 0),
                 total     = p.optInt("totalTasks", 0),
+                onHold    = WidgetDueRules.isOnHold(p),
             )
         }
 
@@ -110,11 +111,13 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
 
         // Sort: goal-linked first (alphabetical by goal title), then standalone.
         // Grouped by the goal's ID, not its title: two goals with the same
-        // name are two sections.
+        // name are two sections. Within a section, projects on hold come after
+        // the others, as the app's own pickers list them.
         val sorted = entries.sortedWith(compareBy(
             { it.goalId.isEmpty() },  // goal-linked first
             { it.goalTitle.lowercase() },
             { it.goalId },
+            { it.onHold },
             { it.title.lowercase() },
         ))
 
@@ -133,7 +136,7 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
                 })
             }
             root.addView(buildProjectRow(entry.id, entry.title, entry.colorHex,
-                entry.pct, entry.done, entry.total))
+                entry.pct, entry.done, entry.total, entry.onHold))
         }
 
         return ScrollView(this).apply { addView(root) }
@@ -141,7 +144,7 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
 
     private fun buildProjectRow(
         projectId: String, title: String, colorHex: String,
-        pct: Int, done: Int, total: Int,
+        pct: Int, done: Int, total: Int, onHold: Boolean,
     ): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -168,11 +171,13 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
             textSize = 15f
             setTextColor(resolveAttrColor(android.R.attr.textColorPrimary))
         })
-        val subtitle = if (total > 0) {
+        val progress = if (total > 0) {
             getString(R.string.config_task_progress, done, total) + "  ·  $pct%"
         } else {
             "$pct%"
         }
+        // A project on hold is still offered, and says so.
+        val subtitle = if (onHold) getString(R.string.widget_on_hold) + "  ·  " + progress else progress
         textCol.addView(TextView(this).apply {
             text = subtitle
             textSize = 12f
