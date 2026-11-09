@@ -24,6 +24,17 @@ object WidgetDueRules {
             ?.let { ChronoUnit.DAYS.between(today, it).toInt() }
             ?: fallback
 
+    /** Whether a project row of the payload is on hold (the app's `status: "on-hold"`). */
+    fun isOnHold(project: JSONObject): Boolean = project.optString("status") == "on-hold"
+
+    /**
+     * Whether a project's target date is drawn as a due badge: not on a
+     * completed project, whose date is history, nor on one on hold, which the
+     * app keeps from asking for attention (it shows "On hold" instead).
+     */
+    fun showsDueDate(project: JSONObject): Boolean =
+        project.optString("status") != "completed" && !isOnHold(project)
+
     /** The push-time `daysUntilDue`, or null when absent or null. */
     fun pushedDays(item: JSONObject): Int? =
         if (item.isNull("daysUntilDue")) null else item.optInt("daysUntilDue")

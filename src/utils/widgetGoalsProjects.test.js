@@ -134,3 +134,40 @@ describe('buildWidgetDueOn', () => {
     expect(due.projects).toEqual([{ id: 'p', title: 'Roof', progressPct: 0, totalTasks: 1, completedTasks: 0 }]);
   });
 });
+
+// On hold (utils/projectStatus.js): still listed, after the active projects,
+// with its status for the widget to draw it paused and without a due badge.
+describe('buildWidgetGoalsProjects: projects on hold', () => {
+  it('a goal lists them after its active projects and before its completed ones, whatever their sortOrder', () => {
+    const { allGoals } = build({
+      projects: [
+        { id: 'paused', goalId: 'g1', status: 'on-hold', sortOrder: 0 },
+        { id: 'done', goalId: 'g1', status: 'completed', sortOrder: 1 },
+        { id: 'live', goalId: 'g1', status: 'active', sortOrder: 2 },
+      ],
+    });
+    expect(allGoals[0].projects.map((p) => [p.id, p.status])).toEqual([['live', 'active'], ['paused', 'on-hold'], ['done', 'completed']]);
+  });
+
+  it('the project list offers them after the others, carrying status and target date', () => {
+    const { allProjects } = build({
+      projects: [
+        { id: 'paused', title: 'Paused', status: 'on-hold', targetDate: '2026-09-20' },
+        { id: 'live', title: 'Live', status: 'active' },
+        { id: 'done', title: 'Done', status: 'completed' },
+      ],
+    });
+    expect(allProjects.map((p) => p.id)).toEqual(['live', 'done', 'paused']);
+    expect(allProjects[2]).toMatchObject({ status: 'on-hold', targetDate: '2026-09-20', daysUntilDue: -5 });
+  });
+
+  it('the day widgets\' due rows leave them out', () => {
+    const due = buildWidgetDueOn({
+      goals: [],
+      projects: [{ id: 'paused', title: 'Paused', status: 'on-hold', targetDate: '2026-09-25' }],
+      tasks: [],
+      dateStr: '2026-09-25',
+    });
+    expect(due.projects).toEqual([]);
+  });
+});

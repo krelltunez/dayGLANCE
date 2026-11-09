@@ -57,6 +57,7 @@
     <string name="widget_due_left">%1$dd left</string>
     <string name="widget_untitled">Untitled</string>
     <string name="widget_done_check">✓ Done</string>
+    <string name="widget_on_hold">On hold</string>
     <plurals name="widget_more_projects">
         <item quantity="one">+%d more project</item>
         <item quantity="other">+%d more projects</item>

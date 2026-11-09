@@ -50,6 +50,7 @@
     <string name="widget_due_left">剩余 %1$d 天</string>
     <string name="widget_untitled">未命名</string>
     <string name="widget_done_check">✓ 已完成</string>
+    <string name="widget_on_hold">已暂停</string>
     <plurals name="widget_more_projects">
         <item quantity="one">+%d 个项目</item>
         <item quantity="other">+%d 个项目</item>

@@ -151,9 +151,13 @@ class ProjectWidget : AppWidgetProvider() {
         // The project's own target date (#2160): the Goal widget's badge, from
         // the same rules (WidgetDue.kt), at render time. Not on a stale
         // snapshot, and not on a completed project, whose date is history.
+        // A project on hold says so in its place, and has no date warning.
         val targetDate = project.optString("targetDate", "")
         val daysUntilDue = WidgetDueRules.daysUntil(targetDate, WidgetDueRules.pushedDays(project), java.time.LocalDate.now())
-        if (showDueBadge && daysUntilDue != null && targetDate.isNotEmpty() && project.optString("status") != "completed") {
+        if (WidgetDueRules.isOnHold(project)) {
+            views.setTextViewText(R.id.tv_pw_due, context.getString(R.string.widget_on_hold))
+            views.setViewVisibility(R.id.tv_pw_due, View.VISIBLE)
+        } else if (showDueBadge && daysUntilDue != null && targetDate.isNotEmpty() && WidgetDueRules.showsDueDate(project)) {
             views.setTextViewText(R.id.tv_pw_due, dueLabel(context, daysUntilDue))
             views.setViewVisibility(R.id.tv_pw_due, View.VISIBLE)
         } else {

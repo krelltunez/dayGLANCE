@@ -176,6 +176,10 @@ struct GoalWidgetView: View {
                             Spacer()
                             if proj.status == "completed" || (proj.progressPct ?? 0) == 100 {
                                 Text("✓").font(.caption2).foregroundColor(.green)
+                            } else if proj.isOnHold {
+                                Text("On hold")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
                             } else {
                                 Text("\(proj.completedTasks ?? 0)/\(proj.totalTasks ?? 0)")
                                     .font(.caption2)

@@ -149,13 +149,19 @@ struct ProjectData: Codable {
 }
 
 extension ProjectData {
+    /// Paused in the app (`status: "on-hold"`): still listed, after the active
+    /// projects, with no due badge.
+    var isOnHold: Bool { status == "on-hold" }
+
     /// The Project widget's due badge (#2160), in days from the entry's day,
     /// or nil for no badge. Computed at RENDER time from `targetDate`, as the
     /// Goal widget's is; the push-time `daysUntilDue` is only the fallback for
     /// a date that does not parse. No badge without a target date, on a stale
-    /// snapshot, or on a completed project, whose date is history.
+    /// snapshot, on a completed project, whose date is history, or on one on
+    /// hold, which the app keeps from asking for attention (`isOnHold`: the
+    /// widget says "On hold" instead).
     func dueDays(from now: Date, isStale: Bool, calendar: Calendar = .current) -> Int? {
-        guard !isStale, status != "completed", let target = targetDate, !target.isEmpty else { return nil }
+        guard !isStale, status != "completed", !isOnHold, let target = targetDate, !target.isEmpty else { return nil }
         return ResolvedWidgetDay.daysUntil(target, from: now, calendar: calendar) ?? daysUntilDue
     }
 }

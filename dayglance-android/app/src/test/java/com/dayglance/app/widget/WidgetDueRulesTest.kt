@@ -40,6 +40,21 @@ class WidgetDueRulesTest {
         assertNull(WidgetDueRules.pushedDays(JSONObject("{}")))
     }
 
+    // ── on hold ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `a project on hold has no due badge and reads as on hold, a completed one has no badge either`() {
+        val paused = JSONObject("""{"id":"p","status":"on-hold","targetDate":"2026-09-20","daysUntilDue":-1}""")
+        val active = JSONObject("""{"id":"p","status":"active","targetDate":"2026-09-20"}""")
+        val done = JSONObject("""{"id":"p","status":"completed","targetDate":"2026-09-20"}""")
+        assertTrue(WidgetDueRules.isOnHold(paused))
+        assertEquals(false, WidgetDueRules.showsDueDate(paused))
+        assertEquals(false, WidgetDueRules.isOnHold(active))
+        assertTrue(WidgetDueRules.showsDueDate(active))
+        assertEquals(false, WidgetDueRules.showsDueDate(done))
+        assertEquals(false, WidgetDueRules.isOnHold(JSONObject("{}")))
+    }
+
     // ── rows ─────────────────────────────────────────────────────────────────
 
     private fun fixture(): JSONObject = JSONObject(

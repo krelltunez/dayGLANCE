@@ -90,7 +90,9 @@ struct ProjectWidgetView: View {
     private var selectedProject: ProjectData? {
         let projects = entry.snapshot?.allProjects ?? []
         guard let id = entry.selectedProjectId else {
-            return projects.first(where: { $0.status != "completed" && $0.status != "archived" }) ?? projects.first
+            return projects.first(where: { $0.status != "completed" && $0.status != "archived" && !$0.isOnHold })
+                ?? projects.first(where: { $0.status != "completed" && $0.status != "archived" })
+                ?? projects.first
         }
         return projects.first(where: { $0.id == id })
     }
@@ -170,7 +172,12 @@ struct ProjectWidgetView: View {
                         Spacer()
                         // The project's own target date (#2160), as the
                         // Goal widget shows a goal's (ProjectData.dueDays).
-                        if let days = proj.dueDays(from: entry.date, isStale: freshness.isStale) {
+                        // A project on hold says so in its place.
+                        if proj.isOnHold {
+                            Text("On hold")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        } else if let days = proj.dueDays(from: entry.date, isStale: freshness.isStale) {
                             WidgetDueBadge(days: days)
                         }
                     }

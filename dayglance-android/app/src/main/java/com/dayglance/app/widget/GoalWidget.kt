@@ -166,7 +166,8 @@ class GoalWidget : AppWidgetProvider() {
             if (total > 0) "$pct%  ·  $done/$total" else "$pct%",
         )
 
-        // Project rows — active and completed are rendered in separate sections.
+        // Project rows — open and completed are rendered in separate sections;
+        // on-hold projects are open, listed after the active ones (the payload's order).
         val projects = goal.optJSONArray("projects")
         val allProjects = (0 until (projects?.length() ?: 0)).mapNotNull { projects?.optJSONObject(it) }
         val activeProjects   = allProjects.filter { it.optString("status") != "completed" }
@@ -278,11 +279,17 @@ class GoalWidget : AppWidgetProvider() {
             views.setTextViewText(row.statsId, context.getString(R.string.widget_done_check))
             views.setTextColor(row.statsId, 0xFF22C55E.toInt())
         } else {
-            // Active project — blue progress bar, secondary-coloured task count.
+            // Open project — blue progress bar, secondary-coloured task count;
+            // one on hold says "On hold" in place of the count (its progress
+            // still shows: pausing is not failing).
             views.setViewVisibility(row.progressId, View.VISIBLE)
             val pTotal = p.optInt("totalTasks", 0)
             val pDone  = p.optInt("completedTasks", 0)
-            views.setTextViewText(row.statsId, if (pTotal > 0) "$pDone/$pTotal" else "")
+            views.setTextViewText(row.statsId, when {
+                WidgetDueRules.isOnHold(p) -> context.getString(R.string.widget_on_hold)
+                pTotal > 0 -> "$pDone/$pTotal"
+                else -> ""
+            })
             views.setThemedTextColor(context, row.statsId, R.color.widget_text_secondary)
             views.setInt(row.progressId, "setProgress", p.optInt("progressPct", 0))
         }

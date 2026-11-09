@@ -49,6 +49,7 @@
     <string name="widget_due_left">noch %1$d T.</string>
     <string name="widget_untitled">Ohne Titel</string>
     <string name="widget_done_check">✓ Erledigt</string>
+    <string name="widget_on_hold">Pausiert</string>
     <plurals name="widget_more_projects">
         <item quantity="one">+%d weiteres Projekt</item>
         <item quantity="other">+%d weitere Projekte</item>

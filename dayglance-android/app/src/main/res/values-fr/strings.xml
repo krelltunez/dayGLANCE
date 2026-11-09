@@ -49,6 +49,7 @@
     <string name="widget_due_left">%1$dj restants</string>
     <string name="widget_untitled">Sans titre</string>
     <string name="widget_done_check">✓ Fait</string>
+    <string name="widget_on_hold">En pause</string>
     <plurals name="widget_more_projects">
         <item quantity="one">+%d autre projet</item>
         <item quantity="other">+%d autres projets</item>
