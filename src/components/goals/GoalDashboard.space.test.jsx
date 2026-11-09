@@ -58,6 +58,7 @@ const features = (overrides = {}) => ({
   goals: GOALS, projects: PROJECTS, setProjects: vi.fn(),
   areas: [{ id: 'dev', name: 'App Development', color: 'bg-orange-500', order: 0 }],
   goalsAreaFilter: 'all', setGoalsAreaFilter: vi.fn(), goalsViewMode: 'list', setGoalsViewMode: vi.fn(),
+  showCompletedGoals: false, setShowCompletedGoals: vi.fn(),
   goalsDashboardFocusId: null, setGoalsDashboardFocusId: vi.fn(),
   addGoal: vi.fn(), updateGoal: vi.fn(), deleteGoal: vi.fn(),
   addProject: vi.fn(), updateProject: vi.fn(), moveProject: vi.fn(),
@@ -99,7 +100,7 @@ describe('GoalDashboard desktop space', () => {
   });
 
   it('lists the active goals in carousel order with the first active one selected (D6)', () => {
-    const html = render({ desktop: true, isActive: true });
+    const html = render({ desktop: true, isActive: true }, { showCompletedGoals: true });
     // completed first, then by target date; archived never listed
     expect(rows(html)).toEqual([
       { id: 'done', selected: false },
@@ -108,8 +109,8 @@ describe('GoalDashboard desktop space', () => {
     ]);
     const sidebar = html.slice(html.indexOf('data-goals-sidebar'), html.indexOf('data-goals-main'));
     expect(sidebar).toContain('App Development');
-    expect(sidebar).toContain('Goals <span');
-    expect(sidebar).toContain('>3</span>');
+    // the Goals tab counts OPEN goals, as the Projects tab counts open projects
+    expect(sidebar).toMatch(/Goals <span[^>]*>2<\/span>/);
     // the Projects tab counts OPEN standalone projects
     expect(sidebar).toContain('Projects <span');
     expect(sidebar).toContain('>1</span>');
@@ -209,7 +210,7 @@ describe('GoalDashboard desktop space', () => {
   });
 
   it('honours the area filter for the list and the roadmap alike', () => {
-    const html = render({ desktop: true, isActive: true }, { goalsAreaFilter: 'uncategorized' });
+    const html = render({ desktop: true, isActive: true }, { goalsAreaFilter: 'uncategorized', showCompletedGoals: true });
     expect(rows(html)).toEqual([{ id: 'done', selected: true }]);
     const roadmap = render({ desktop: true, isActive: true }, { goalsAreaFilter: 'dev', goalsViewMode: 'timeline' });
     expect(roadmap).toContain('data-goal-timeline="ios,electron"');
@@ -300,12 +301,14 @@ describe('GoalDashboard embedded (phone) mode', () => {
     expect(html).not.toContain('data-goals-main');
   });
 
-  it('opens with Goals | Projects on top, counting every active goal and the OPEN standalone projects', () => {
+  it('opens with Goals | Projects on top, counting the OPEN goals and the OPEN standalone projects', () => {
     const tabs = section(phone(), 'data-goals-tabs');
     // Goals is the selected tab (the tablist's own label also says "Projects")
     expect(tabs).toMatch(/aria-selected="true"[^>]*>(?:<svg[\s\S]*?<\/svg>)? <span[^>]*>Goals<\/span>/);
     expect(tabs).toMatch(/aria-selected="false"[^>]*>(?:<svg[\s\S]*?<\/svg>)? <span[^>]*>Projects<\/span>/);
-    expect(tabs).toMatch(/Goals<\/span> <span[^>]*>3<\/span>/);
+    // Two open goals: the completed one is not counted, shown or not.
+    expect(tabs).toMatch(/Goals<\/span> <span[^>]*>2<\/span>/);
+    expect(section(phone({}, { showCompletedGoals: true }), 'data-goals-tabs')).toMatch(/Goals<\/span> <span[^>]*>2<\/span>/);
     expect(tabs).toMatch(/Projects<\/span> <span[^>]*>1<\/span>/);
     // the tabs come before the goals-only controls
     const html = phone();
@@ -313,7 +316,7 @@ describe('GoalDashboard embedded (phone) mode', () => {
   });
 
   it('lists the goals as chips in carousel order, the first active one selected, over one page per goal', () => {
-    const html = phone();
+    const html = phone({}, { showCompletedGoals: true });
     expect(chips(html)).toEqual([
       { id: 'done', active: false },
       { id: 'ios', active: true },
@@ -482,6 +485,55 @@ describe('projects on hold', () => {
   it('on the phone, the same three lists', () => {
     const html = render({ embedded: true, isActive: true, initialSidebarTab: 'projects' }, withPaused);
     expect(html).toMatch(/On hold<span class="[^"]*">1<\/span>/);
+  });
+});
+
+// Completed goals: hidden by default, shown with the toggle beside the area
+// filter, in List and Roadmap, desktop and phone (utils/goalFilters.js).
+describe('completed goals in the Goals view', () => {
+  const toggle = (html) => {
+    const m = html.match(/<button[^>]*data-completed-goals-toggle[^>]*>[\s\S]*?<\/button>/);
+    if (!m) return null;
+    return { pressed: m[0].includes('aria-pressed="true"'), count: Number(m[0].match(/>(\d+)<\/span>/)?.[1]) };
+  };
+  const desktopHtml = (feat) => render({ desktop: true, isActive: true }, feat);
+
+  it('hides them by default, in the list and the roadmap, and the toggle counts them', () => {
+    const html = desktopHtml({});
+    expect(rows(html).map((r) => r.id)).toEqual(['ios', 'electron']);
+    expect(toggle(html)).toEqual({ pressed: false, count: 1 });
+    expect(desktopHtml({ goalsViewMode: 'timeline' })).toContain('data-goal-timeline="ios,electron"');
+  });
+
+  it('shows them when turned on, the toggle pressed, in the list and the roadmap', () => {
+    const html = desktopHtml({ showCompletedGoals: true });
+    expect(rows(html).map((r) => r.id)).toEqual(['done', 'ios', 'electron']);
+    expect(toggle(html)).toEqual({ pressed: true, count: 1 });
+    expect(desktopHtml({ showCompletedGoals: true, goalsViewMode: 'timeline' })).toContain('data-goal-timeline="done,ios,electron"');
+  });
+
+  it('sits beside the area filter, and is not drawn where the area has no completed goal', () => {
+    const sidebar = (html) => html.slice(html.indexOf('data-goals-sidebar'), html.indexOf('data-goals-main'));
+    expect(sidebar(desktopHtml({}))).toContain('data-completed-goals-toggle');
+    expect(toggle(desktopHtml({ goalsAreaFilter: 'dev' }))).toBeNull();
+  });
+
+  it('where every goal in view is completed and hidden, says so and offers to show them, not "no goals yet"', () => {
+    const only = { goals: [GOALS[0]] };
+    const html = desktopHtml(only);
+    expect(html).toContain('data-hidden-completed-goals');
+    expect(html).toContain('The only goal here is completed.');
+    expect(html).toContain('Show completed goals');
+    expect(html).not.toContain('No goals or projects yet');
+    expect(desktopHtml({ ...only, goalsViewMode: 'timeline' })).toContain('data-hidden-completed-goals');
+  });
+
+  it('on the phone: hidden from the chips by default, with the toggle in the controls row', () => {
+    const html = render({ embedded: true, isActive: true }, {});
+    const chipIds = [...html.matchAll(/<button[^>]*data-goal-chip="([^"]+)"/g)].map((m) => m[1]);
+    expect(chipIds).toEqual(['ios', 'electron']);
+    const controls = html.slice(html.indexOf('data-goal-controls'));
+    expect(controls).toContain('data-completed-goals-toggle');
   });
 });
 

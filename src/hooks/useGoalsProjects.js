@@ -12,6 +12,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { TASK_COLORS } from '../utils/colorUtils.js';
 import { writeItem } from '../utils/storageWrites.js';
 import { readGoalsProjectsEnabled } from '../utils/storedSlices.js';
+import { readShowCompletedGoals, SHOW_COMPLETED_GOALS_KEY } from '../utils/goalFilters.js';
 
 /**
  * The legacy `setShowGoalsDashboard(value)` maps onto the desktop space: true
@@ -82,6 +83,9 @@ const useGoalsProjects = () => {
   );
   useEffect(() => { writeItem('day-planner-goals-area-filter', goalsAreaFilter); }, [goalsAreaFilter]);
   useEffect(() => { writeItem('day-planner-goals-view-mode', goalsViewMode); }, [goalsViewMode]);
+  // Completed goals in the Goals view: hidden unless shown (utils/goalFilters.js).
+  const [showCompletedGoals, setShowCompletedGoals] = useState(() => readShowCompletedGoals());
+  useEffect(() => { writeItem(SHOW_COMPLETED_GOALS_KEY, String(showCompletedGoals)); }, [showCompletedGoals]);
 
   // ── Goal CRUD ────────────────────────────────────────────────────────────────
 
@@ -253,6 +257,7 @@ const useGoalsProjects = () => {
     areas, setAreas,
     goalsAreaFilter, setGoalsAreaFilter,
     goalsViewMode, setGoalsViewMode,
+    showCompletedGoals, setShowCompletedGoals,
     desktopSpace, setDesktopSpace, toggleDesktopSpace,
     showGoalsDashboard, setShowGoalsDashboard,
     goalsProjectsEnabled, setGoalsProjectsEnabled,

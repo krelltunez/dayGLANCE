@@ -2057,6 +2057,10 @@
       "subtasks": "Sottoattività (una per riga)",
       "subtasksPlaceholder": "Primo passo\nSecondo passo"
     },
+    "showCompletedGoals": "Mostra gli obiettivi completati",
+    "hideCompletedGoals": "Nascondi gli obiettivi completati",
+    "allCompletedHidden_one": "L'unico obiettivo qui è completato.",
+    "allCompletedHidden_other": "Tutti i {{count}} obiettivi qui sono completati.",
     "onHold": "In pausa",
     "noOnHoldProjects": "Nessun progetto in pausa"
   },

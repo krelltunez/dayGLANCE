@@ -2156,6 +2156,12 @@
       "subtasks": "Підзавдання (по одному в рядку)",
       "subtasksPlaceholder": "Перший крок\nДругий крок"
     },
+    "showCompletedGoals": "Показати завершені цілі",
+    "hideCompletedGoals": "Сховати завершені цілі",
+    "allCompletedHidden_one": "Єдину ціль тут завершено.",
+    "allCompletedHidden_few": "Усі {{count}} цілі тут завершено.",
+    "allCompletedHidden_many": "Усі {{count}} цілей тут завершено.",
+    "allCompletedHidden_other": "Усі {{count}} цілі тут завершено.",
     "onHold": "Призупинено",
     "noOnHoldProjects": "Немає призупинених проєктів"
   },

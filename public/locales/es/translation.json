@@ -2055,6 +2055,10 @@
       "subtasks": "Subtareas (una por línea)",
       "subtasksPlaceholder": "Primer paso\nSegundo paso"
     },
+    "showCompletedGoals": "Mostrar objetivos completados",
+    "hideCompletedGoals": "Ocultar objetivos completados",
+    "allCompletedHidden_one": "El único objetivo de aquí está completado.",
+    "allCompletedHidden_other": "Los {{count}} objetivos de aquí están completados.",
     "onHold": "En pausa",
     "noOnHoldProjects": "No hay proyectos en pausa"
   },

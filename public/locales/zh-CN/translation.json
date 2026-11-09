@@ -2050,6 +2050,9 @@
       "subtasks": "子任务（每行一个）",
       "subtasksPlaceholder": "第一步\n第二步"
     },
+    "showCompletedGoals": "显示已完成的目标",
+    "hideCompletedGoals": "隐藏已完成的目标",
+    "allCompletedHidden_other": "这里的 {{count}} 个目标都已完成。",
     "onHold": "已暂停",
     "noOnHoldProjects": "没有已暂停的项目"
   },
