@@ -1242,6 +1242,7 @@ const DayPlanner = () => {
     addGoal, updateGoal: updateGoalEntity, deleteGoal: deleteGoalEntity,
     addArea, updateArea, deleteArea, reorderAreas,
     addProject, updateProject: updateProjectEntity, deleteProject: deleteProjectEntity, moveProject,
+    applyTaskDefaultsToProjects,
   } = useGoalsProjects();
   // Archive/restore cascades to the rows under a project or goal, and restore
   // puts back exactly what the archive changed (#2260, hooks/useArchiveCascade.js).
@@ -4010,7 +4011,7 @@ const DayPlanner = () => {
       return;
     }
     setRecurringEditConfirm(null);
-    const ready = createPendingProject(newTask, { addProject, goals }).newTask;
+    const ready = createPendingProject(newTask, { addProject, goals, areas }).newTask;
     saveMobileEditTaskFrom(ready, scope);
     // Its project becomes the picker's "last used" on this device (#2274).
     rememberLastUsedProject(ready.projectId);
@@ -6014,7 +6015,7 @@ const DayPlanner = () => {
           });
         }
       : null,
-    addProject, goals,
+    addProject, goals, areas,
   });
   const focusDo = useFocusDo({
     enabled: joboEnabled, loaded: joboLoaded, writable: joboWritable,
@@ -7631,6 +7632,7 @@ const DayPlanner = () => {
     addGoal, updateGoal, deleteGoal,
     addArea, updateArea, deleteArea, reorderAreas,
     addProject, updateProject, deleteProject, moveProject,
+    applyTaskDefaultsToProjects,
     plannerProjectId, setPlannerProjectId,
     projectFilter, setProjectFilter,
 

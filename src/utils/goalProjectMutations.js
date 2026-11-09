@@ -25,6 +25,7 @@
 import { TASK_COLORS, PROJECT_FALLBACK_COLOR } from './colorUtils.js';
 import { noteLinkOf } from './obsidianProjectNotes.js';
 import { WRITE_ERROR_CODES } from './taskMutations.js';
+import { seedTaskDefaults } from './projectTaskDefaults.js';
 
 const err = (code, message) => ({ ok: false, error: { code, message } });
 
@@ -200,6 +201,10 @@ export function applyCreateProject(state, { projectId, title, goalId, descriptio
   const assignees = resolveAssignees(state, assigneeSyncIds);
   if (!assignees.ok) return assignees;
   const inherited = assignees.ids ?? (goal?.assignedUserSyncIds?.length ? [...goal.assignedUserSyncIds] : undefined);
+  // The New task defaults its goal (else the goal's area) holds for new
+  // projects, copied as the project form copies them (projectTaskDefaults.js).
+  const area = goal?.areaId ? (state.areas ?? []).find((a) => a && a.id === goal.areaId) : null;
+  const taskDefaults = goal ? seedTaskDefaults(goal, area) : undefined;
 
   const project = {
     id: projectId,
@@ -212,6 +217,7 @@ export function applyCreateProject(state, { projectId, title, goalId, descriptio
     // strict YYYY-MM-DD) exactly like the goal tools' target_date.
     ...(targetDate ? { targetDate } : {}),
     ...(inherited?.length ? { assignedUserSyncIds: inherited } : {}),
+    ...(taskDefaults ? { taskDefaults } : {}),
     createdAt: nowIso,
     updatedAt: nowIso,
   };

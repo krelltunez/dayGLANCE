@@ -13,6 +13,7 @@ import { TASK_COLORS } from '../utils/colorUtils.js';
 import { writeItem } from '../utils/storageWrites.js';
 import { readGoalsProjectsEnabled } from '../utils/storedSlices.js';
 import { readShowCompletedGoals, SHOW_COMPLETED_GOALS_KEY } from '../utils/goalFilters.js';
+import { appliedTaskDefaults } from '../utils/projectTaskDefaults.js';
 
 /**
  * The legacy `setShowGoalsDashboard(value)` maps onto the desktop space: true
@@ -192,6 +193,16 @@ const useGoalsProjects = () => {
     ));
   }, []);
 
+  // "Apply to projects" on a goal or an area (#2336): the open projects under
+  // it take, in place of their own New task defaults, what a new project there
+  // would start with, `defaults` being the goal's or area's as it is saved in
+  // the same step (its state has not caught up yet). The rule is pure, in
+  // utils/projectTaskDefaults.js (appliedTaskDefaults).
+  const applyTaskDefaultsToProjects = useCallback((request) => {
+    const nowIso = new Date().toISOString();
+    setProjects(prev => appliedTaskDefaults(prev, { ...request, goals, areas, nowIso }));
+  }, [goals, areas]);
+
   const deleteProject = useCallback((id) => {
     setProjects(prev => prev.filter(p => p.id !== id));
     // Record tombstone so cloud sync doesn't resurrect the project from other devices
@@ -264,6 +275,7 @@ const useGoalsProjects = () => {
     addGoal, updateGoal, deleteGoal,
     addArea, updateArea, deleteArea, reorderAreas,
     addProject, updateProject, deleteProject, moveProject,
+    applyTaskDefaultsToProjects,
   };
 };
 

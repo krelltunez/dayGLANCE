@@ -553,7 +553,9 @@ in `clear_fields` removes.
 
 ### `dayglance_create_project`
 Create a project, standalone or under a goal. A project under a goal takes the goal's colour and
-assignees at creation and follows neither afterwards (the form's inheritance).
+assignees at creation and follows neither afterwards (the form's inheritance). It also starts with
+the New task defaults its goal holds for new projects, each field from the goal, else from the goal's
+area (#2336), copied once, as the project form copies them.
 
 | Param | Type | Required | Notes |
 |---|---|---|---|

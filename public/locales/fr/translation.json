@@ -2055,7 +2055,14 @@
       "subtasks": "Sous-tâches (une par ligne)",
       "subtasksPlaceholder": "Première étape\nDeuxième étape",
       "energy": "Énergie",
-      "energyAuto": "D’après le titre"
+      "energyAuto": "D’après le titre",
+      "forNewProjects": "Valeurs des nouveaux projets",
+      "goalHint": "Les nouveaux projets de cet objectif commencent avec ces valeurs pour leurs nouvelles tâches. Un champ vide ici vient du domaine de l’objectif. Les modifier ensuite ne change pas les projets existants.",
+      "areaHint": "Les nouveaux projets des objectifs de ce domaine commencent avec ces valeurs pour leurs nouvelles tâches, là où leur objectif ne définit pas le champ. Les modifier ensuite ne change pas les projets existants.",
+      "applyToProjects": "Appliquer aux projets ouverts ({{count}})…",
+      "applyGoalConfirm": "Enregistrer, et remplacer par celles-ci les valeurs des nouvelles tâches des projets ouverts de cet objectif ({{count}}) ?",
+      "applyAreaConfirm": "Enregistrer, et remplacer les valeurs des nouvelles tâches des projets ouverts des objectifs de ce domaine ({{count}}) ? Un champ défini par l’objectif d’un projet garde la valeur de l’objectif.",
+      "applySave": "Enregistrer et appliquer"
     },
     "showCompletedGoals": "Afficher les objectifs terminés",
     "hideCompletedGoals": "Masquer les objectifs terminés",

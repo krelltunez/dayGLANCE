@@ -2055,7 +2055,14 @@
       "subtasks": "Unteraufgaben (eine pro Zeile)",
       "subtasksPlaceholder": "Erster Schritt\nZweiter Schritt",
       "energy": "Energie",
-      "energyAuto": "Aus dem Titel"
+      "energyAuto": "Aus dem Titel",
+      "forNewProjects": "Vorgaben für neue Projekte",
+      "goalHint": "Neue Projekte in diesem Ziel übernehmen diese als Vorgaben für neue Aufgaben. Ein hier leeres Feld kommt aus dem Bereich des Ziels. Spätere Änderungen betreffen bestehende Projekte nicht.",
+      "areaHint": "Neue Projekte in den Zielen dieses Bereichs übernehmen diese als Vorgaben für neue Aufgaben, wo ihr Ziel das Feld nicht festlegt. Spätere Änderungen betreffen bestehende Projekte nicht.",
+      "applyToProjects": "Auf offene Projekte anwenden ({{count}})…",
+      "applyGoalConfirm": "Speichern und die Vorgaben für neue Aufgaben der offenen Projekte dieses Ziels ({{count}}) hierdurch ersetzen?",
+      "applyAreaConfirm": "Speichern und die Vorgaben für neue Aufgaben der offenen Projekte in den Zielen dieses Bereichs ({{count}}) ersetzen? Ein Feld, das das Ziel eines Projekts festlegt, behält den Wert des Ziels.",
+      "applySave": "Speichern und anwenden"
     },
     "showCompletedGoals": "Abgeschlossene Ziele anzeigen",
     "hideCompletedGoals": "Abgeschlossene Ziele ausblenden",

@@ -2050,7 +2050,14 @@
       "subtasks": "子任务（每行一个）",
       "subtasksPlaceholder": "第一步\n第二步",
       "energy": "精力",
-      "energyAuto": "根据标题判断"
+      "energyAuto": "根据标题判断",
+      "forNewProjects": "新项目默认值",
+      "goalHint": "在此目标下新建的项目会以这些作为其「新任务默认值」。此处留空的字段取自目标所属的领域。之后修改不会影响已有项目。",
+      "areaHint": "在此领域的目标下新建的项目，会以这些作为其「新任务默认值」（目标已设置的字段除外）。之后修改不会影响已有项目。",
+      "applyToProjects": "应用到未完成的项目（{{count}}）…",
+      "applyGoalConfirm": "保存，并用这些替换此目标下未完成项目（{{count}}）的「新任务默认值」？",
+      "applyAreaConfirm": "保存，并替换此领域各目标下未完成项目（{{count}}）的「新任务默认值」？项目所属目标已设置的字段保留目标的值。",
+      "applySave": "保存并应用"
     },
     "showCompletedGoals": "显示已完成的目标",
     "hideCompletedGoals": "隐藏已完成的目标",
