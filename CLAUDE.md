@@ -202,9 +202,11 @@ devices that each saw something different keep only one side's: `deferrals` take
 the max and `planTrail` takes the union. Either rule has to be order-independent
 and idempotent, since both tiers may apply it more than once and in either order.
 A recurring series' per-date state is merged per date with a stamp map beside it:
-`completedDates` (`completedDatesTimestamps`) and `exceptions`
-(`exceptionsTimestamps`, derived by the save pass; `packages/dayglance-vault/src/recurringExceptions.js`,
-`docs/recurring-exceptions-merge.md`).
+`completedDates` (`completedDatesTimestamps`), `exceptions`
+(`exceptionsTimestamps`) and `subtaskCompletions`, the subtasks ticked on each
+occurrence (`subtaskCompletionsTimestamps`); the last two stamped by the save
+pass (`packages/dayglance-vault/src/recurringExceptions.js`,
+`docs/recurring-exceptions-merge.md`, `src/utils/recurringSubtasks.js`).
 
 **3. Does the apply carry it?** `src/utils/preserveStickyFields.js`, fed from the
 live task list in `applyEngineData`. Missing this makes the loss permanent rather

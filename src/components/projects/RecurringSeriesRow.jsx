@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { getOccurrencesInRange } from '../../utils/recurrenceEngine.js';
 import { renderTitle } from '../../utils/textFormatting.jsx';
+import { occurrenceSubtasks } from '../../utils/recurringSubtasks.js';
 
 /**
  * RecurringSeriesRow — one row per recurring series in a project's task list
@@ -38,7 +39,7 @@ const RecurringSeriesRow = ({ template, projectHex }) => {
     color: exc.color ?? template.color,
     isAllDay: exc.isAllDay ?? template.isAllDay ?? false,
     notes: template.notes || '',
-    subtasks: template.subtasks || [],
+    subtasks: occurrenceSubtasks(template, todayStr),
     completed,
     date: todayStr,
     isRecurring: true,

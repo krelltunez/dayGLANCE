@@ -669,7 +669,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                       <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</div>
                     ) : null}
                     {/* Subtasks, as many as the card has room for (wide cards
-                        only; a repeating task's without checkboxes). */}
+                        only; a repeating task's are ticked per occurrence). */}
                     {showCardSubtasks !== false && task.subtasks?.length > 0 && (
                       <CardSubtasks
                         task={task}
@@ -678,7 +678,6 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                           height,
                           hasProjectRow: goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId),
                         })}
-                        readOnly={isRecurring}
                         onToggle={(subtaskId) => toggleSubtask(task.id, subtaskId, false)}
                         onMore={() => setExpandedNotesTaskId(task.id)}
                       />

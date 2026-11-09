@@ -802,7 +802,7 @@
     },
     "taskCards": "Task cards",
     "showCardSubtasks": "Show subtasks on task cards",
-    "showCardSubtasksHint": "When a card has room. A repeating task's subtasks are listed without checkboxes."
+    "showCardSubtasksHint": "When a card has room."
   },
   "dailyNotes": {
     "quickNotes": "Quick Notes",

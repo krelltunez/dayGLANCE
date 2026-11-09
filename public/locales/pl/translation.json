@@ -821,7 +821,7 @@
     },
     "taskCards": "Karty zadań",
     "showCardSubtasks": "Pokazuj podzadania na kartach zadań",
-    "showCardSubtasksHint": "Gdy na karcie jest miejsce. Podzadania zadań cyklicznych są wyświetlane bez pól wyboru."
+    "showCardSubtasksHint": "Gdy na karcie jest miejsce."
   },
   "dailyNotes": {
     "quickNotes": "Szybkie notatki",

@@ -11,14 +11,13 @@ import { cardSubtaskLayout, SUBTASK_ROW_PX } from '../utils/cardSubtasks.js';
 // White on the card's colour, like every mark on a timeline card, with the
 // card's own completion box at a smaller size.
 //
-// A REPEATING task's subtasks have no checkboxes: the series keeps one list
-// for every occurrence (utils/expandRecurringTasks.js), so ticking one on
-// Monday's card would tick it on every day's. They are listed, with a dot or
-// a tick for their state, until subtasks are kept per occurrence.
+// A REPEATING task's subtasks are ticked per occurrence: the card's list is
+// the occurrence's (utils/recurringSubtasks.js), and toggleSubtask writes the
+// tick to that date only, so Monday's tick is not Tuesday's.
 //
 // The callers decide whether to show the list at all (wide cards only, the
 // device setting on, not an imported event); this draws what fits.
-export default function CardSubtasks({ task, height, reservedPx, readOnly = false, onToggle, onMore }) {
+export default function CardSubtasks({ task, height, reservedPx, onToggle, onMore }) {
   const { t } = useTranslation();
   const { shown, more, rows } = cardSubtaskLayout({ height, reservedPx, subtasks: task?.subtasks });
   if (!rows) return null;
@@ -26,7 +25,7 @@ export default function CardSubtasks({ task, height, reservedPx, readOnly = fals
 
   return (
     <div
-      data-card-subtasks={readOnly ? 'read-only' : 'interactive'}
+      data-card-subtasks
       className="mt-1 flex flex-col overflow-hidden min-w-0"
       style={{ maxHeight: `${rows * SUBTASK_ROW_PX}px` }}
       onDoubleClick={stop}
@@ -34,16 +33,6 @@ export default function CardSubtasks({ task, height, reservedPx, readOnly = fals
       {shown.map((st) => {
         const done = !!st.completed;
         const label = <span className={`truncate ${done ? 'line-through opacity-70' : ''}`}>{st.title}</span>;
-        if (readOnly) {
-          return (
-            <div key={st.id} data-card-subtask={st.id} className="flex items-center gap-1.5 text-xs min-w-0" style={{ height: SUBTASK_ROW_PX }}>
-              <span className="w-3.5 flex-shrink-0 flex items-center justify-center" aria-hidden="true">
-                {done ? <Check size={11} strokeWidth={3} /> : <span className="w-1.5 h-1.5 rounded-full bg-white/80" />}
-              </span>
-              {label}
-            </div>
-          );
-        }
         return (
           <button
             key={st.id}

@@ -6,6 +6,7 @@
 
 import { overnightSpillMinutes, shiftDateStr } from '@glance-apps/agenda-core';
 import { getOccurrencesInRange } from './recurrenceEngine.js';
+import { occurrenceSubtasks } from './recurringSubtasks.js';
 
 // The same occurrence shape is also used by read-only historical statistics.
 // Keeping this separate does not change which dates the live app expands.
@@ -24,7 +25,8 @@ export function recurringTaskInstance(template, date) {
     // but an instance can carry its own override when assigned "this only".
     assignedUserSyncIds: exception?.assignedUserSyncIds ?? template.assignedUserSyncIds,
     notes: template.notes || '',
-    subtasks: template.subtasks || [],
+    // The series' subtasks with this date's ticks (utils/recurringSubtasks.js).
+    subtasks: occurrenceSubtasks(template, date),
     // Energy-axis override is series-level (see setTaskEnergy); the
     // expansion is an explicit field list, so it must be carried here or
     // instances silently fall back to auto-derivation.

@@ -35,6 +35,15 @@ describe('modalNotesTarget', () => {
     expect(modalNotesTarget({ editingTask: { id: 'recurring-gone-2026-10-02' }, ...lists })).toBe(null);
     expect(modalNotesTarget({ editingTask: { id: 'nope' }, ...lists })).toBe(null);
   });
+
+  it('an occurrence\'s subtasks carry that date\'s ticks, not another day\'s', () => {
+    const ticked = { ...template, subtaskCompletions: { '2026-10-02': ['a'] } };
+    const withTicks = { ...lists, recurringTasks: [ticked] };
+    expect(modalNotesTarget({ editingTask: { id: 'recurring-tmpl-1-2026-10-02' }, ...withTicks }).task.subtasks)
+      .toEqual([{ id: 'a', title: 'A', completed: true }]);
+    expect(modalNotesTarget({ editingTask: { id: 'recurring-tmpl-1-2026-10-03' }, ...withTicks }).task.subtasks)
+      .toEqual([{ id: 'a', title: 'A', completed: false }]);
+  });
 });
 
 describe('applyDraftEdit', () => {

@@ -195,7 +195,8 @@ describe('getOverdueTasks', () => {
     expect(getOverdueTasks(base({ recurringTasks: [series] }))).toEqual([{
       id: 'recurring-one-2026-10-09', title: 'Exception title', startTime: null,
       duration: 60, color: 'bg-red-500', completed: false, isAllDay: true,
-      notes: 'Series notes', subtasks: series.subtasks, energy: 'high', date: '2026-10-09',
+      // The series' subtasks with that date's ticks (utils/recurringSubtasks.js).
+      notes: 'Series notes', subtasks: [{ id: 's', title: 'Step', completed: false }], energy: 'high', date: '2026-10-09',
       isRecurring: true, recurringTemplateId: 'one', recurrenceType: 'daily', projectId: 'p',
       _overdueType: 'scheduled',
     }]);

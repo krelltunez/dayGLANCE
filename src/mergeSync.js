@@ -6,7 +6,7 @@ import { mergeArrayById, mergeSyncData as upstreamMergeSyncData, pruneTombstones
 import { canonicalJson } from './sync/snapshotMergeExplain.js';
 import { mergeDeferrals } from './utils/deferrals.js';
 import { mergePlanTrail, sameTrail } from './utils/planTrail.js';
-import { sameOccurrenceEdits, withMergedExceptions } from '@glance-apps/dayglance-vault';
+import { sameOccurrenceEdits, withMergedExceptions, sameSubtaskCompletions, withMergedSubtaskCompletions } from '@glance-apps/dayglance-vault';
 import { earlierCreatedAt } from './utils/createdAt.js';
 import {
   TOMBSTONE_BUNDLE_KEYS,
@@ -376,13 +376,15 @@ export const mergeSyncData = (local, remote, retentionDays) => {
       );
       if (!sameDateSet(completedDates, l.completedDates || [])) result.localChanged = true;
       if (!sameDateSet(completedDates, r.completedDates || [])) result.remoteChanged = true;
-      const merged = withMergedExceptions({
+      // Occurrence edits and the subtasks ticked per occurrence each merge
+      // per date by their own stamps.
+      const merged = withMergedSubtaskCompletions(withMergedExceptions({
         ...t,
         completedDates,
         ...(Object.keys(completedDatesTimestamps).length ? { completedDatesTimestamps } : {}),
-      }, l, r);
-      if (!sameOccurrenceEdits(merged, l)) result.localChanged = true;
-      if (!sameOccurrenceEdits(merged, r)) result.remoteChanged = true;
+      }, l, r), l, r);
+      if (!sameOccurrenceEdits(merged, l) || !sameSubtaskCompletions(merged, l)) result.localChanged = true;
+      if (!sameOccurrenceEdits(merged, r) || !sameSubtaskCompletions(merged, r)) result.remoteChanged = true;
       return merged;
     });
   }

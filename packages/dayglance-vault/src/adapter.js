@@ -34,7 +34,7 @@
 import { mergeHabitLogs, mergeRoutineCompletions, mergeCompletedDates } from './merges.js';
 import { mergeRoutineDefinitions } from '@glance-apps/sync';
 import { mergeDeferrals } from './deferrals.js';
-import { withMergedExceptions } from './recurringExceptions.js';
+import { withMergedExceptions, withMergedSubtaskCompletions } from './recurringExceptions.js';
 import { mergePlanTrail, sameTrail } from './planTrail.js';
 import { earlierCreatedAt } from './createdAt.js';
 import { TOMBSTONE_BUNDLE_KEYS, tombstoneCutoff, pruneCompletedTaskUids } from './tombstoneRetention.js';
@@ -351,7 +351,11 @@ function applyRemoteRecurring(data, remote) {
     local.completedDates || [], remote.completedDates || [],
     local.completedDatesTimestamps || {}, remote.completedDatesTimestamps || {},
   );
-  const merged = withMergedExceptions({ ...winner, completedDates }, local, remote);
+  // Occurrence edits and the subtasks ticked per occurrence each merge per
+  // date by their own stamps (recurringExceptions.js).
+  const merged = withMergedSubtaskCompletions(
+    withMergedExceptions({ ...winner, completedDates }, local, remote), local, remote,
+  );
   if (Object.keys(completedDatesTimestamps).length) merged.completedDatesTimestamps = completedDatesTimestamps;
   else delete merged.completedDatesTimestamps;
   // `createdAt` (utils/createdAt.js): a series is created once; keep the

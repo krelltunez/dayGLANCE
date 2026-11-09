@@ -10,6 +10,7 @@ import { followUpDraft } from '../jobo/carryForward.js';
 import { TAG_NAME, splitTitleNoteLinks, stripMarkdownLinks, stripTags, tagsIn } from './taskUtils.js';
 import { parseRecurringId } from './recurringId.js';
 import { withTags } from './projectTaskDefaults.js';
+import { occurrenceSubtasks } from './recurringSubtasks.js';
 
 /** This device's tag for follow-ups, without its `#`; empty for none. */
 export const FOLLOW_UP_TAG_KEY = 'dg-follow-up-tag';
@@ -135,7 +136,7 @@ const occurrenceOf = (template, dateStr, id) => {
     id,
     title: exception.title || template.title,
     notes: exception.notes !== undefined ? exception.notes : (template.notes || ''),
-    subtasks: template.subtasks || [],
+    subtasks: occurrenceSubtasks(template, dateStr),
     color: exception.color || template.color,
     date: dateStr,
     startTime: exception.startTime !== undefined ? exception.startTime : template.startTime,

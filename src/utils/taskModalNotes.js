@@ -7,6 +7,7 @@
 // has no row yet, so its notes and subtasks are a draft on newTask, which
 // addTask copies onto the task it creates.
 import { parseRecurringId } from './recurringId.js';
+import { occurrenceSubtasks } from './recurringSubtasks.js';
 
 /**
  * What the panel shows.
@@ -23,11 +24,12 @@ export function modalNotesTarget({ editingTask, schedulingId, tasks = [], unsche
   if (id == null) return { kind: 'draft' };
   const occurrence = parseRecurringId(id);
   if (occurrence) {
-    // An occurrence's notes and subtasks are its series', and the app's
-    // notes actions write them there.
+    // An occurrence's notes and subtask list are its series', and the app's
+    // notes actions write them there; which subtasks are ticked is this
+    // date's (utils/recurringSubtasks.js).
     const template = recurringTasks.find((candidate) => candidate.id === occurrence.templateId);
     if (!template) return null;
-    return { kind: 'live', task: { ...editingTask, notes: template.notes || '', subtasks: template.subtasks || [] }, isInbox: false };
+    return { kind: 'live', task: { ...editingTask, notes: template.notes || '', subtasks: occurrenceSubtasks(template, occurrence.dateStr) }, isInbox: false };
   }
   const inbox = unscheduledTasks.find((candidate) => candidate.id === id);
   if (inbox) return { kind: 'live', task: inbox, isInbox: true };

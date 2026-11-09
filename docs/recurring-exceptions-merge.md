@@ -189,3 +189,29 @@ B, with a concurrent edit on B. Then:
    before stamps existed. Recommended: the row winner.
 3. **Stamps derived by the save pass, not written by each writer.**
    Recommended, for the reasons above.
+
+## Subtasks ticked per occurrence
+
+A series keeps one subtask list for every occurrence (the template's
+`subtasks`), and which of them are done belongs to one day. Those ticks live
+in a second per-date map with the same rules, `subtaskCompletions`:
+
+- **Shape:** `subtaskCompletions: { [date]: [subtask id, …] }`, ids sorted so
+  two copies of one state compare equal; a date with no ticks has no key.
+  `subtaskCompletionsTimestamps` sits beside it, as `exceptionsTimestamps`
+  does, and holds untick tombstones the same way.
+- **Its own map, not a field of `exceptions`.** An exception's presence marks
+  an edited occurrence for the statistics, JOBO and the read models; ticking a
+  subtask is not an edit of the occurrence's plan.
+- **Same machinery.** `recurringExceptions.js` builds both maps from one
+  factory: the save pass stamps changed dates, both tiers merge per date after
+  the row is picked, and `normalizeField` strips the stamp map. The ticks
+  themselves are the user's edit and stamp the row.
+- **Every occurrence starts unticked.** A `completed` flag the old shared model
+  left on the template's own subtasks is not read (`src/utils/recurringSubtasks.js`);
+  it would show a stale tick on every day. Adding, renaming, reordering and
+  deleting subtasks stay series-wide.
+- **Mixed versions.** An older app still ticks the template's shared flag,
+  which a newer one ignores, so ticks made on an older device do not show on a
+  newer one until it is updated.
+

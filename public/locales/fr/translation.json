@@ -802,7 +802,7 @@
     },
     "taskCards": "Cartes des tâches",
     "showCardSubtasks": "Afficher les sous-tâches sur les cartes",
-    "showCardSubtasksHint": "Quand la carte a la place. Les sous-tâches des tâches récurrentes s'affichent sans cases à cocher."
+    "showCardSubtasksHint": "Quand la carte a la place."
   },
   "dailyNotes": {
     "quickNotes": "Notes rapides",

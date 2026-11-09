@@ -7,6 +7,7 @@ import { carryCreatedAt } from '../utils/createdAt.js';
 import { carryEnergy } from '../utils/energyAxis.js';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
 import { renderTitle } from '../utils/textFormatting.jsx';
+import { occurrenceSubtasks } from '../utils/recurringSubtasks.js';
 
 const EditRecurrenceModal = () => {
   const { t, i18n } = useTranslation();
@@ -62,7 +63,8 @@ const EditRecurrenceModal = () => {
                       completed: isCompleted,
                       isAllDay: template.isAllDay || false,
                       notes: template.notes || '',
-                      subtasks: template.subtasks ? JSON.parse(JSON.stringify(template.subtasks)) : [],
+                      // The occurrence's own ticks (utils/recurringSubtasks.js).
+                      subtasks: JSON.parse(JSON.stringify(occurrenceSubtasks(template, dateStr))),
                       date: dateStr,
                       ...carryCreatedAt(template),
                       ...carryEnergy(template),
