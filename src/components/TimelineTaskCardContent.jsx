@@ -256,8 +256,10 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                       >
                         {renderTitleWithoutTags(task.title)}
                       </div>
-                      {/* Energy (#2331): after the title, which truncates, so a leaf
-                          appearing on hover shortens it rather than moving it. */}
+                      {/* Energy (#2331): a narrow card keeps its actions in the
+                          overflow menu, so the leaf ends the title row, beside it;
+                          the title truncates, so a leaf appearing on hover
+                          shortens it rather than moving it. */}
                       <TaskEnergyMarker task={task} readOnly={isTablet} />
                     </div>
                   )}
@@ -324,7 +326,6 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                       >
                         {renderTitleWithoutTags(task.title)}
                       </div>
-                      <TaskEnergyMarker task={task} readOnly={isTablet} />
                     </div>
                   )}
                   {(extractTags(task.title).length > 0 || (goalsProjectsEnabled && task.projectId)) && (
@@ -353,6 +354,11 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
               </div>
               {!isImported && (
                 <div className="flex items-center gap-0.5 flex-shrink-0">
+                  {/* Energy (#2331): the first of the card's actions, at their
+                      size, so it lines up with them whether or not the card
+                      has a tags row. Its hover-only slot on an Effort card
+                      stays reserved, so the icons never shift on hover. */}
+                  <TaskEnergyMarker task={task} readOnly={isTablet} size={14} pad="p-1" />
                   <ActionButtons />
                 </div>
               )}
