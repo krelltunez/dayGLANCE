@@ -799,7 +799,10 @@
       "getOnPlay": "在 Google Play 上获取",
       "getIt": "获取",
       "notNow": "以后再说"
-    }
+    },
+    "taskCards": "任务卡片",
+    "showCardSubtasks": "在任务卡片上显示子任务",
+    "showCardSubtasksHint": "卡片有足够空间时显示。重复任务的子任务只列出，不带勾选框。"
   },
   "dailyNotes": {
     "quickNotes": "快速笔记",
@@ -971,7 +974,9 @@
     "earlierMoves": "+1 次更早",
     "earlierMoves_other": "+{{count}} 次更早",
     "continuesFrom": "自{{day}}",
-    "continuesFromLabel": "{{title}}，从{{day}}延续"
+    "continuesFromLabel": "{{title}}，从{{day}}延续",
+    "cardSubtasksMore_other": "还有 {{count}} 项",
+    "cardSubtasksCount_other": "{{count}} 个子任务"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}",

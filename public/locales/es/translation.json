@@ -799,7 +799,10 @@
       "getOnPlay": "Disponible en Google Play",
       "getIt": "Obtener",
       "notNow": "Ahora no"
-    }
+    },
+    "taskCards": "Tarjetas de tareas",
+    "showCardSubtasks": "Mostrar subtareas en las tarjetas",
+    "showCardSubtasksHint": "Cuando la tarjeta tiene espacio. Las subtareas de las tareas repetidas se muestran sin casillas."
   },
   "dailyNotes": {
     "quickNotes": "Notas rápidas",
@@ -971,7 +974,11 @@
     "earlierMoves": "+1 anterior",
     "earlierMoves_other": "+{{count}} anteriores",
     "continuesFrom": "desde {{day}}",
-    "continuesFromLabel": "{{title}}, continúa desde {{day}}"
+    "continuesFromLabel": "{{title}}, continúa desde {{day}}",
+    "cardSubtasksMore_one": "+{{count}} más",
+    "cardSubtasksMore_other": "+{{count}} más",
+    "cardSubtasksCount_one": "{{count}} subtarea",
+    "cardSubtasksCount_other": "{{count}} subtareas"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}",

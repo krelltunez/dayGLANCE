@@ -799,7 +799,10 @@
       "getOnPlay": "Jetzt bei Google Play",
       "getIt": "Herunterladen",
       "notNow": "Nicht jetzt"
-    }
+    },
+    "taskCards": "Aufgabenkarten",
+    "showCardSubtasks": "Unteraufgaben auf Aufgabenkarten anzeigen",
+    "showCardSubtasksHint": "Wenn die Karte Platz hat. Unteraufgaben wiederkehrender Aufgaben werden ohne Kästchen angezeigt."
   },
   "dailyNotes": {
     "quickNotes": "Kurznotizen",
@@ -971,7 +974,11 @@
     "earlierMoves": "+1 früher",
     "earlierMoves_other": "+{{count}} frühere",
     "continuesFrom": "von {{day}}",
-    "continuesFromLabel": "{{title}}, fortgesetzt von {{day}}"
+    "continuesFromLabel": "{{title}}, fortgesetzt von {{day}}",
+    "cardSubtasksMore_one": "+{{count}} weitere",
+    "cardSubtasksMore_other": "+{{count}} weitere",
+    "cardSubtasksCount_one": "{{count}} Unteraufgabe",
+    "cardSubtasksCount_other": "{{count}} Unteraufgaben"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}",

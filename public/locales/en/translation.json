@@ -799,7 +799,10 @@
       "getOnPlay": "Get it on Google Play",
       "getIt": "Get it",
       "notNow": "Not now"
-    }
+    },
+    "taskCards": "Task cards",
+    "showCardSubtasks": "Show subtasks on task cards",
+    "showCardSubtasksHint": "When a card has room. A repeating task's subtasks are listed without checkboxes."
   },
   "dailyNotes": {
     "quickNotes": "Quick Notes",
@@ -971,7 +974,11 @@
     "earlierMoves": "+1 earlier",
     "earlierMoves_other": "+{{count}} earlier",
     "continuesFrom": "from {{day}}",
-    "continuesFromLabel": "{{title}}, continued from {{day}}"
+    "continuesFromLabel": "{{title}}, continued from {{day}}",
+    "cardSubtasksMore_one": "+{{count}} more",
+    "cardSubtasksMore_other": "+{{count}} more",
+    "cardSubtasksCount_one": "{{count}} subtask",
+    "cardSubtasksCount_other": "{{count}} subtasks"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}st",

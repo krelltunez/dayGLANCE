@@ -15,6 +15,7 @@ export const SECTION_SEARCH = {
   mobileViewDefaults: ['settings.viewDefault', 'settings.endOfDay', 'settings.glanceDefault'],
   tabletViewDefaults: ['settings.viewDefaults', 'settings.portraitViewDefault', 'settings.landscapeViewDefault', 'settings.endOfDay'],
   timelineSize: ['timelineZoom.label'],
+  cardSubtasks: ['settings.taskCards', 'settings.showCardSubtasks'],
   cardSize: ['cardSize.label'],
   goals: ['settings.goalsProjects', 'settings.enableGoalsProjects'],
   routines: ['settings.routines', 'settings.enableRoutines'],
