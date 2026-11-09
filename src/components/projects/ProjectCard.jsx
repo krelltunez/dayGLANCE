@@ -476,9 +476,21 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               the header's buttons squeezed a phone-width title until it ran
               under the badge. A long one-word title wraps rather than overflow. */}
           <div data-project-title-block className="flex-1 min-w-0 flex flex-col items-start gap-1">
-            <span className={`text-sm font-semibold ${textPrimary} leading-tight break-words max-w-full`}>
-              {project.title}
-            </span>
+            {/* On hold sits with the title it describes, not among the buttons;
+                on a narrow card it wraps under the title. */}
+            <div data-project-title-row className="flex flex-wrap items-center gap-x-1.5 gap-y-1 max-w-full min-w-0">
+              <span className={`text-sm font-semibold ${textPrimary} leading-tight break-words max-w-full`}>
+                {project.title}
+              </span>
+              {onHold && (
+                <span data-on-hold-chip className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${
+                  darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-100 text-stone-600'
+                }`}>
+                  <CirclePause size={9} />
+                  {t('goals.onHold')}
+                </span>
+              )}
+            </div>
             {showTargetDate && (
               <span
                 data-project-target-date
@@ -569,14 +581,6 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               }`}>
                 <CheckCircle2 size={10} />
                 {t('common.done')}
-              </span>
-            )}
-            {onHold && (
-              <span data-on-hold-chip className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ${
-                darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-100 text-stone-600'
-              }`}>
-                <CirclePause size={10} />
-                {t('goals.onHold')}
               </span>
             )}
             {stalled && project.status !== 'completed' && (

@@ -102,6 +102,17 @@ describe('a project on hold, on its card', () => {
     expect(card(markup, 'live')).not.toContain('data-on-hold-chip');
   });
 
+  // MUTATION: put the chip back among the header's buttons and this fails.
+  it('the chip sits with the title, before any of the header\'s buttons', () => {
+    const paused = card(html(), 'paused');
+    const title = paused.indexOf('>paused<');
+    const chip = paused.indexOf('data-on-hold-chip');
+    const firstButton = paused.indexOf('<button', title);
+    expect(chip).toBeGreaterThan(title);
+    expect(firstButton === -1 || chip < firstButton).toBe(true);
+    expect(paused.slice(paused.indexOf('data-project-title-block'), chip)).not.toContain('<button');
+  });
+
   it('asks for nothing: no target-date warning and no hyperGLANCE session, both of which the active twin shows', () => {
     const markup = html();
     const live = card(markup, 'live');
