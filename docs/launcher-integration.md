@@ -24,7 +24,8 @@ same trigger (every data change while the app runs), and pushes through
                energy, clientId, recurringId, native }],   // scheduled, Inbox (date null), recurring occurrences;
                                                 // native: a device-calendar event, read live, never stored
   goals:    [{ id, title, description, colorHex, targetDate, status }],
-  projects: [{ id, title, goalId, colorHex, description, status, targetDate }],   // targetDate: the project's own, as on a goal (null when unset)
+  projects: [{ id, title, goalId, colorHex, description, status, targetDate }],   // targetDate: the project's own, as on a goal (null when unset);
+                                                // status: "active" | "on-hold" | "completed" | "archived" (below)
   routines: [{ id, name, startTime, duration, isAllDay, completed }],   // today's
   frames:   [{ id, frameId, date, start, end, name, colorHex,
               slots: [{ start, end }] }],                     // per day, today-7 to today+34; slots: its free time (below)
@@ -38,6 +39,13 @@ same trigger (every data change while the app runs), and pushes through
   deviceCalendar: { filter, overrides, daysBefore, daysAfter },   // how the provider reads the calendar itself (below)
   carryDeviceEvents: true }                       // headless only: this snapshot could not read the calendar
 ```
+
+**`projects[].status`** is the app's own value. `"on-hold"` is a project the
+user paused (`src/utils/projectStatus.js`): it stays listed and offered, after
+the active projects; it still counts toward its goal's progress, and keeps its
+goal from being completed; but it asks for nothing: no target-date or overdue
+warning, no due-today or due-this-week row, no hyperGLANCE session. A launcher
+build that predates it reads an unknown status as active.
 
 **`dayShape.dialLayers`** is the app dial's layer toggles on this device
 (`utils/dialPrefs.js`, the dial's Layers panel), so the launcher's dial draws

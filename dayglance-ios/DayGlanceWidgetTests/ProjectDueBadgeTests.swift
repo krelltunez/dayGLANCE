@@ -50,6 +50,14 @@ final class ProjectDueBadgeTests: XCTestCase {
         XCTAssertNil(blank.dueDays(from: day(2026, 9, 21), isStale: false, calendar: calendar))
     }
 
+    func testAProjectOnHoldHasNoBadgeAndSaysSo() throws {
+        let paused = try project(#"{"id":"p","status":"on-hold","targetDate":"2026-09-24","daysUntilDue":3}"#)
+        XCTAssertTrue(paused.isOnHold)
+        XCTAssertNil(paused.dueDays(from: day(2026, 9, 21), isStale: false, calendar: calendar))
+        let active = try project(#"{"id":"p","status":"active","targetDate":"2026-09-24"}"#)
+        XCTAssertFalse(active.isOnHold)
+    }
+
     func testTheLiveFixtureStillDecodes() throws {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "widgetSnapshot.live", withExtension: "json"))
         let snapshot = try XCTUnwrap(decodeSnapshot(try Data(contentsOf: url)))

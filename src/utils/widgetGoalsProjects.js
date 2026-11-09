@@ -6,7 +6,9 @@
 //
 // Order, matching the app:
 //   - a goal's projects as the Goals & Projects space draws them: by
-//     sortOrder (sortProjectsByOrder), open ones before completed ones;
+//     sortOrder (sortProjectsByOrder), active, then on hold, then completed;
+//   - the project list the pickers offer: on-hold projects after the others
+//     (pausedLast), as the app's own pickers list them;
 //   - a project's tasks as its card lists them (orderProjectTasks): open
 //     scheduled by date, open inbox by the drag order, then the completed.
 
@@ -15,6 +17,7 @@ import { calculateGoalProgress } from './goalProgress.js';
 import { calculateProjectProgress } from './projectProgress.js';
 import { stripWikilinksAndTags } from './taskUtils.js';
 import { orderProjectTasks, sortProjectsByOrder } from './projectOrder.js';
+import { pausedLast } from './projectStatus.js';
 
 /** Tasks the Project widget payload carries per project: the iOS large
  *  widget's eight rows (Android shows six). The count line and "+N more" use
@@ -27,7 +30,7 @@ const daysUntil = (targetDate, todayStr) => (targetDate
   : null);
 const pct = (done, total) => (total > 0 ? Math.round((done / total) * 100) : 0);
 const openFirst = (list) => [
-  ...list.filter((p) => p.status !== 'completed'),
+  ...pausedLast(list.filter((p) => p.status !== 'completed')),
   ...list.filter((p) => p.status === 'completed'),
 ];
 
@@ -83,8 +86,11 @@ export function buildWidgetGoalsProjects({ goals = [], allGoals = goals, project
   // archived. A project whose goal was archived or deleted has no card in the
   // app, and was still offered in the widget pickers.
   const shownGoalIds = new Set(goals.filter((g) => g.status !== 'archived').map((g) => g.id));
-  const projectData = projects
-    .filter((p) => p.status !== 'archived' && (!p.goalId || shownGoalIds.has(p.goalId)))
+  // An on-hold project is still listed (the widget can show it, and the
+  // pickers still offer it), after the others; its `status` tells the widget
+  // to draw it paused and without a due badge.
+  const projectData = pausedLast(projects
+    .filter((p) => p.status !== 'archived' && (!p.goalId || shownGoalIds.has(p.goalId))))
     .map((p) => {
       const isMine = (t) => t.projectId === p.id && live(t);
       const ordered = orderProjectTasks(scheduled.filter(isMine), unscheduled.filter(isMine));

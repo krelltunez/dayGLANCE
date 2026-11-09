@@ -49,6 +49,7 @@
     <string name="widget_due_left">faltam %1$dd</string>
     <string name="widget_untitled">Sem título</string>
     <string name="widget_done_check">✓ Feito</string>
+    <string name="widget_on_hold">Em pausa</string>
     <plurals name="widget_more_projects">
         <item quantity="one">+%d outro projeto</item>
         <item quantity="other">+%d outros projetos</item>

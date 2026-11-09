@@ -55,6 +55,7 @@
     <string name="widget_due_left">залишилось %1$d дн.</string>
     <string name="widget_untitled">Без назви</string>
     <string name="widget_done_check">✓ Виконано</string>
+    <string name="widget_on_hold">Призупинено</string>
     <plurals name="widget_more_projects">
         <item quantity="one">ще %d проєкт</item>
         <item quantity="few">ще %d проєкти</item>
