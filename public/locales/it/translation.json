@@ -802,7 +802,7 @@
     },
     "taskCards": "Schede delle attività",
     "showCardSubtasks": "Mostra le sottoattività sulle schede",
-    "showCardSubtasksHint": "Quando la scheda ha spazio. Le sottoattività delle attività ricorrenti sono elencate senza caselle."
+    "showCardSubtasksHint": "Quando la scheda ha spazio."
   },
   "dailyNotes": {
     "quickNotes": "Note rapide",

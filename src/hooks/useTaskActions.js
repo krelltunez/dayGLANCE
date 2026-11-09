@@ -16,6 +16,7 @@ import { editedSeriesStart } from '../utils/recurrenceEngine.js';
 import { moveSubtaskTo } from '../utils/subtaskOrder.js';
 import { recordDeletedTaskTombstone } from '../utils/deletedTaskTombstones.js';
 import { removeTagFromTitle } from '../utils/tagManager.js';
+import { withOccurrenceSubtask } from '../utils/recurringSubtasks.js';
 
 // Strip a specific tag (e.g. "#obsidian") from a title string, by the tag
 // manager's rule: the whole tag only, so `#obsidian/inbox` or `#obsidian-x`
@@ -714,7 +715,10 @@ export default function useTaskActions({
       )
     });
     if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
-      updateRecurringTemplate(taskId, subtaskUpdater);
+      // Ticked on THIS occurrence only: each day of a series starts fresh
+      // (utils/recurringSubtasks.js), so Monday's tick is not Tuesday's.
+      const parsed = parseRecurringId(taskId);
+      if (parsed) updateRecurringTemplate(taskId, t => withOccurrenceSubtask(t, parsed.dateStr, subtaskId));
     } else if (isInbox) {
       setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
     } else {

@@ -1,7 +1,7 @@
 import { dateToString } from '../utils/taskUtils.js';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import { stampTimestamps } from '../utils/stampTimestamps.js';
-import { applyExceptionStamps, stampExceptionChanges } from '@glance-apps/dayglance-vault';
+import { applyExceptionStamps, stampExceptionChanges, applySubtaskCompletionStamps, stampSubtaskCompletionChanges } from '@glance-apps/dayglance-vault';
 import { stampOriginalPlan, applyBaselines } from '../utils/originalPlan.js';
 import { stampDeferrals, applyDeferrals } from '../utils/deferrals.js';
 import { inBookkeepingWindow, markBookkeepingChange } from '../utils/localEditStamp.js';
@@ -536,8 +536,12 @@ export default function useDataPersistence({
     // it finds no difference here and stamps nothing.
     const stampSeries = (key, setter) => (rows, prev) => {
       if (suppressTimestampRef.current) return stampOnly(key, setter)(rows, prev);
-      const dated = stampExceptionChanges(rows, prev, new Date().toISOString());
-      if (dated !== rows) setter(live => applyExceptionStamps(live, dated));
+      const now = new Date().toISOString();
+      const edited = stampExceptionChanges(rows, prev, now);
+      if (edited !== rows) setter(live => applyExceptionStamps(live, edited));
+      // And each date whose ticked subtasks changed, merged per date the same way.
+      const dated = stampSubtaskCompletionChanges(edited, prev, now);
+      if (dated !== edited) setter(live => applySubtaskCompletionStamps(live, dated));
       return stampOnly(key, setter)(dated, prev);
     };
     for (const [key, rows, setter] of [

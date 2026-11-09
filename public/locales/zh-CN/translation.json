@@ -802,7 +802,7 @@
     },
     "taskCards": "任务卡片",
     "showCardSubtasks": "在任务卡片上显示子任务",
-    "showCardSubtasksHint": "卡片有足够空间时显示。重复任务的子任务只列出，不带勾选框。"
+    "showCardSubtasksHint": "卡片有足够空间时显示。"
   },
   "dailyNotes": {
     "quickNotes": "快速笔记",

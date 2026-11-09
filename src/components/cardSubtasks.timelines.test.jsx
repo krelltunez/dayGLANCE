@@ -5,9 +5,9 @@ import { continuationsFromPreviousDay, shiftDateStr } from '@glance-apps/agenda-
 
 // Subtasks on the timelines' real cards: DAY (DayViewColumn, also JOBO's Plan
 // side), MULTI (TimeGrid) and the phone's GRID (MobileTimeGrid). Wide cards
-// with room list them, checkable on a one-off task and not on a repeating
-// one; narrow cards and short ones show none; the device setting turns them
-// off. The harness is overnightTimelines.test.jsx's.
+// with room list them to tick, a repeating task's too (per occurrence);
+// narrow cards and short ones show none; the device setting turns them off.
+// The harness is overnightTimelines.test.jsx's.
 
 const fixture = vi.hoisted(() => ({ ctx: {}, features: {} }));
 vi.mock('../context/DayPlannerContext.jsx', () => ({ useDayPlannerCtx: () => fixture.ctx }));
@@ -72,13 +72,13 @@ function setup({ tasks = [evening, quick, gym], dates = [at(WED)], resizePreview
   };
 }
 
-// Each card's subtask list: { id: 'interactive'|'read-only' }, and the rows it draws.
+// Each card's subtask list: { id: number of checkboxes it draws }.
 const lists = (html) => {
   const out = {};
   for (const card of html.split('data-task-id="').slice(1)) {
     const id = card.slice(0, card.indexOf('"'));
-    const m = card.match(/data-card-subtasks="(interactive|read-only)"/);
-    if (m && !(id in out)) out[id] = m[1];
+    if (!/data-card-subtasks="/.test(card) || id in out) continue;
+    out[id] = (card.match(/role="checkbox"/g) || []).length;
   }
   return out;
 };
@@ -89,21 +89,21 @@ const rowCount = (html, id) => {
 const dayCol = (dateStr, startHour, endHour) => ({ date: at(dateStr), dateStr, startHour, endHour });
 
 describe('subtasks on the timelines\' cards', () => {
-  it('DAY (and JOBO\'s Plan side): a long one-off card lists them to tick; a repeating one without checkboxes; a short one none', () => {
+  it('DAY (and JOBO\'s Plan side): long cards list them to tick, a repeating one\'s too; a short one none', () => {
     setup();
     const html = renderToStaticMarkup(<DayViewColumn col={dayCol(WED, 0, 24)} colIdx={0} hourHeight={60} planOnly />);
-    expect(lists(html)).toEqual({ evening: 'interactive', 'recurring-g1-2026-11-04': 'read-only' });
+    expect(lists(html)).toEqual({ evening: 3, 'recurring-g1-2026-11-04': 2 });
     expect(rowCount(html, 'evening')).toBe(3);
   });
 
   it('MULTI: the same', () => {
     setup();
-    expect(lists(renderToStaticMarkup(<TimeGrid />))).toEqual({ evening: 'interactive', 'recurring-g1-2026-11-04': 'read-only' });
+    expect(lists(renderToStaticMarkup(<TimeGrid />))).toEqual({ evening: 3, 'recurring-g1-2026-11-04': 2 });
   });
 
   it('GRID on the phone: the same', () => {
     setup();
-    expect(lists(renderToStaticMarkup(<MobileTimeGrid />))).toEqual({ evening: 'interactive', 'recurring-g1-2026-11-04': 'read-only' });
+    expect(lists(renderToStaticMarkup(<MobileTimeGrid />))).toEqual({ evening: 3, 'recurring-g1-2026-11-04': 2 });
   });
 
   // The list lives in the wide layouts only: a side-by-side card is too thin

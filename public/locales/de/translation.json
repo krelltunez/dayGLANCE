@@ -802,7 +802,7 @@
     },
     "taskCards": "Aufgabenkarten",
     "showCardSubtasks": "Unteraufgaben auf Aufgabenkarten anzeigen",
-    "showCardSubtasksHint": "Wenn die Karte Platz hat. Unteraufgaben wiederkehrender Aufgaben werden ohne Kästchen angezeigt."
+    "showCardSubtasksHint": "Wenn die Karte Platz hat."
   },
   "dailyNotes": {
     "quickNotes": "Kurznotizen",

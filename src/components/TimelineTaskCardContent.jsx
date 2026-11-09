@@ -364,7 +364,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
               </div>
             )}
             {/* Subtasks, as many as the card has room for (wide cards only;
-                a repeating task's without checkboxes, CardSubtasks.jsx). */}
+                a repeating task's are ticked per occurrence, CardSubtasks.jsx). */}
             {!isImported && showCardSubtasks !== false && task.subtasks?.length > 0 && (
               <CardSubtasks
                 task={task}
@@ -373,7 +373,6 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                   height,
                   hasMetaRow: extractTags(task.title).length > 0 || (goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId)),
                 })}
-                readOnly={isRecurringTask}
                 onToggle={(subtaskId) => toggleSubtask(task.id, subtaskId, false)}
                 onMore={() => setExpandedNotesTaskId(task.id)}
               />

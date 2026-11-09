@@ -802,7 +802,7 @@
     },
     "taskCards": "Cartões de tarefa",
     "showCardSubtasks": "Mostrar subtarefas nos cartões",
-    "showCardSubtasksHint": "Quando o cartão tem espaço. As subtarefas de tarefas repetidas aparecem sem caixas de seleção."
+    "showCardSubtasksHint": "Quando o cartão tem espaço."
   },
   "dailyNotes": {
     "quickNotes": "Notas rápidas",

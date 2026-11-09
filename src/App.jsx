@@ -272,6 +272,7 @@ import { schedRollingWindow } from './utils/schedAgenda.js';
 import useTrayPopupVisible from './hooks/useTrayPopupVisible.js';
 import { writeItem } from './utils/storageWrites.js';
 import { CARD_SUBTASKS_KEY, readShowCardSubtasks } from './utils/cardSubtasks.js';
+import { occurrenceSubtasks } from './utils/recurringSubtasks.js';
 
 
 
@@ -4076,7 +4077,8 @@ const DayPlanner = () => {
             completed: isCompleted || false,
             isAllDay: newTask.isAllDay || false,
             notes: template?.notes || '',
-            subtasks: template?.subtasks ? JSON.parse(JSON.stringify(template.subtasks)) : [],
+            // The occurrence's own ticks (utils/recurringSubtasks.js).
+            subtasks: template ? JSON.parse(JSON.stringify(occurrenceSubtasks(template, parsed.dateStr))) : [],
             date: newTask.date || parsed.dateStr,
             projectId: newTask.projectId || undefined,
             ...(mobileEditingTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds } : {}),

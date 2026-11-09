@@ -128,6 +128,17 @@ export function mergeExceptions(local: unknown, remote: unknown): {
 export function withMergedExceptions<T>(merged: T, local: unknown, remote: unknown): T;
 export function sameOccurrenceEdits(a: unknown, b: unknown): boolean;
 
+// Which subtasks were ticked on which occurrence (per date, ids sorted).
+export function stampSubtaskCompletionDates<T>(template: T, previous: unknown, now: string): T;
+export function stampSubtaskCompletionChanges<T>(templates: T[], storedTemplates: unknown[] | null | undefined, now: string): T[];
+export function applySubtaskCompletionStamps<T>(live: T[], stamped: unknown[] | null | undefined): T[];
+export function mergeSubtaskCompletions(local: unknown, remote: unknown): {
+  subtaskCompletions: Record<string, string[]>;
+  subtaskCompletionsTimestamps: Record<string, string>;
+};
+export function withMergedSubtaskCompletions<T>(merged: T, local: unknown, remote: unknown): T;
+export function sameSubtaskCompletions(a: unknown, b: unknown): boolean;
+
 // ── merges.js and the field merges ───────────────────────────────────────────
 
 export function mergeHabitLogs(

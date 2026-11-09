@@ -7,9 +7,9 @@ import { loaders } from '../locales.js';
 import CardSubtasks from './CardSubtasks.jsx';
 import { SUBTASK_ROW_PX } from '../utils/cardSubtasks.js';
 
-// A task's subtasks on its timeline card: ticked from the card on a one-off
-// task, listed without checkboxes on a repeating one, and a "more" row that
-// opens the panel when they do not all fit.
+// A task's subtasks on its timeline card: ticked from the card (a repeating
+// task's per occurrence, which toggleSubtask decides from the id), and a
+// "more" row that opens the panel when they do not all fit.
 
 let i18n;
 beforeAll(async () => {
@@ -42,16 +42,6 @@ describe('CardSubtasks', () => {
     act(() => { list[1].props.onClick({ stopPropagation }); });
     expect(onToggle).toHaveBeenCalledWith('s1');
     expect(stopPropagation).toHaveBeenCalled();
-  });
-
-  // MUTATION: drop `readOnly` and a repeating task's card ticks the series'
-  // one list, for every day.
-  it('a repeating task\'s subtasks are listed without checkboxes', () => {
-    const onToggle = vi.fn();
-    const root = mount({ task: task(3), height: heightFor(3), readOnly: true, onToggle });
-    expect(rows(root)).toHaveLength(3);
-    expect(rows(root).every((n) => n.type === 'div')).toBe(true);
-    expect(root.root.findAll((n) => n.type === 'button')).toHaveLength(0);
   });
 
   it('says how many more, and opens the panel', () => {

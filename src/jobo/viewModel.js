@@ -11,6 +11,7 @@ import { resolveOccurrence } from './detector.js';
 import { validCivilDate } from './viewDates.js';
 
 import { completionMarker } from './completionMarker.js';
+import { occurrenceSubtasks } from '../utils/recurringSubtasks.js';
 
 const DAY_MINUTES = 24 * 60;
 const PROGRESS_ORDER = Object.freeze([
@@ -225,7 +226,7 @@ function expandRecurringOccurrence(template, date) {
     isAllDay: exception.isAllDay ?? template.isAllDay ?? false,
     assignedUserSyncIds: exception.assignedUserSyncIds ?? template.assignedUserSyncIds,
     notes: template.notes || '',
-    subtasks: template.subtasks || [],
+    subtasks: occurrenceSubtasks(template, date),
     energy: template.energy,
     date,
     isRecurring: true,

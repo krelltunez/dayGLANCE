@@ -5,6 +5,7 @@ import { hasTaskEnded, taskEnd } from '@glance-apps/agenda-core';
 import { dateToString } from './taskUtils.js';
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { notBucketed } from './bucketList.js';
+import { occurrenceSubtasks } from './recurringSubtasks.js';
 
 /**
  * @param {object} input
@@ -72,7 +73,7 @@ export function getOverdueTasks({
         completed: false,
         isAllDay: true,
         notes: template.notes || '',
-        subtasks: template.subtasks || [],
+        subtasks: occurrenceSubtasks(template, dateStr),
         // Energy-axis override is series-level (see setTaskEnergy); the
         // expansion is an explicit field list, so it must be carried here or
         // instances silently fall back to auto-derivation.
