@@ -2584,78 +2584,6 @@ export const ManageAreas = ({ onClose }) => {
   );
 };
 
-// ─── Area form (create / edit a single area) ──────────────────────────────────
-
-const AreaForm = ({ initial, onClose }) => {
-  const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
-  const { addArea, updateArea, deleteArea } = useFeaturesCtx();
-  const { t } = useTranslation();
-  const [name, setName] = useState(initial?.name || '');
-  const [color, setColor] = useState(initial?.color || TASK_COLORS[0].class);
-
-  const submit = (e) => {
-    e.preventDefault();
-    const n = name.trim();
-    if (!n) return;
-    if (initial) updateArea(initial.id, { name: n, color });
-    else addArea({ name: n, color });
-    onClose();
-  };
-
-  return (
-    <form onSubmit={submit} onClick={e => e.stopPropagation()} className={`${cardBg} rounded-2xl shadow-2xl max-w-sm p-5 w-full flex flex-col gap-4`}>
-      <h3 className={`text-base font-semibold ${textPrimary}`}>{initial ? t('goals.editArea') : t('goals.newArea')}</h3>
-      <div className="flex flex-col gap-1">
-        <label className={`text-xs font-medium ${textSecondary}`}>{t('goals.areaName')}</label>
-        <input
-          autoFocus
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder={t('goals.areaName')}
-          className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            darkMode ? 'bg-gray-700 text-gray-100 placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'
-          }`}
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label className={`text-xs font-medium ${textSecondary}`}>{t('common.color')}</label>
-        <div className="grid grid-cols-9 gap-2 w-full">
-          {TASK_COLORS.map(c => (
-            <button
-              key={c.class}
-              type="button"
-              onClick={() => setColor(c.class)}
-              className={`w-7 h-7 rounded-full ${c.class} transition-transform ${
-                color === c.class ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : 'hover:scale-110'
-              }`}
-              aria-label={t(`colors.${c.name.toLowerCase()}`)}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="flex gap-2 items-center">
-        {initial && (
-          <button
-            type="button"
-            onClick={() => { deleteArea(initial.id); onClose(); }}
-            className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${darkMode ? 'text-red-400 hover:bg-red-900/20' : 'text-red-500 hover:bg-red-50'}`}
-          >
-            {t('goals.deleteArea')}
-          </button>
-        )}
-        <div className="flex gap-2 ml-auto">
-          <button type="button" onClick={onClose} className={`px-3 py-1.5 text-sm rounded-lg ${hoverBg} ${textSecondary} transition-colors`}>
-            {t('common.cancel')}
-          </button>
-          <button type="submit" disabled={!name.trim()} className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            {initial ? t('common.save') : t('common.addArea')}
-          </button>
-        </div>
-      </div>
-    </form>
-  );
-};
-
 // ─── Goal detail panel (roadmap) ──────────────────────────────────────────────
 // Shown beneath the roadmap chart when a bar is clicked: the goal's header card
 // (edit / add project) plus its child ProjectCards — identical to the List view,
@@ -2852,7 +2780,6 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
 
   const [goalForm, setGoalForm] = useState(null);
   const [projectForm, setProjectForm] = useState(null);
-  const [areaForm, setAreaForm] = useState(null); // { editing: area|null }
   const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, onConfirm }
   const [reviewProjectId, setReviewProjectId] = useState(null); // an archived project opened for review (#2260)
   const [showManageAreas, setShowManageAreas] = useState(false);
@@ -3216,7 +3143,6 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
       else if (reviewProjectId) close = () => setReviewProjectId(null);
       else if (goalForm) close = () => setGoalForm(null);
       else if (projectForm) close = () => setProjectForm(null);
-      else if (areaForm) close = () => setAreaForm(null);
       else if (showManageAreas) close = () => setShowManageAreas(false);
       else if (moveToProject) close = () => setMoveToProject(null);
       else if (showAspire) close = () => setShowAspire(false);
@@ -3227,7 +3153,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
     };
     document.addEventListener('keydown', handler, true); // capture phase
     return () => document.removeEventListener('keydown', handler, true);
-  }, [isActive, goalForm, projectForm, areaForm, showManageAreas, moveToProject, showAspire, showAddTask, expandedNotesTaskId,
+  }, [isActive, goalForm, projectForm, showManageAreas, moveToProject, showAspire, showAddTask, expandedNotesTaskId,
       plannerProjectId, reviewProjectId, setPlannerProjectId,
       setShowAddTask, setShowNewTaskDeadlinePicker, setExpandedNotesTaskId]);
 
@@ -3291,11 +3217,6 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
             onCancel={() => setProjectForm(null)}
             mobile={!desktop}
           />
-        </FormOverlay>
-      )}
-      {areaForm && (
-        <FormOverlay onClose={() => setAreaForm(null)} mobile={!desktop} cardBg={cardBg}>
-          <AreaForm initial={areaForm.editing} onClose={() => setAreaForm(null)} />
         </FormOverlay>
       )}
       {showManageAreas && (
