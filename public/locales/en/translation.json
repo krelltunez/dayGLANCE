@@ -2052,7 +2052,11 @@
       "notesPlaceholder": "Summary:\nPurpose:\nResult:",
       "subtasks": "Subtasks (one per line)",
       "subtasksPlaceholder": "First step\nSecond step"
-    }
+    },
+    "showCompletedGoals": "Show completed goals",
+    "hideCompletedGoals": "Hide completed goals",
+    "allCompletedHidden_one": "The only goal here is completed.",
+    "allCompletedHidden_other": "All {{count}} goals here are completed."
   },
   "colors": {
     "gray": "Gray",

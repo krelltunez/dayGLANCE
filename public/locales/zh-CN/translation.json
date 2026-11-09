@@ -2047,7 +2047,10 @@
       "notesPlaceholder": "总结：\n目的：\n结果：",
       "subtasks": "子任务（每行一个）",
       "subtasksPlaceholder": "第一步\n第二步"
-    }
+    },
+    "showCompletedGoals": "显示已完成的目标",
+    "hideCompletedGoals": "隐藏已完成的目标",
+    "allCompletedHidden_other": "这里的 {{count}} 个目标都已完成。"
   },
   "colors": {
     "gray": "灰色",

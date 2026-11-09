@@ -2052,7 +2052,11 @@
       "notesPlaceholder": "Zusammenfassung:\nZweck:\nErgebnis:",
       "subtasks": "Unteraufgaben (eine pro Zeile)",
       "subtasksPlaceholder": "Erster Schritt\nZweiter Schritt"
-    }
+    },
+    "showCompletedGoals": "Abgeschlossene Ziele anzeigen",
+    "hideCompletedGoals": "Abgeschlossene Ziele ausblenden",
+    "allCompletedHidden_one": "Das einzige Ziel hier ist abgeschlossen.",
+    "allCompletedHidden_other": "Alle {{count}} Ziele hier sind abgeschlossen."
   },
   "colors": {
     "gray": "Grau",

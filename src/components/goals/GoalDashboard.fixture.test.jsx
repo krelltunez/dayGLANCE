@@ -74,7 +74,9 @@ describe('goals-space test fixture', () => {
   });
 
   it('renders the whole space over the real cards with the states the generator promises', async () => {
-    const html = await render(data);
+    // Completed goals shown: hidden by default (utils/goalFilters.js), and
+    // this renders every state the generator promises.
+    const html = await render(data, { showCompletedGoals: true });
     const sidebar = html.slice(html.indexOf('data-goals-sidebar'), html.indexOf('data-goals-main'));
     const main = html.slice(html.indexOf('data-goals-main'));
     // Every non-archived goal is a sidebar row; the archived one is not.

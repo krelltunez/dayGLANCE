@@ -87,7 +87,8 @@ import { ICS_CALENDARS_KEY, loadIcsCalendars, hasActiveIcsCalendars, stripIcsCal
 import { nextPerUserCalendarEntry } from './utils/perUserCalendarEntry.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, getProjectColor } from './utils/colorUtils.js';
 import { buildWidgetDueOn } from './utils/widgetGoalsProjects.js';
-import { resolveGoalsLink, areaFilterHides } from './utils/goalsLink.js';
+import { resolveGoalsLink } from './utils/goalsLink.js';
+import { goalRevealFilters } from './utils/goalFilters.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
 import { FRAME_COLORS } from './constants/frames.js';
 import { getOccurrencesInRange, getRecurrencePresets } from './utils/recurrenceEngine.js';
@@ -1234,6 +1235,7 @@ const DayPlanner = () => {
     areas, setAreas,
     goalsAreaFilter, setGoalsAreaFilter,
     goalsViewMode, setGoalsViewMode,
+    showCompletedGoals, setShowCompletedGoals,
     desktopSpace, setDesktopSpace, toggleDesktopSpace,
     showGoalsDashboard, setShowGoalsDashboard,
     goalsProjectsEnabled, setGoalsProjectsEnabled,
@@ -2817,9 +2819,12 @@ const DayPlanner = () => {
     if (r.space) setDesktopSpace(r.space);
     if (r.mobileTab) { setMobileActiveTab(r.mobileTab); setMobileSettingsView('main'); }
     if (r.areaFilter) setGoalsAreaFilter(r.areaFilter);
-    // A goal the area filter hides has no card to go to: widen it.
+    // A goal the filters hide has no card to go to: widen the area filter, and
+    // show completed goals for a completed one (utils/goalFilters.js).
     const goalId = r.focusGoalId || projects.find(p => p.id === r.focusProjectId)?.goalId;
-    if (areaFilterHides(goals.find(g => g.id === goalId), goalsAreaFilter, areas)) setGoalsAreaFilter('all');
+    const reveal = goalRevealFilters(goals.find(g => g.id === goalId), { areaFilter: goalsAreaFilter, areas, showCompleted: showCompletedGoals });
+    if (reveal.areaFilter) setGoalsAreaFilter(reveal.areaFilter);
+    if (reveal.showCompleted) setShowCompletedGoals(true);
     if (r.focusGoalId) setGoalsDashboardFocusId(r.focusGoalId);
     if (r.focusProjectId) setGoalsDashboardFocusProjectId(r.focusProjectId);
     if (r.tab) setGoalsDashboardFocusTab(r.tab);
@@ -7615,6 +7620,7 @@ const DayPlanner = () => {
     areas, setAreas,
     goalsAreaFilter, setGoalsAreaFilter,
     goalsViewMode, setGoalsViewMode,
+    showCompletedGoals, setShowCompletedGoals,
     hgVisibleProjects,
     desktopSpace, setDesktopSpace, toggleDesktopSpace, goalsSpaceKeysRef,
     showGoalsDashboard, setShowGoalsDashboard,
