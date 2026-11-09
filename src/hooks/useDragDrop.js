@@ -7,6 +7,7 @@ import { anchorDragImageAtTop, dropClampMinutes } from '../utils/dragUtils.js';
 import { nativeEventEndString } from '../utils/nativeCalendar.js';
 import { pixelsToSnappedMinutes, resizeBlockByPixels } from '../utils/taskResize.js';
 import { timelinePosition } from '../utils/timelinePosition.js';
+import { dragAutoScrollStep, wheelScrollPx } from '../utils/dragAutoScroll.js';
 
 // Pure utilities used by position helpers
 const timeToMinutes = (time) => {
@@ -296,41 +297,53 @@ export default function useDragDrop({
     return () => window.removeEventListener('blur', onBlur);
   }, []);
 
+  // The edge bands (utils/dragAutoScroll.js): the speed is set by how deep
+  // the cursor is in the band, read again on every dragover, which the
+  // browser keeps firing while the cursor rests.
   const updateDragAutoScroll = (e) => {
     if (!calendarRef.current) return;
-    const calendarRect = calendarRef.current.getBoundingClientRect();
-    // Account for sticky headers (date header + all-day section) when computing scroll-up zone
-    const stickyHeight = stickyHeaderRef.current ? stickyHeaderRef.current.getBoundingClientRect().bottom - calendarRect.top : 0;
-    const scrollZoneSize = 60;
-    const scrollSpeed = 8;
-
-    const cursorY = e.clientY;
-    const effectiveTop = calendarRect.top + stickyHeight;
-    const distanceFromTop = cursorY - effectiveTop;
-    const distanceFromBottom = calendarRect.bottom - cursorY;
+    const el = calendarRef.current;
+    const calendarRect = el.getBoundingClientRect();
+    // The top band starts under the sticky headers (date header + all-day section).
+    const stickyBottom = stickyHeaderRef.current ? stickyHeaderRef.current.getBoundingClientRect().bottom : calendarRect.top;
+    const step = dragAutoScrollStep({
+      cursorY: e.clientY,
+      top: Math.max(calendarRect.top, stickyBottom),
+      bottom: calendarRect.bottom,
+      scrollTop: el.scrollTop,
+      maxScroll: el.scrollHeight - el.clientHeight,
+    });
 
     if (autoScrollInterval.current) {
       clearInterval(autoScrollInterval.current);
       autoScrollInterval.current = null;
     }
-
-    if (distanceFromTop < scrollZoneSize && distanceFromTop > 0 && calendarRef.current.scrollTop > 0) {
-      autoScrollInterval.current = setInterval(() => {
-        if (calendarRef.current) {
-          calendarRef.current.scrollTop -= scrollSpeed;
-        }
-      }, 16);
-    } else if (distanceFromBottom < scrollZoneSize && distanceFromBottom > 0) {
-      autoScrollInterval.current = setInterval(() => {
-        if (calendarRef.current) {
-          const maxScroll = calendarRef.current.scrollHeight - calendarRef.current.clientHeight;
-          if (calendarRef.current.scrollTop < maxScroll) {
-            calendarRef.current.scrollTop += scrollSpeed;
-          }
-        }
-      }, 16);
-    }
+    if (!step) return;
+    autoScrollInterval.current = setInterval(() => {
+      const scroller = calendarRef.current;
+      if (!scroller) return;
+      const maxScroll = scroller.scrollHeight - scroller.clientHeight;
+      scroller.scrollTop = Math.max(0, Math.min(maxScroll, scroller.scrollTop + step));
+    }, 16);
   };
+
+  // The wheel while a task is held scrolls the timeline (#2346), where the
+  // browser delivers it during a drag. Ours rather than the browser's, so a
+  // browser that would also scroll natively does not scroll twice. Ctrl/Cmd +
+  // wheel stays the timeline zoom's (useTimelineZoom).
+  useEffect(() => {
+    const el = calendarRef.current;
+    if (!draggedTask || !el) return undefined;
+    const onWheel = (event) => {
+      if (event.ctrlKey || event.metaKey) return;
+      const maxScroll = el.scrollHeight - el.clientHeight;
+      if (maxScroll <= 0) return;
+      event.preventDefault();
+      el.scrollTop = Math.max(0, Math.min(maxScroll, el.scrollTop + wheelScrollPx(event, el.clientHeight)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [draggedTask, calendarRef]);
 
   const handleDragOver = (e, targetDate = null) => {
     e.preventDefault();
