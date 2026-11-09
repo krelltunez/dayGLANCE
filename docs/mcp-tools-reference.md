@@ -42,7 +42,7 @@ directly (`claude mcp add --transport http`).
   sync tombstone the app's own delete writes. `dayglance_list_mcp_writes` reads the journal back
   (this session's MCP writes only, not the app's own edits).
 - **No deletes, no archiving** (owner, 2026-10-04): the surface has no delete tool for anything,
-  and `status` on goals and projects accepts `active` or `completed` only. Archiving and deleting
+  and `status` on goals accepts `active` or `completed` only, on projects also `on-hold`. Archiving and deleting
   stay the user's own step in dayGLANCE. The one way an assistant's creation leaves the store is
   the user's undo.
 
@@ -243,7 +243,7 @@ Goals and projects with their fields and duration-weighted progress, matching wh
 | Param | Type | Required | Notes |
 |---|---|---|---|
 | `goal_id` | string | no | Narrow to one goal's tree. Unknown id → `not_found`. |
-| `window` | `'active'` \| `'all'` | no | Default `'active'`; `'all'` includes archived/completed. |
+| `window` | `'active'` \| `'all'` | no | Default `'active'` (everything not archived or completed, on-hold projects included); `'all'` includes archived/completed. |
 
 Each goal: `id`, `title`, `status`, `description`, `start_date`, `target_date` (null when unset),
 `progress_percent`, `projects`, plus when present `area_id` and `area_name`, `assignee_ids`
@@ -546,7 +546,7 @@ in `clear_fields` removes.
 | `description_base` | string | no | The `description_base` a read returned. With it, a note write is refused with `note_changed` if the note changed since; without it the write is unconditional. Only with `description`. |
 | `start_date` / `target_date` | string | no | Local `YYYY-MM-DD`. |
 | `area_id` | string | no | |
-| `status` | `'active'` \| `'completed'` | no | `'archived'` → `validation` (by design). Completing requires every active child project to be completed, the form's own rule. |
+| `status` | `'active'` \| `'completed'` | no | `'archived'` → `validation` (by design). Completing requires every child project that is not archived to be completed (one on hold included), the form's own rule. |
 | `assignee_ids` | string[] | no | **Multi-user only.** Replaces the list. |
 | `clear_fields` | string[] | no | `"description"`, `"start_date"`, `"target_date"`, `"area"`, `"assignees"` (multi-user). |
 | `idempotency_key` | string | no | |
@@ -575,7 +575,7 @@ Field editor for projects, same contract.
 | `description_base` | string | no | As on `dayglance_update_goal`. |
 | `goal_id` | string | no | Move under another goal. `"goal"` in `clear_fields` makes it standalone. |
 | `target_date` | string | no | Local `YYYY-MM-DD` — the project's own target date. `"target_date"` in `clear_fields` removes it. |
-| `status` | `'active'` \| `'completed'` | no | `'archived'` → `validation`. Completing requires every task in the project to be completed. |
+| `status` | `'active'` \| `'on-hold'` \| `'completed'` | no | `'archived'` → `validation`. `'on-hold'` pauses the project: it stays listed and intact but is not flagged stalled, warned about its target date or given hyperGLANCE sessions; `'active'` resumes it. Completing requires every task in the project to be completed. |
 | `assignee_ids` | string[] | no | **Multi-user only.** |
 | `clear_fields` | string[] | no | `"description"`, `"goal"`, `"assignees"` (multi-user), `"target_date"`. |
 | `idempotency_key` | string | no | |

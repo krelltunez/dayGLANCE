@@ -1497,7 +1497,9 @@
     "nextPage": "Página seguinte",
     "close": "Fechar a revisão semanal",
     "habits": "Hábitos",
-    "openReview": "Abrir revisão"
+    "openReview": "Abrir revisão",
+    "onHoldHint": "Projetos em pausa. Retome um ou arquive-o no formulário do projeto.",
+    "resumeProject": "Retomar"
   },
   "reminders": {
     "dismissAll": "Dispensar tudo",
@@ -2056,7 +2058,9 @@
     "showCompletedGoals": "Mostrar objetivos concluídos",
     "hideCompletedGoals": "Ocultar objetivos concluídos",
     "allCompletedHidden_one": "O único objetivo aqui está concluído.",
-    "allCompletedHidden_other": "Os {{count}} objetivos aqui estão concluídos."
+    "allCompletedHidden_other": "Os {{count}} objetivos aqui estão concluídos.",
+    "onHold": "Em pausa",
+    "noOnHoldProjects": "Nenhum projeto em pausa"
   },
   "colors": {
     "gray": "Cinzento",

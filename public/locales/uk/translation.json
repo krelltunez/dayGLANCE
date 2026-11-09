@@ -1556,7 +1556,9 @@
     "nextPage": "Наступна сторінка",
     "close": "Закрити тижневий огляд",
     "habits": "Звички",
-    "openReview": "Відкрити огляд"
+    "openReview": "Відкрити огляд",
+    "onHoldHint": "Призупинені проєкти. Відновіть один або заархівуйте його у формі проєкту.",
+    "resumeProject": "Відновити"
   },
   "reminders": {
     "dismissAll": "Закрити все",
@@ -2159,7 +2161,9 @@
     "allCompletedHidden_one": "Єдину ціль тут завершено.",
     "allCompletedHidden_few": "Усі {{count}} цілі тут завершено.",
     "allCompletedHidden_many": "Усі {{count}} цілей тут завершено.",
-    "allCompletedHidden_other": "Усі {{count}} цілі тут завершено."
+    "allCompletedHidden_other": "Усі {{count}} цілі тут завершено.",
+    "onHold": "Призупинено",
+    "noOnHoldProjects": "Немає призупинених проєктів"
   },
   "colors": {
     "gray": "Сірий",

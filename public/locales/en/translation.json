@@ -1497,7 +1497,9 @@
     "nextPage": "Next page",
     "close": "Close weekly review",
     "habits": "Habits",
-    "openReview": "Open Review"
+    "openReview": "Open Review",
+    "onHoldHint": "Paused projects. Resume one, or archive it from its project form.",
+    "resumeProject": "Resume"
   },
   "reminders": {
     "dismissAll": "Dismiss all",
@@ -2056,7 +2058,9 @@
     "showCompletedGoals": "Show completed goals",
     "hideCompletedGoals": "Hide completed goals",
     "allCompletedHidden_one": "The only goal here is completed.",
-    "allCompletedHidden_other": "All {{count}} goals here are completed."
+    "allCompletedHidden_other": "All {{count}} goals here are completed.",
+    "onHold": "On hold",
+    "noOnHoldProjects": "No projects on hold"
   },
   "colors": {
     "gray": "Gray",

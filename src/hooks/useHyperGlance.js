@@ -1,4 +1,5 @@
 import { dateToString } from '../utils/taskUtils.js';
+import { hyperGlanceRuns } from '../utils/projectStatus.js';
 
 // Days of week in JS Date.getDay() order
 export const HG_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -107,9 +108,9 @@ export function getHGBarsForDate(projects, dateStr, nowMinutes) {
   const bars = [];
 
   for (const project of projects) {
-    if (project.archived) continue;
+    // Not archived, enabled, and not on hold (utils/projectStatus.js).
+    if (!hyperGlanceRuns(project)) continue;
     const hg = project.hyperglance;
-    if (!hg?.enabled) continue;
 
     const active = getActiveHGInstance(project, nowMinutes);
     const completedOnDate = (hg.completions || []).some(c => c.date === dateStr);
@@ -150,7 +151,8 @@ export function getGlanceHGInstances(projects, nowMinutes) {
   today.setHours(0, 0, 0, 0);
   const todayStr = dateToString(today);
   return projects
-    .filter(p => !p.archived && p.hyperglance?.enabled)
+    // Reminders read these too: an on-hold project's sessions neither show nor ring.
+    .filter(hyperGlanceRuns)
     .map(p => ({ project: p, instance: getActiveHGInstance(p, nowMinutes) }))
     .filter(({ instance }) => instance && (instance.isOverdue || instance.date === todayStr))
     .sort((a, b) => {

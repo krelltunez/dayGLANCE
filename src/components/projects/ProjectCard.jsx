@@ -2,7 +2,7 @@ import React, { forwardRef, useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import {
-  AlertTriangle, BookOpen, Calendar, CheckCircle2, CheckSquare,
+  AlertTriangle, BookOpen, Calendar, CheckCircle2, CheckSquare, CirclePause,
   ChevronDown, Clock, Edit2, Eye, EyeOff, GripVertical, LayoutDashboard,
   LogIn, Plus, Square, Trash2, X, Zap,
 } from 'lucide-react';
@@ -28,6 +28,7 @@ import { sortByProjectOrder, applyProjectReorder, orderProjectTasks, projectReor
 import { beginLongPressReorder, isLongPressRowDevice } from '../../utils/longPressReorder.js';
 import { formatLocalizedDate } from '../../utils/localeFormatting.js';
 import { projectTaskFields } from '../../utils/projectTaskDefaults.js';
+import { hyperGlanceRuns, isOnHold } from '../../utils/projectStatus.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
 
@@ -166,7 +167,10 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   // deadline). Completed projects hide it, like the Stalled badge: their date
   // is history. Getter called only for a project that has one, so a card
   // without a target date never needs the context clock.
-  const hasTargetDate = !!project.targetDate && project.status !== 'completed';
+  // On hold (utils/projectStatus.js) hides it too: a paused project stops
+  // asking for attention.
+  const onHold = isOnHold(project);
+  const hasTargetDate = !!project.targetDate && project.status !== 'completed' && !onHold;
   const targetDateInfo = hasTargetDate
     ? projectTargetDateInfo(project, getTodayStr ? getTodayStr() : dateToString(new Date()))
     : null;
@@ -449,9 +453,10 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     <>
     <div
       ref={ref}
+      data-project-on-hold={onHold || undefined}
       className={`flex flex-col rounded-xl border overflow-hidden ${
         darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'
-      } ${isMobile || wide ? 'w-full' : 'min-w-[180px] max-w-[260px] w-full'}`}
+      } ${isMobile || wide ? 'w-full' : 'min-w-[180px] max-w-[260px] w-full'} ${onHold ? 'opacity-70' : ''}`}
     >
       {/* Project color bar */}
       <div className="h-1.5 flex-shrink-0" style={{ background: projectHex + 'bb' }} />
@@ -496,7 +501,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
             )}
           </div>
           {noteBadge}
-          {project.hyperglance?.enabled && project.status !== 'completed' && !project.archived && (() => {
+          {hyperGlanceRuns(project) && project.status !== 'completed' && (() => {
               const instance = getActiveHGInstance(project, currentTimeMinutes);
               if (!instance) return null;
               const hg = project.hyperglance;
@@ -564,6 +569,14 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               }`}>
                 <CheckCircle2 size={10} />
                 {t('common.done')}
+              </span>
+            )}
+            {onHold && (
+              <span data-on-hold-chip className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ${
+                darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-100 text-stone-600'
+              }`}>
+                <CirclePause size={10} />
+                {t('goals.onHold')}
               </span>
             )}
             {stalled && project.status !== 'completed' && (

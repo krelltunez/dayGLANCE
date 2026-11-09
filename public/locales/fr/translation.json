@@ -1497,7 +1497,9 @@
     "nextPage": "Page suivante",
     "close": "Fermer le bilan hebdomadaire",
     "habits": "Habitudes",
-    "openReview": "Ouvrir la revue hebdomadaire"
+    "openReview": "Ouvrir la revue hebdomadaire",
+    "onHoldHint": "Projets en pause. Reprenez-en un, ou archivez-le depuis son formulaire.",
+    "resumeProject": "Reprendre"
   },
   "reminders": {
     "dismissAll": "Tout fermer",
@@ -2056,7 +2058,9 @@
     "showCompletedGoals": "Afficher les objectifs terminés",
     "hideCompletedGoals": "Masquer les objectifs terminés",
     "allCompletedHidden_one": "Le seul objectif ici est terminé.",
-    "allCompletedHidden_other": "Les {{count}} objectifs ici sont terminés."
+    "allCompletedHidden_other": "Les {{count}} objectifs ici sont terminés.",
+    "onHold": "En pause",
+    "noOnHoldProjects": "Aucun projet en pause"
   },
   "colors": {
     "gray": "Gris",

@@ -494,3 +494,17 @@ describe('New task defaults', () => {
     expect(h.lastTask()).toMatchObject({ title: 'Run', duration: 30, notes: '', subtasks: [] });
   });
 });
+
+// Projects on hold (utils/projectStatus.js): still offered, after the active
+// ones, and labelled.
+describe('a project on hold in the picker', () => {
+  it('is offered after the active projects, saying it is on hold', () => {
+    const projects = [...PROJECTS, { id: 'p-paused', title: 'Paused', status: 'on-hold' }];
+    const { trigger, click, group, rows, find } = setup({ title: 'x' }, { projects });
+    click(trigger());
+    click(group('standalone'));
+    const order = rows();
+    expect(order.indexOf('p-paused')).toBeGreaterThan(order.indexOf('p-solo'));
+    expect(find({ 'data-picker-on-hold': true })).toHaveLength(1);
+  });
+});

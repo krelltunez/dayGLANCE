@@ -232,6 +232,14 @@ describe('buildGoalProgress', () => {
     expect(r.standalone_projects.map((p) => p.id)).toEqual(['p2']);
   });
 
+  it("window 'active' keeps a project on hold, with its status, and leaves out a completed one", () => {
+    const s = { ...state, projects: [...state.projects,
+      { id: 'p3', title: 'Paused', status: 'on-hold' }, { id: 'p4', title: 'Done', status: 'completed' }] };
+    const standalone = buildGoalProgress(s, {}).standalone_projects;
+    expect(standalone.map((p) => p.id)).toEqual(['p2', 'p3']);
+    expect(standalone.find((p) => p.id === 'p3').status).toBe('on-hold');
+  });
+
   it("window: 'all' includes archived goals; unscoped default is active-only", () => {
     expect(buildGoalProgress(state, { window: 'all' }).goals.map((g) => g.id)).toEqual(['g1', 'g2']);
   });

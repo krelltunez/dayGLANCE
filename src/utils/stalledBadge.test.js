@@ -19,6 +19,11 @@ describe('isProjectFlaggedStalled', () => {
     expect(isProjectFlaggedStalled({ ...project, goalId: undefined }, null, tasks, [], 600)).toBe(false);
   });
 
+  it('never flags a project on hold: a paused project is not stalled', () => {
+    expect(isProjectFlaggedStalled({ ...project, status: 'on-hold' }, goal, tasks, [], 600)).toBe(false);
+    expect(hasStalledChild(goal, [{ ...project, status: 'on-hold' }], tasks, [], 600)).toBe(false);
+  });
+
   it('respects the goal\'s hideStalled opt-out', () => {
     expect(isProjectFlaggedStalled(project, { ...goal, hideStalled: true }, tasks, [], 600)).toBe(false);
   });

@@ -1499,7 +1499,9 @@
     "nextPage": "Pagina successiva",
     "close": "Chiudi la revisione settimanale",
     "habits": "Abitudini",
-    "openReview": "Apri la revisione settimanale"
+    "openReview": "Apri la revisione settimanale",
+    "onHoldHint": "Progetti in pausa. Riprendine uno o archivialo dal suo modulo.",
+    "resumeProject": "Riprendi"
   },
   "reminders": {
     "dismissAll": "Ignora tutto",
@@ -2058,7 +2060,9 @@
     "showCompletedGoals": "Mostra gli obiettivi completati",
     "hideCompletedGoals": "Nascondi gli obiettivi completati",
     "allCompletedHidden_one": "L'unico obiettivo qui è completato.",
-    "allCompletedHidden_other": "Tutti i {{count}} obiettivi qui sono completati."
+    "allCompletedHidden_other": "Tutti i {{count}} obiettivi qui sono completati.",
+    "onHold": "In pausa",
+    "noOnHoldProjects": "Nessun progetto in pausa"
   },
   "colors": {
     "gray": "Grigio",

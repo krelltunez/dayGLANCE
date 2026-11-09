@@ -23,6 +23,22 @@ const projects = [
   { id: 'p-arch', title: 'Archived', status: 'archived' },
 ];
 
+describe('on-hold projects in the pickers', () => {
+  it('are still offered, after the active ones in their group', () => {
+    const groups = groupInboxProjects({
+      goals: [{ id: 'g', title: 'G' }],
+      projects: [
+        { id: 'paused', goalId: 'g', status: 'on-hold' },
+        { id: 'live', goalId: 'g', status: 'active' },
+        { id: 'solo-paused', status: 'on-hold' },
+        { id: 'solo', status: 'active' },
+      ],
+    });
+    expect(groups.areas[0].goals[0].projects.map((p) => p.id)).toEqual(['live', 'paused']);
+    expect(groups.standalone.map((p) => p.id)).toEqual(['solo', 'solo-paused']);
+  });
+});
+
 describe('groupInboxProjects', () => {
   const groups = groupInboxProjects({ projects, goals, areas });
 

@@ -16,6 +16,8 @@
 // a single choice (utils/projectPickerRows.js), and narrows it to a typed
 // filter through filterProjectGroups below.
 
+import { pausedLast } from './projectStatus.js';
+
 // The projects a picker offers: not completed, not archived. The calendar's
 // hide-projects filter (utils/calendarFilter.js) offers and honours the same.
 export const isActiveProject = (p) => !!p && p.status !== 'archived' && p.status !== 'completed';
@@ -32,7 +34,9 @@ export const isActiveProject = (p) => !!p && p.status !== 'archived' && p.status
  *   level and lists the goals directly.
  */
 export function groupInboxProjects({ projects = [], goals = [], areas = [] } = {}, { isListed = isActiveProject } = {}) {
-  const active = projects.filter((p) => p && isListed(p));
+  // On-hold projects are still offered, after the active ones in each group
+  // (utils/projectStatus.js): every picker built from this lists them last.
+  const active = pausedLast(projects.filter((p) => p && isListed(p)));
   const drawnGoals = goals.filter((g) => g && g.status !== 'archived');
   const goalIds = new Set(drawnGoals.map((g) => g.id));
   const goalGroups = drawnGoals

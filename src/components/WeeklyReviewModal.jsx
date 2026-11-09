@@ -14,6 +14,7 @@ import { formatLocalizedDate } from '../utils/localeFormatting.js';
 import { formatDuration } from '../utils/formatDuration.js';
 import { aiFeatureOn } from '../ai.js';
 import { weeklyFrameInstances } from '../utils/weeklyFrameInstances.js';
+import { isOnHold } from '../utils/projectStatus.js';
 
 const WeeklyReviewModal = () => {
   const {
@@ -37,6 +38,7 @@ const WeeklyReviewModal = () => {
     aiConfig,
     ownedBy, meUserSyncId,
     isVisibleForUser,
+    updateProject,
   } = useFeaturesCtx();
 
   // Local collapse state for past-week HABITS and FRAME UTILIZATION sections
@@ -381,10 +383,13 @@ const WeeklyReviewModal = () => {
                 const weekCompleted = weekTasks.filter(t => t.completed).length;
                 const weekTotal = weekTasks.length;
                 const overallProgress = calculateProjectProgress(p.id, allTasksCombined);
-                const stalled = isProjectStalled(p.id, allTasksCombined, p, recurringTasks);
+                // On hold (utils/projectStatus.js): paused, so neither stalled
+                // nor up against its target date.
+                const paused = isOnHold(p);
+                const stalled = !paused && isProjectStalled(p.id, allTasksCombined, p, recurringTasks);
                 // A project's own target date (#2160), told to the AI the way a
                 // goal's is. A completed project's target is history, not news.
-                const target = p.status === 'completed' ? null : projectTargetDateInfo(p, todayStr);
+                const target = p.status === 'completed' || paused ? null : projectTargetDateInfo(p, todayStr);
                 return {
                   id: p.id,
                   title: p.title,
@@ -414,6 +419,16 @@ const WeeklyReviewModal = () => {
         // next 7 days (utils/dueThisWeek.js).
         const nextWeekDue = goalsProjectsEnabled
           ? dueThisWeek({ goals, projects, tasks: allTasksCombined, todayStr, endStr: nextEndStr, isMine: (e) => ownedBy(e, meUserSyncId) })
+          : [];
+
+        // On-hold projects, every one the user owns, goal or not: listed apart,
+        // as a prompt to resume or archive them (utils/projectStatus.js).
+        const onHoldProjects = goalsProjectsEnabled
+          ? projects.filter(p => isOnHold(p) && ownedBy(p, meUserSyncId)).map(p => ({
+              id: p.id,
+              title: p.title,
+              goalTitle: p.goalId ? (goals.find(g => g.id === p.goalId)?.title ?? null) : null,
+            }))
           : [];
 
         // Active projects — with momentum indicator
@@ -814,6 +829,31 @@ const WeeklyReviewModal = () => {
                             </div>
                           );
                         })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* On hold: resume, or archive from the project's form */}
+                  {onHoldProjects.length > 0 && (
+                    <div className="mb-4" data-weekly-on-hold>
+                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>{t('goals.onHold')}</div>
+                      <p className={`text-xs ${textSecondary} mb-2`}>{t('weeklyReview.onHoldHint')}</p>
+                      <div className="space-y-1.5">
+                        {onHoldProjects.map(p => (
+                          <div key={p.id} className="flex items-center gap-2" data-weekly-on-hold-project={p.id}>
+                            <span className={`text-sm ${textPrimary} flex-1 min-w-0 truncate`}>{p.title}</span>
+                            {p.goalTitle && <span className={`text-xs ${textSecondary} truncate max-w-[40%]`}>{p.goalTitle}</span>}
+                            {typeof updateProject === 'function' && (
+                              <button
+                                type="button"
+                                onClick={() => updateProject(p.id, { status: 'active' })}
+                                className="text-xs font-medium text-blue-500 hover:text-blue-600 flex-shrink-0"
+                              >
+                                {t('weeklyReview.resumeProject')}
+                              </button>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}

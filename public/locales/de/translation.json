@@ -1497,7 +1497,9 @@
     "nextPage": "Nächste Seite",
     "close": "Wochenrückblick schließen",
     "habits": "Gewohnheiten",
-    "openReview": "Wochenrückblick öffnen"
+    "openReview": "Wochenrückblick öffnen",
+    "onHoldHint": "Pausierte Projekte. Setze eines fort oder archiviere es im Projektformular.",
+    "resumeProject": "Fortsetzen"
   },
   "reminders": {
     "dismissAll": "Alle schließen",
@@ -2056,7 +2058,9 @@
     "showCompletedGoals": "Abgeschlossene Ziele anzeigen",
     "hideCompletedGoals": "Abgeschlossene Ziele ausblenden",
     "allCompletedHidden_one": "Das einzige Ziel hier ist abgeschlossen.",
-    "allCompletedHidden_other": "Alle {{count}} Ziele hier sind abgeschlossen."
+    "allCompletedHidden_other": "Alle {{count}} Ziele hier sind abgeschlossen.",
+    "onHold": "Pausiert",
+    "noOnHoldProjects": "Keine pausierten Projekte"
   },
   "colors": {
     "gray": "Grau",

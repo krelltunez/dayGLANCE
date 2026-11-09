@@ -1492,7 +1492,9 @@
     "nextPage": "下一页",
     "close": "关闭每周回顾",
     "habits": "习惯",
-    "openReview": "打开回顾"
+    "openReview": "打开回顾",
+    "onHoldHint": "已暂停的项目。可以恢复，或在项目表单中将其归档。",
+    "resumeProject": "恢复"
   },
   "reminders": {
     "dismissAll": "全部关闭",
@@ -2050,7 +2052,9 @@
     },
     "showCompletedGoals": "显示已完成的目标",
     "hideCompletedGoals": "隐藏已完成的目标",
-    "allCompletedHidden_other": "这里的 {{count}} 个目标都已完成。"
+    "allCompletedHidden_other": "这里的 {{count}} 个目标都已完成。",
+    "onHold": "已暂停",
+    "noOnHoldProjects": "没有已暂停的项目"
   },
   "colors": {
     "gray": "灰色",

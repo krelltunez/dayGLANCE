@@ -132,6 +132,20 @@ describe('applyUpdateProject', () => {
     const detached = applyUpdateProject(state(), { projectId: 'p1', clear: ['goal'], nowIso: NOW });
     expect('goalId' in detached.project).toBe(false);
   });
+  it('puts a project on hold and resumes it; goals have no such status', () => {
+    const paused = applyUpdateProject(state(), { projectId: 'p1', set: { status: 'on-hold' }, nowIso: NOW });
+    expect(paused).toMatchObject({ ok: true, project: { status: 'on-hold' } });
+    const resumed = applyUpdateProject({ ...state(), projects: [paused.project] }, { projectId: 'p1', set: { status: 'active' }, nowIso: NOW });
+    expect(resumed.project.status).toBe('active');
+    expect(applyUpdateGoal(state(), { goalId: 'g1', set: { status: 'on-hold' }, nowIso: NOW })).toMatchObject({ ok: false, error: { code: 'validation' } });
+    expect(applyUpdateProject(state(), { projectId: 'p1', set: { status: 'paused' }, nowIso: NOW }).error.message).toContain('"on-hold"');
+  });
+
+  it('a goal with a project on hold is not complete: on hold is not done', () => {
+    const s = state({ projects: [{ id: 'p2', title: 'Docs', status: 'on-hold', goalId: 'g1' }] });
+    expect(applyUpdateGoal(s, { goalId: 'g1', set: { status: 'completed' }, nowIso: NOW })).toMatchObject({ ok: false, error: { code: 'validation' } });
+  });
+
   it('COMPLETION MIRRORS THE FORM: refused with an open task; allowed when every task is done', () => {
     expect(applyUpdateProject(state(), { projectId: 'p1', set: { status: 'completed' }, nowIso: NOW })).toMatchObject({ ok: false, error: { code: 'validation' } });
     const done = state({ tasks: [{ id: 't1', projectId: 'p1', completed: true }], unscheduledTasks: [] });
