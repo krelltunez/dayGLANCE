@@ -505,6 +505,8 @@
     "enableAspire": "Aspire",
     "enableAspireHint": "Planejamento de vida: uma lista de desejos, uma visão de cinco anos e lemas. Por enquanto um espaço reservado, aberto a partir do espaço Objetivos e projetos.",
     "inbox": "Caixa de entrada",
+    "defaultDuration": "Duração padrão das tarefas",
+    "defaultDurationHint": "Quanto dura uma nova tarefa quando você não informa a duração, incluindo tarefas da caixa de entrada arrastadas para a agenda. Neste dispositivo.",
     "inboxAutoArchive": "Arquivar automaticamente tarefas concluídas da caixa de entrada",
     "inboxArchiveNever": "Nunca",
     "inboxArchive7": "Após 7 dias",

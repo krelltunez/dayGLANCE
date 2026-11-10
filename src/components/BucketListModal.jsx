@@ -10,6 +10,7 @@ import { renderFormattedText, renderTitleWithoutTags, hasNotesOrSubtasks, hasOnl
 import useBackClose from '../hooks/useBackClose.js';
 import { autoSizeTextarea } from '../utils/autoSizeTextarea.js';
 import { keyboardSheet } from '../utils/keyboardInset.js';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 
 // The phone sheet sits on the soft keyboard rather than under it (PLANNER pattern).
 const BUCKET_SHEET = keyboardSheet('92dvh');
@@ -158,7 +159,7 @@ const BucketListModal = () => {
     setUnscheduledTasks(prev => [...prev, {
       id: crypto.randomUUID(),
       title,
-      duration: 30,
+      duration: readDefaultTaskDuration(),
       color: colors[0].class,
       completed: false,
       isAllDay: false,

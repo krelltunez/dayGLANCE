@@ -317,18 +317,6 @@ const DesktopNewTaskModal = () => {
                         )}
                       </div>
                     </div>
-                    {/* Bucket items: duration instead of priority/deadline (the
-                        desktop inbox flavor otherwise has no duration control) */}
-                    {isBucketItem && (
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
-                        <DurationField
-                          value={newTask.duration}
-                          onChange={(duration) => setNewTask(prev => ({ ...prev, duration }))}
-                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-                        />
-                      </div>
-                    )}
                     {!isBucketItem && (<>
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.priority')}</label>
@@ -351,6 +339,17 @@ const DesktopNewTaskModal = () => {
                     </div>
                     <TaskDeadlineField newTask={newTask} setNewTask={setNewTask} />
                     </>)}
+                    {/* Duration (#2367): the block the task takes when it is
+                        dragged onto the timeline, as on the phone. A Bucket
+                        item has it in place of priority and deadline. */}
+                    <div data-inbox-duration>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
+                      <DurationField
+                        value={newTask.duration}
+                        onChange={(duration) => setNewTask(prev => ({ ...prev, duration }))}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                      />
+                    </div>
                   </>
                 ) : (
                   <>

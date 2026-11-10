@@ -3,6 +3,7 @@ import { dateToString } from '../utils/taskUtils.js';
 import { isMonthDaySheetOpen } from '../components/month/MonthDaySheet.jsx';
 import { cyclerStates, nextState, VIEW_SHORTCUT_KEYS } from '../constants/views.js';
 import { aiFeatureOn } from '../ai.js';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 
 const getNextQuarterHour = () => {
   const now = new Date();
@@ -247,7 +248,7 @@ export default function useKeyboardShortcuts({
         setNewTask({
           title: '',
           startTime: hoverPreviewTime || getNextQuarterHour(),
-          duration: 30,
+          duration: readDefaultTaskDuration(),
           date: hoverPreviewDate ? dateToString(hoverPreviewDate) : dateToString(selectedDate),
           isAllDay: false,
           openInInbox: false
@@ -262,7 +263,7 @@ export default function useKeyboardShortcuts({
         e.preventDefault();
         setNewTask({
           title: '',
-          duration: 30,
+          duration: readDefaultTaskDuration(),
           openInInbox: true
         });
         setShowAddTask(true);

@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { Archive, Bell, Clock, Globe, Key, MapPin, Newspaper, Settings, Thermometer } from 'lucide-react';
 import { getTzLabel, getTzOptions } from '../../../utils/timezones.js';
+import DefaultDurationSetting from '../../DefaultDurationSetting.jsx';
 import FollowUpTagSetting from '../../FollowUpTagSetting.jsx';
 import LanguagePicker from '../../LanguagePicker.jsx';
 import { useTranslation } from 'react-i18next';
@@ -252,6 +253,11 @@ export default function useGeneralTopic() {
             </div>
         </>
       ),
+    },
+    // New tasks' length when none is given (#2367), on this device.
+    defaultDuration: {
+      show: true,
+      node: <DefaultDurationSetting />,
     },
     followUpTag: {
       show: true,

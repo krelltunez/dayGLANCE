@@ -8,6 +8,7 @@ import {
 } from '../utils/suggestionParser.js';
 import { formatDuration } from '../utils/formatDuration.js';
 import { parseQuickAdd, spanSignature } from '../utils/quickAddParser.js';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 
 // Deep-enough equality for NL-applied values (strings, numbers, small
 // recurrence objects). Used to detect whether the user manually changed a
@@ -15,7 +16,7 @@ import { parseQuickAdd, spanSignature } from '../utils/quickAddParser.js';
 const sameVal = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export default function useNewTaskInput({ allTags, showAddTask, t, language, use24HourClock, isEditing = false }) {
-  const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 30 });
+  const [newTask, setNewTask] = useState(() => ({ title: '', startTime: '09:00', duration: readDefaultTaskDuration() }));
   // Natural-language layer bookkeeping:
   // - dismissedNlRef: span signatures the user rejected via chip tap — those
   //   phrases stay plain text until the input is next reset.

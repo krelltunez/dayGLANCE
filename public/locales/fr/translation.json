@@ -505,6 +505,8 @@
     "enableAspire": "Aspire",
     "enableAspireHint": "Planification de vie : une liste de souhaits, une vision à cinq ans et des devises. Un simple espace réservé pour l'instant, ouvert depuis l'espace Objectifs et projets.",
     "inbox": "Boîte de réception",
+    "defaultDuration": "Durée par défaut des tâches",
+    "defaultDurationHint": "La durée d'une nouvelle tâche quand vous n'en indiquez pas, y compris pour les tâches de la boîte de réception glissées dans l'agenda. Sur cet appareil.",
     "inboxAutoArchive": "Archivage automatique des tâches terminées",
     "inboxArchiveNever": "Jamais",
     "inboxArchive7": "Après 7 jours",

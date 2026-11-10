@@ -274,6 +274,7 @@ import useTrayPopupVisible from './hooks/useTrayPopupVisible.js';
 import { writeItem } from './utils/storageWrites.js';
 import { CARD_SUBTASKS_KEY, readShowCardSubtasks } from './utils/cardSubtasks.js';
 import { occurrenceSubtasks } from './utils/recurringSubtasks.js';
+import { readDefaultTaskDuration } from './utils/defaultTaskDuration.js';
 
 
 
@@ -3345,7 +3346,7 @@ const DayPlanner = () => {
       title: shareTitle,
       notes: shareNotes || undefined,
       startTime: getNextQuarterHour(),
-      duration: 30,
+      duration: readDefaultTaskDuration(),
       date: dateToString(selectedDateRef.current),
       isAllDay: false,
       openInInbox: true,
@@ -3813,7 +3814,7 @@ const DayPlanner = () => {
     if (isInbox) {
       setNewTask({
         title: task.title,
-        duration: task.duration || 30,
+        duration: task.duration || readDefaultTaskDuration(),
         color: task.color || colors[0].class,
         openInInbox: true,
         deadline: task.deadline || null,
@@ -3871,7 +3872,7 @@ const DayPlanner = () => {
     if (swipeSchedulingInboxTaskId) swipeSchedulingInboxTaskId.current = null;
     setMobileEditingTask(null);
     setNewTask({
-      startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false, recurrence: null,
+      startTime: getNextQuarterHour(), duration: readDefaultTaskDuration(), date: dateToString(selectedDate), isAllDay: false, recurrence: null,
       ...draft,
     });
     setShowAddTask(true);
@@ -3890,7 +3891,7 @@ const DayPlanner = () => {
     if (swipeSchedulingInboxTaskId) swipeSchedulingInboxTaskId.current = null;
     setMobileEditingTask(null);
     setNewTask({
-      startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false, recurrence: null,
+      startTime: getNextQuarterHour(), duration: readDefaultTaskDuration(), date: dateToString(selectedDate), isAllDay: false, recurrence: null,
       ...makeTaskDraft(record),
     });
     setShowAddTask(true);
@@ -5506,7 +5507,7 @@ const DayPlanner = () => {
           title: shareTitle,
           notes: shareNotes || undefined,
           startTime: getNextQuarterHour(),
-          duration: 30,
+          duration: readDefaultTaskDuration(),
           date: dateToString(selectedDate),
           isAllDay: false,
           openInInbox: true,
@@ -6818,7 +6819,7 @@ const DayPlanner = () => {
         ...preserved,
         date: placement.date,
         startTime: placement.time,
-        duration: task.duration || 30,
+        duration: task.duration || readDefaultTaskDuration(),
         color: task.color || 'bg-blue-500',
         isAllDay: false,
       }]);

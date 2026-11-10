@@ -25,7 +25,7 @@ const en = JSON.parse(readFileSync(new URL('../../../public/locales/en/translati
 
 describe('the topic map', () => {
   it('places every block of the dialog on exactly one topic', () => {
-    expect(modalSectionKeys.length).toBe(33);
+    expect(modalSectionKeys.length).toBe(34);
     const placed = TOPICS.flatMap((topic) => topic.sections);
     expect([...placed].sort()).toEqual([...modalSectionKeys].sort());
     expect(new Set(placed).size).toBe(placed.length);
@@ -87,6 +87,11 @@ describe('visibility', () => {
   it('Inbox and Follow-ups are everyday preferences on General, after Sounds', () => {
     const general = TOPICS.find((topic) => topic.id === 'general').sections;
     expect(general.slice(general.indexOf('sound'), general.indexOf('sound') + 3)).toEqual(['sound', 'inbox', 'followUpTag']);
+  });
+
+  it('the default task duration (#2367) is on General, after Follow-ups', () => {
+    const general = TOPICS.find((topic) => topic.id === 'general').sections;
+    expect(general[general.indexOf('followUpTag') + 1]).toBe('defaultDuration');
   });
 });
 

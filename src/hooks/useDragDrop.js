@@ -8,6 +8,7 @@ import { nativeEventEndString } from '../utils/nativeCalendar.js';
 import { pixelsToSnappedMinutes, resizeBlockByPixels } from '../utils/taskResize.js';
 import { timelinePosition } from '../utils/timelinePosition.js';
 import { dragAutoScrollStep } from '../utils/dragAutoScroll.js';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 
 // Pure utilities used by position helpers
 const timeToMinutes = (time) => {
@@ -210,7 +211,7 @@ export default function useDragDrop({
       setNewTask({
         title: '',
         startTime: clickedTime,
-        duration: 30,
+        duration: readDefaultTaskDuration(),
         date: dateToString(targetDate || selectedDate),
         isAllDay: false
       });
@@ -448,6 +449,9 @@ export default function useDragDrop({
       const { priority, deadline, ...taskWithoutPriorityAndDeadline } = draggedTask;
       setTasks(prev => [...prev, {
         ...taskWithoutPriorityAndDeadline,
+        // Its own length, as it was (a 0 stays 0: taskMutations.pinning.test.js);
+        // one that never had any gets the default (#2367).
+        duration: draggedTask.duration ?? readDefaultTaskDuration(),
         startTime,
         date: dropDateStr,
         isAllDay: false
@@ -1323,7 +1327,7 @@ export default function useDragDrop({
         const result = getAdjustedTimeForImportedConflicts(
           task.id,
           newTime,
-          task.duration || 30,
+          task.duration || readDefaultTaskDuration(),
           dropDateStr
         );
         finalTime = result.adjustedStartTime;
@@ -1343,7 +1347,7 @@ export default function useDragDrop({
           id: task.id,
           title: task.title,
           startTime: droppingToAllDay ? '00:00' : finalTime,
-          duration: task.duration || 30,
+          duration: task.duration || readDefaultTaskDuration(),
           date: dropDateStr,
           isAllDay: droppingToAllDay,
           color: task.color || TASK_COLORS[0].class,
@@ -1568,7 +1572,7 @@ export default function useDragDrop({
               setNewTask({
                 title: task.title,
                 startTime: getNextQuarterHour(),
-                duration: task.duration || 30,
+                duration: task.duration || readDefaultTaskDuration(),
                 date: dateToString(selectedDate),
                 isAllDay: false,
                 color: task.color || TASK_COLORS[0].class,

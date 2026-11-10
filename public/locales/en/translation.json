@@ -508,6 +508,8 @@
     "enableAspire": "Aspire",
     "enableAspireHint": "Life planning: a life wish list, a five-year vision and mottos. A placeholder for now, opened from the Goals & Projects space.",
     "inbox": "Inbox",
+    "defaultDuration": "Default task duration",
+    "defaultDurationHint": "How long a new task is when you don't give it a length, including Inbox tasks dragged onto the timeline. On this device.",
     "inboxAutoArchive": "Auto-archive completed Inbox tasks",
     "inboxArchiveNever": "Never",
     "inboxArchive7": "After 7 days",

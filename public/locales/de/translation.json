@@ -505,6 +505,8 @@
     "enableAspire": "Aspire",
     "enableAspireHint": "Lebensplanung: eine Wunschliste fürs Leben, eine Fünfjahresvision und Leitsätze. Vorerst ein Platzhalter, erreichbar aus dem Bereich Ziele & Projekte.",
     "inbox": "Posteingang",
+    "defaultDuration": "Standarddauer neuer Aufgaben",
+    "defaultDurationHint": "Wie lange eine neue Aufgabe dauert, wenn Sie keine Dauer angeben, auch bei Aufgaben aus dem Posteingang, die Sie in den Zeitplan ziehen. Gilt für dieses Gerät.",
     "inboxAutoArchive": "Abgeschlossene Posteingangsaufgaben automatisch archivieren",
     "inboxArchiveNever": "Nie",
     "inboxArchive7": "Nach 7 Tagen",

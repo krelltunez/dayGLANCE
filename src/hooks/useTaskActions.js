@@ -17,6 +17,7 @@ import { moveSubtaskTo } from '../utils/subtaskOrder.js';
 import { recordDeletedTaskTombstone } from '../utils/deletedTaskTombstones.js';
 import { removeTagFromTitle } from '../utils/tagManager.js';
 import { withOccurrenceSubtask } from '../utils/recurringSubtasks.js';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 
 // Strip a specific tag (e.g. "#obsidian") from a title string, by the tag
 // manager's rule: the whole tag only, so `#obsidian/inbox` or `#obsidian-x`
@@ -344,7 +345,7 @@ export default function useTaskActions({
       // the views resolve a template id only through one.
       if (newTask.linkDo && createdId != null) onTaskMadeFromDo?.(newTask.linkDo, createdId);
 
-      setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false, recurrence: null });
+      setNewTask({ title: '', startTime: getNextQuarterHour(), duration: readDefaultTaskDuration(), date: dateToString(selectedDate), isAllDay: false, recurrence: null });
       setShowAddTask(false);
 
       if (toInbox && !onboardingProgress.hasAddedInboxTask) {
@@ -364,7 +365,7 @@ export default function useTaskActions({
     setNewTask({
       title: '',
       startTime: hoverPreviewTime || getNextQuarterHour(),
-      duration: 30,
+      duration: readDefaultTaskDuration(),
       date: hoverPreviewDate ? dateToString(hoverPreviewDate) : dateToString(selectedDate),
       isAllDay: false,
       recurrence: null
@@ -381,7 +382,7 @@ export default function useTaskActions({
     setNewTask({
       title: '',
       startTime: getNextQuarterHour(),
-      duration: 30,
+      duration: readDefaultTaskDuration(),
       date: dateStr,
       isAllDay: true,
       recurrence: null
@@ -394,7 +395,7 @@ export default function useTaskActions({
     setNewTask({
       title: '',
       startTime: getNextQuarterHour(),
-      duration: 30,
+      duration: readDefaultTaskDuration(),
       date: dateToString(selectedDate),
       isAllDay: false,
       openInInbox: true,
@@ -907,7 +908,7 @@ export default function useTaskActions({
       bufferMinutes: frame.bufferMinutes ?? 5,
     };
     const slots = computeAvailableSlots(frameInstance, new Date(dateStr + 'T12:00:00'));
-    const taskDuration = task.duration || 30;
+    const taskDuration = task.duration || readDefaultTaskDuration();
 
     const slot = slots.find(s => s.minutes >= taskDuration);
     const startTime = slot ? slot.start : frame.start;
@@ -950,7 +951,7 @@ export default function useTaskActions({
       ...preserved,
       date: dateStr,
       startTime,
-      duration: task.duration || 30,
+      duration: task.duration || readDefaultTaskDuration(),
       isAllDay: false,
       lastModified: new Date().toISOString(),
     }]);

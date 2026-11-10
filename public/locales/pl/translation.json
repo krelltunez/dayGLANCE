@@ -527,6 +527,8 @@
     "enableAspire": "Aspire",
     "enableAspireHint": "Planowanie życia: lista życzeń, pięcioletnia wizja i motta. Na razie zaślepka, otwierana z przestrzeni Cele i projekty.",
     "inbox": "Skrzynka",
+    "defaultDuration": "Domyślny czas trwania zadań",
+    "defaultDurationHint": "Jak długo trwa nowe zadanie, gdy nie podasz czasu trwania, także zadania ze Skrzynki przeciągnięte na oś czasu. Na tym urządzeniu.",
     "inboxAutoArchive": "Automatycznie archiwizuj ukończone zadania ze skrzynki",
     "inboxArchiveNever": "Nigdy",
     "inboxArchive7": "Po 7 dniach",

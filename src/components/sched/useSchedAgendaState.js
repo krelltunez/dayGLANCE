@@ -5,6 +5,7 @@ import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { dateToString, extractTags } from '../../utils/taskUtils.js';
 import { notBucketed } from '../../utils/bucketList.js';
 import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, limitRecurringToNextInstance, schedFiltersEqual, isPastEvent, schedRollingWindow } from '../../utils/schedAgenda.js';
+import { readDefaultTaskDuration } from '../../utils/defaultTaskDuration.js';
 
 export const INITIAL_DAYS = 14;
 export const LOAD_MORE_DAYS = 14;
@@ -254,7 +255,7 @@ export default function useSchedAgendaState({ dateRange } = {}) {
     scheduleTaskAtNextSlot(task.id, task._overdueType === 'deadline');
 
   const addTaskOnDay = (dateStr) => {
-    setNewTask({ title: '', startTime: '09:00', duration: 30, date: dateStr, isAllDay: false, recurrence: null });
+    setNewTask({ title: '', startTime: '09:00', duration: readDefaultTaskDuration(), date: dateStr, isAllDay: false, recurrence: null });
     setShowAddTask(true);
   };
 

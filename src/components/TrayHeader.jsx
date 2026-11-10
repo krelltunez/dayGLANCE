@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Search, Mic } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useMcpStatus, McpBoltButton, McpStatusPanel } from './McpStatusControls.jsx';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 
 export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
   const { t } = useTranslation();
@@ -36,7 +37,7 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
     const newTask = {
       id: crypto.randomUUID(),
       title,
-      duration: 30,
+      duration: readDefaultTaskDuration(),
       color: 'bg-blue-500',
       completed: false,
       isAllDay: false,
