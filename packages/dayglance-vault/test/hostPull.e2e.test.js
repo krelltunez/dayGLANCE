@@ -26,6 +26,7 @@
 // in-memory key between turns (touching neither device's stored key), so each
 // turn has to get its key the way a fresh process would: from its own key slot,
 // or from the passphrase and the vault's salt.
+import './hideNodeWebStorage.js'; // first: before anything that loads the package
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer } from 'node:http';
 import {

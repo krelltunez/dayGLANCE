@@ -15,7 +15,10 @@ import SchedView from './SchedView.jsx';
 // TODAY section shows its piece after midnight, as the timelines draw it,
 // "from Fri" and happening now. From 01:00 it is overdue, listed once.
 
-if (typeof globalThis.localStorage === 'undefined') {
+// Node 25 defines a localStorage of its own that has no getItem without
+// --localstorage-file, so stub unless a working one is already there.
+if (typeof globalThis.localStorage?.getItem !== 'function') {
+  delete globalThis.localStorage;
   globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 }
 

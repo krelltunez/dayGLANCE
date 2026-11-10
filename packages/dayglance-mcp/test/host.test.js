@@ -6,6 +6,7 @@
 // port and driven by the official client over HTTP. Nothing here is the
 // desktop app's: if this passes, a host can answer the read surface from its
 // own copy of the slices through exactly the code the app uses.
+import './hideNodeWebStorage.js'; // first: before anything that loads the package
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import net from 'node:net';
 import { McpServer } from '@modelcontextprotocol/server';
