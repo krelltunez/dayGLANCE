@@ -7,14 +7,23 @@ import { VIEW_LABEL_KEYS, VIEW_SHORTCUT_KEYS } from '../constants/views.js';
 
 const MENU_WIDTH = 176;
 const EDGE = 8;
+const GAP = 4;
+/** A row's height (py-1.5 around a 20px icon) and the list's own padding, to place it before it is drawn. */
+const ROW_PX = 32;
+const PAD_PX = 8;
 
 /**
- * Where the menu opens: under the cycler, left edges aligned, kept inside the
- * window. `anchor` is the cycler's bounding rect.
+ * Where the menu opens: under the button, left edges aligned, kept inside the
+ * window. Above the button instead when it would run off the bottom and there
+ * is room above. `anchor` is the button's rect; `rows` how many views it lists.
  */
-export function viewMenuPosition(anchor, viewportWidth) {
+export function viewMenuPosition(anchor, viewportWidth, viewportHeight = Infinity, rows = 0) {
   const left = Math.max(EDGE, Math.min(anchor.left, viewportWidth - MENU_WIDTH - EDGE));
-  return { left, top: anchor.bottom + 4 };
+  const height = rows * ROW_PX + PAD_PX;
+  const below = anchor.bottom + GAP;
+  const above = (anchor.top ?? anchor.bottom) - GAP - height;
+  const fitsBelow = below + height <= viewportHeight - EDGE;
+  return { left, top: !fitsBelow && above >= EDGE ? above : below };
 }
 
 /**
@@ -27,8 +36,15 @@ export function viewMenuPosition(anchor, viewportWidth) {
  * Portaled to body: the cycler sits in the calendar's sticky header, whose
  * stacking context would cap the menu under the sidebar and the timeline's
  * own popovers.
+ *
+ * The phone and portrait-tablet toggle opens it too (#2362), with its own
+ * views: `labelOf` names them, and `shortcutKeys` is null since a phone has
+ * no number keys to show.
  */
-export default function ViewMenu({ states, current, icons, anchor, onPick, onClose }) {
+export default function ViewMenu({
+  states, current, icons, anchor, onPick, onClose,
+  labelOf, shortcutKeys = VIEW_SHORTCUT_KEYS,
+}) {
   const { t } = useTranslation();
   const { textPrimary, textSecondary, cardBg, borderClass, darkMode } = useDayPlannerCtx();
   const listRef = useRef(null);
@@ -66,7 +82,13 @@ export default function ViewMenu({ states, current, icons, anchor, onPick, onClo
     rows[next]?.focus?.();
   };
 
-  const { left, top } = viewMenuPosition(anchor, typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const { left, top } = viewMenuPosition(
+    anchor,
+    typeof window !== 'undefined' ? window.innerWidth : 1024,
+    typeof window !== 'undefined' ? window.innerHeight : Infinity,
+    states.length,
+  );
+  const nameOf = labelOf || ((view) => t(VIEW_LABEL_KEYS[view]));
   const hover = darkMode ? 'hover:bg-white/10 focus:bg-white/10' : 'hover:bg-black/5 focus:bg-black/5';
 
   return createPortal(
@@ -112,12 +134,12 @@ export default function ViewMenu({ states, current, icons, anchor, onPick, onClo
             >
               {Icon ? <Icon /> : null}
               <span className={`flex-1 text-xs font-semibold tracking-widest uppercase ${textPrimary}`}>
-                {t(VIEW_LABEL_KEYS[view])}
+                {nameOf(view)}
               </span>
               <span className="w-3.5 flex justify-center">
                 {selected && <Check size={14} className={textPrimary} aria-hidden="true" />}
               </span>
-              <kbd className={`text-[11px] font-mono ${textSecondary}`}>{VIEW_SHORTCUT_KEYS[view]}</kbd>
+              {shortcutKeys && <kbd className={`text-[11px] font-mono ${textSecondary}`}>{shortcutKeys[view]}</kbd>}
             </button>
           );
         })}

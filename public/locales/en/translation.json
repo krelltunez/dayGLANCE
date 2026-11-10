@@ -2198,7 +2198,7 @@
     "viewAria": "Current view: {{view}}. Click to cycle view, or right-click or long-press to pick one.",
     "viewMenu": "Views",
     "switchToView": "Switch to {{view}} view",
-    "currentViewTap": "Current view: {{view}}. Tap to switch.",
+    "currentViewTap": "Current view: {{view}}. Tap to switch, or long-press to pick one.",
     "deadline": "Deadline",
     "deadlineTapToSchedule": "Deadline: tap to pick a time",
     "routineTapHint": "Tap to complete · hold to pick a time",

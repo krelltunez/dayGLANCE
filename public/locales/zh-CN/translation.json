@@ -2192,7 +2192,7 @@
     "viewAria": "当前视图：{{view}}。点击可循环切换，右键或长按可直接选择。",
     "viewMenu": "视图",
     "switchToView": "切换到 {{view}} 视图",
-    "currentViewTap": "当前视图：{{view}}。点击即可切换。",
+    "currentViewTap": "当前视图：{{view}}。点击即可切换，长按可直接选择。",
     "deadline": "最后期限",
     "deadlineTapToSchedule": "截止日期：点击选择时间",
     "routineTapHint": "点击完成 · 按住选择时间",

@@ -2198,7 +2198,7 @@
     "viewAria": "Vista atual: {{view}}. Clique para mudar, ou clique com o botão direito ou mantenha premido para escolher.",
     "viewMenu": "Vistas",
     "switchToView": "Mudar para a vista {{view}}",
-    "currentViewTap": "Vista atual: {{view}}. Toque para mudar.",
+    "currentViewTap": "Vista atual: {{view}}. Toque para mudar ou mantenha premido para escolher.",
     "deadline": "Prazo",
     "deadlineTapToSchedule": "Prazo — toque para escolher uma hora",
     "routineTapHint": "Toque para concluir · mantenha premido para escolher uma hora",
