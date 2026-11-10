@@ -254,3 +254,49 @@ their approval timelines are independent of the GitHub release.
   pulled and run.
 - glance-apps.com rebuilt and shows the new release.
 - GitHub release has all desktop artifacts plus the Android APK attached.
+
+---
+
+## 5. Shared packages (`@glance-apps/*` in `packages/`)
+
+The app links these with `file:`, so an app release never needs them
+published. They are also on npm for anyone building on them outside this
+repository (an external MCP server, a GLANCEvault-client host), and that copy
+is the one that has to be kept current. A package release is an npm publish
+plus a git tag `<dir>@<version>` (for example `dayglance-vault@0.2.1`) on the
+commit it was published from. They ship on their own timeline, independent of
+the app's version.
+
+`scripts/packages-release.mjs` does the bookkeeping:
+
+```
+npm run packages                                   # status of every package (read-only)
+npm run packages -- bump <pkg> <patch|minor|x.y.z>   # on a branch; then commit and merge
+npm run packages -- publish                        # on main: checks only
+npm run packages -- publish --yes                  # publish, tag, push the tags
+npm run packages -- tag-missing [--yes]            # tag versions on npm that lack one
+```
+
+`status` compares each package with npm and git and says what it needs:
+
+- **publish:** its version is not on npm yet.
+- **bump:** its source changed after the version on npm, but the version was
+  not raised, so the change cannot be published. Tests are ignored.
+- **tag:** npm has the version but git has no tag for it.
+- **ok:** nothing to do.
+
+`bump` sets the version in the package's `package.json` and in both lockfiles
+(the root's and the Obsidian plugin's). It refuses when another package's
+range would no longer accept the new version; `--update-dependents` moves
+those ranges to `^<new>`, and those packages then need a bump of their own.
+These packages are 0.x: an additive change is a patch, a change that drops or
+changes an export is a minor.
+
+`publish` without `--yes` checks everything and changes nothing. It needs a
+clean tree on `main`, level with `origin/main`; runs each package's tests and
+`npm publish --dry-run`; and confirms that every local package it requires is
+satisfied by the local version and is on npm already or published in the same
+run. With `--yes` it publishes in dependency order (agenda-core and
+obsidian-format before the packages that build on them), tags each one as it
+goes, and pushes the tags. If one fails it stops, pushes the tags it made, and
+a re-run picks up from there. It needs `npm login`.

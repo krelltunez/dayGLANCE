@@ -1,6 +1,6 @@
 {
   "name": "@glance-apps/dayglance-mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "dayGLANCE's MCP read surface: the read tools and resources, the read model that answers them, and the state it answers over, shared by the dayGLANCE desktop app and a GLANCEvault-client host.",
   "license": "MIT",
   "type": "module",
