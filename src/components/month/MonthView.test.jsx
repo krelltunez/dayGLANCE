@@ -14,7 +14,10 @@ import MonthView, { monthViewRangeFor } from './MonthView.jsx';
 // rendering never runs, so it is covered by the browser check; the pure
 // range helper and what the view draws for a selectedDate are covered here.
 
-if (typeof globalThis.localStorage === 'undefined') {
+// Node 25 defines a localStorage of its own that has no getItem without
+// --localstorage-file, so stub unless a working one is already there.
+if (typeof globalThis.localStorage?.getItem !== 'function') {
+  delete globalThis.localStorage;
   const store = new Map();
   globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k), clear: () => store.clear(), key: () => null, length: 0 };
 }

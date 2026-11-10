@@ -7,7 +7,10 @@ import useSchedAgendaState from './useSchedAgendaState.js';
 
 // useSchedAgendaState reads view preferences from localStorage in its state
 // initialisers; there is no DOM here, so give it an empty store.
-if (typeof globalThis.localStorage === 'undefined') {
+// Node 25 defines a localStorage of its own that has no getItem without
+// --localstorage-file, so stub unless a working one is already there.
+if (typeof globalThis.localStorage?.getItem !== 'function') {
+  delete globalThis.localStorage;
   globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 }
 

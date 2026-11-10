@@ -14,7 +14,10 @@ import MobileBottomSheets from './MobileBottomSheets.jsx';
 // scrolls, and went unfound (a user wrote in, 2026-10-27). It now leads the
 // filter on both surfaces, and the desktop row names its key.
 
-if (typeof globalThis.localStorage === 'undefined') {
+// Node 25 defines a localStorage of its own that has no getItem without
+// --localstorage-file, so stub unless a working one is already there.
+if (typeof globalThis.localStorage?.getItem !== 'function') {
+  delete globalThis.localStorage;
   globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 }
 
