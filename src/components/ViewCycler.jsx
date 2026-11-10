@@ -1,9 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React from 'react';
 import JoboViewIcon from './JoboViewIcon.jsx';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { cyclerStates, nextState, VIEW_LABEL_KEYS, VIEW_SHORTCUT_KEYS } from '../constants/views.js';
 import ViewMenu from './ViewMenu.jsx';
+import useViewListPress, { LONG_PRESS_MS } from '../hooks/useViewListPress.js';
 
 
 const ORANGE = '#fe8b00';
@@ -69,10 +70,8 @@ const JoboIcon = () => <JoboViewIcon size={20} />;
 
 const ICONS = { multi: MultiIcon, day: DayIcon, week: WeekIcon, sched: SchedIcon, month: MonthIcon, jobo: JoboIcon };
 
-/** How long a press has to be held to open the view list instead of cycling. */
-export const LONG_PRESS_MS = 500;
-/** A press that moves further than this is a drag or a scroll, not a long press. */
-const LONG_PRESS_SLOP_PX = 10;
+// The long press, re-exported for the tests that time it.
+export { LONG_PRESS_MS };
 
 const ViewCycler = () => {
   const { setViewMode, effectiveViewMode, textSecondary, canShowViewCycler, showDayDial, hiddenViews } = useDayPlannerCtx();
@@ -89,27 +88,9 @@ const ViewCycler = () => {
   // what's actually on screen.
   const cycle = () => setViewMode(nextState(states, effectiveViewMode));
 
-  // A click cycles, as it always has. A right-click or a long press opens the
-  // list of views to jump straight to one (#2347). A long press that opened
-  // the list swallows the click its release makes; the flag is reset by the
-  // next press, since a touch's long press may not be followed by a click.
-  const buttonRef = useRef(null);
-  const press = useRef(null); // { timer, x, y }
-  const pressOpened = useRef(false);
-  const [menuAnchor, setMenuAnchor] = useState(null);
-
-  const openMenu = () => {
-    const rect = buttonRef.current?.getBoundingClientRect?.();
-    setMenuAnchor(rect ? { left: rect.left, bottom: rect.bottom } : { left: 0, bottom: 0 });
-  };
-  const cancelPress = () => {
-    if (press.current) clearTimeout(press.current.timer);
-    press.current = null;
-  };
-  const closeMenu = ({ restoreFocus } = {}) => {
-    setMenuAnchor(null);
-    if (restoreFocus) buttonRef.current?.focus?.();
-  };
+  // A click cycles; a long press or a right-click opens the list of views
+  // (hooks/useViewListPress.js, shared with the phone's MobileViewToggle).
+  const { buttonRef, menuAnchor, closeMenu, consumeClick, pressProps } = useViewListPress();
 
   const Icon = ICONS[effectiveViewMode] || MultiIcon;
 
@@ -118,37 +99,10 @@ const ViewCycler = () => {
     <button
       ref={buttonRef}
       onClick={() => {
-        if (pressOpened.current) { pressOpened.current = false; return; }
+        if (consumeClick()) return;
         cycle();
       }}
-      onContextMenu={(e) => {
-        // Also what a touch long press fires on Android, and Shift+F10 or the
-        // menu key on a focused button.
-        e.preventDefault();
-        cancelPress();
-        openMenu();
-      }}
-      onPointerDown={(e) => {
-        pressOpened.current = false;
-        if (e.button !== 0) return;
-        cancelPress();
-        press.current = {
-          x: e.clientX,
-          y: e.clientY,
-          timer: setTimeout(() => {
-            press.current = null;
-            pressOpened.current = true;
-            openMenu();
-          }, LONG_PRESS_MS),
-        };
-      }}
-      onPointerMove={(e) => {
-        const p = press.current;
-        if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) > LONG_PRESS_SLOP_PX) cancelPress();
-      }}
-      onPointerUp={cancelPress}
-      onPointerLeave={cancelPress}
-      onPointerCancel={cancelPress}
+      {...pressProps}
       aria-haspopup="menu"
       aria-expanded={!!menuAnchor}
       className="flex flex-col items-center justify-center gap-0.5 w-full h-full py-1 hover:bg-black/5 dark:hover:bg-white/5 transition-colors rounded select-none [-webkit-touch-callout:none]"

@@ -3,6 +3,8 @@ import JoboViewIcon from './JoboViewIcon.jsx';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { mobileToggleStates, nextState } from '../constants/views.js';
+import ViewMenu from './ViewMenu.jsx';
+import useViewListPress from '../hooks/useViewListPress.js';
 
 const ORANGE = '#fe8b00';
 
@@ -51,7 +53,10 @@ const JoboIcon = () => <JoboViewIcon size={18} />;
 const ICONS = { grid: GridIcon, list: ListIcon, sched: SchedIcon, month: MonthIcon, jobo: JoboIcon };
 const LABEL_KEYS = { grid: 'settings.viewGrid', list: 'settings.viewList', sched: 'settings.viewSched', month: 'sched.viewMonthShort', jobo: 'sched.viewJoboShort' };
 
-// GRID → LIST → MONTH → SCHED → JOBO → GRID (JOBO only with its flag on; MONTH steps out while the Day Dial is up; views turned off on this device are out altogether)
+// GRID → LIST → MONTH → SCHED → JOBO → GRID (JOBO only with its flag on; MONTH steps out while the Day Dial is up; views turned off on this device are out altogether).
+// A tap cycles; a long press opens the list of these views to jump straight to
+// one (#2362), as the desktop cycler's does (hooks/useViewListPress.js). No
+// shortcut keys in the list: a phone has no number keys.
 const MobileViewToggle = () => {
   const { mobileViewMode, setMobileViewMode, textSecondary, showDayDial, hiddenViews } = useDayPlannerCtx();
   const { t } = useTranslation();
@@ -61,19 +66,41 @@ const MobileViewToggle = () => {
 
   const toggle = () => setMobileViewMode(next);
   const Icon = ICONS[mobileViewMode] || GridIcon;
+  const { buttonRef, menuAnchor, closeMenu, consumeClick, pressProps } = useViewListPress();
 
   return (
+    <>
     <button
-      onClick={toggle}
-      className="flex flex-col items-center justify-center gap-0.5 w-full h-full py-1 hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors"
+      ref={buttonRef}
+      onClick={() => {
+        if (consumeClick()) return;
+        toggle();
+      }}
+      {...pressProps}
+      aria-haspopup="menu"
+      aria-expanded={!!menuAnchor}
+      className="flex flex-col items-center justify-center gap-0.5 w-full h-full py-1 hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors select-none [-webkit-touch-callout:none]"
       aria-label={t('sched.switchToView', 'Switch to {{view}} view', { view: label(next) })}
-      title={t('sched.currentViewTap', 'Current view: {{view}}. Tap to switch.', { view: label(mobileViewMode) })}
+      title={t('sched.currentViewTap', 'Current view: {{view}}. Tap to switch, or long-press to pick one.', { view: label(mobileViewMode) })}
     >
       <Icon />
       <span className={`text-[9px] font-semibold tracking-widest uppercase ${textSecondary} leading-none`}>
         {label(mobileViewMode)}
       </span>
     </button>
+    {menuAnchor && (
+      <ViewMenu
+        states={states}
+        current={mobileViewMode}
+        icons={ICONS}
+        anchor={menuAnchor}
+        labelOf={label}
+        shortcutKeys={null}
+        onPick={(view) => { closeMenu({ restoreFocus: true }); setMobileViewMode(view); }}
+        onClose={closeMenu}
+      />
+    )}
+    </>
   );
 };
 

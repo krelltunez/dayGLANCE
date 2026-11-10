@@ -2198,7 +2198,7 @@
     "viewAria": "Aktuelle Ansicht: {{view}}. Klicken zum Wechseln, Rechtsklick oder lange drücken zum Auswählen.",
     "viewMenu": "Ansichten",
     "switchToView": "Zur Ansicht {{view}} wechseln",
-    "currentViewTap": "Aktuelle Ansicht: {{view}}. Tippen zum Wechseln.",
+    "currentViewTap": "Aktuelle Ansicht: {{view}}. Tippen zum Wechseln, lange drücken zum Auswählen.",
     "deadline": "Frist",
     "deadlineTapToSchedule": "Frist — tippen, um eine Uhrzeit zu wählen",
     "routineTapHint": "Tippen zum Abhaken · halten, um eine Uhrzeit zu wählen",

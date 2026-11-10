@@ -2307,7 +2307,7 @@
     "viewAria": "Bieżący widok: {{view}}. Kliknij, aby przełączyć widok, albo kliknij prawym przyciskiem lub przytrzymaj, aby wybrać.",
     "viewMenu": "Widoki",
     "switchToView": "Przełącz na widok: {{view}}",
-    "currentViewTap": "Bieżący widok: {{view}}. Dotknij, aby przełączyć.",
+    "currentViewTap": "Bieżący widok: {{view}}. Dotknij, aby przełączyć, albo przytrzymaj, aby wybrać.",
     "deadline": "Termin",
     "deadlineTapToSchedule": "Termin: dotknij, aby wybrać godzinę",
     "routineTapHint": "Dotknij, aby ukończyć · przytrzymaj, aby wybrać godzinę",

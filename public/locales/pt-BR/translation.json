@@ -2198,7 +2198,7 @@
     "viewAria": "Visualização atual: {{view}}. Clique para mudar, ou clique com o botão direito ou toque e segure para escolher.",
     "viewMenu": "Visualizações",
     "switchToView": "Mudar para a visualização {{view}}",
-    "currentViewTap": "Visualização atual: {{view}}. Toque para mudar.",
+    "currentViewTap": "Visualização atual: {{view}}. Toque para mudar ou toque e segure para escolher.",
     "deadline": "Prazo",
     "deadlineTapToSchedule": "Prazo — toque para escolher uma hora",
     "routineTapHint": "Toque para concluir · mantenha premido para escolher uma hora",
