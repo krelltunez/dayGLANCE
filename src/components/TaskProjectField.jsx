@@ -7,6 +7,7 @@ import { getProjectColor } from '../utils/colorUtils.js';
 import { NEW_PROJECT_ID, withPendingProject } from '../utils/pendingProject.js';
 import { draftWithProjectDefaults } from '../utils/projectTaskDefaults.js';
 import TaskProjectPicker from './TaskProjectPicker.jsx';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 
 /**
  * The task modals' project field, desktop and phone: the active projects by
@@ -87,7 +88,7 @@ export default function TaskProjectField({ newTask, setNewTask }) {
   const choose = (value) => {
     if (value === NEW_PROJECT_ID) {
       // A project made here has no defaults yet: take back the last one's.
-      const base = creating ? draftWithProjectDefaults(newTask, previous, null) : newTask;
+      const base = creating ? draftWithProjectDefaults(newTask, previous, null, { defaultDuration: readDefaultTaskDuration() }) : newTask;
       setNewTask(withPendingProject(base, { title: '', goalId: '' }, goals));
       return;
     }
@@ -97,7 +98,7 @@ export default function TaskProjectField({ newTask, setNewTask }) {
     // Copy-at-creation inheritance: adopting a project stamps its
     // effective color and assigned users onto the draft task
     // (deselecting clears the inherited users).
-    const base = creating ? draftWithProjectDefaults(newTask, previous, proj) : newTask;
+    const base = creating ? draftWithProjectDefaults(newTask, previous, proj, { defaultDuration: readDefaultTaskDuration() }) : newTask;
     setNewTask({
       ...base,
       projectId: pid,

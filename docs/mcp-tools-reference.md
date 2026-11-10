@@ -356,7 +356,7 @@ With `start` **and** `repeat`, a repeating series starting on `start`'s date (se
 | `priority` | integer | no | **Unscheduled only** (inbox or project). 0 none (default), 1 low, 2 medium, 3 high. |
 | `deadline` | string | no | **Unscheduled only** (inbox or project). Local `YYYY-MM-DD`. |
 | `start` | string | no | Local `"YYYY-MM-DD HH:MM"`; with `all_day`, a bare `YYYY-MM-DD`. Presence = scheduled create. |
-| `duration_minutes` | integer | no | 1–1440. Default: the project's default duration (with `project_id`), else 30. Contradicts `all_day`. |
+| `duration_minutes` | integer | no | 1–1440. Default: the project's New task default (with `project_id`), else the user's default task duration (Settings → General, 30 unless changed). Pass it only when the user names a length. Contradicts `all_day`. |
 | `all_day` | boolean | no | With `start` only. |
 | `repeat` | object | no | With `start` only: make it a repeating series. See below. |
 | `idempotency_key` | string | no | Also seeds a deterministic task id, so replays converge. |
@@ -365,9 +365,12 @@ By-design `validation` rejections: priority/deadline with `start`; `all_day` + `
 
 **A project's New task defaults** (set in the project's form, #2336) are copied onto a task created in
 it, as the app's own create paths copy them, and fill only what the call leaves out: the duration
-when `duration_minutes` is absent (a series takes its duration from `start`), the notes when
+when `duration_minutes` is absent (inbox, scheduled and series creates alike), the notes when
 `notes` is absent or empty, the project's `#tags` appended to the title where it lacks them, the
 project's checklist as subtasks, and its energy (`effort` or `restore`) as the task's own. Later edits to the project never reach tasks already created.
+A goal's or an area's defaults are not read here: they seed new projects, so a task takes them
+through its project. With no project, or a project with no default duration, the task takes the
+user's **default task duration** (Settings → General, per device, 30 unless changed).
 Unknown `assignee_id` → `not_found`.
 
 **`repeat`** mirrors what the app itself can repeat, and nothing more:
@@ -457,7 +460,7 @@ Schedule an unscheduled inbox task onto a day and time.
 |---|---|---|---|
 | `task_id` | string | yes | Must be an inbox task; an already-scheduled id → `validation` pointing to `move_block`. |
 | `start` | string | yes | Local `"YYYY-MM-DD HH:MM"`. |
-| `duration_minutes` | integer | no | 1–1440. Defaults to the task's own duration, then 30. |
+| `duration_minutes` | integer | no | 1–1440. Defaults to the task's own duration, then the user's default task duration. |
 | `idempotency_key` | string | no | |
 
 If the inbox task carried a priority or deadline, scheduling **drops them by design** and the

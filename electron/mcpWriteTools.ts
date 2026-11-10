@@ -257,7 +257,9 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       'Presence makes this a SCHEDULED create, placed directly on the calendar in one call. ' +
       'Timed: local "YYYY-MM-DD HH:MM" (DST gap/repeat times rejected). With all_day: a bare "YYYY-MM-DD".'),
     duration_minutes: z.number().int().optional().describe(
-      '1-1440. Defaults to the project\'s default duration (with project_id), else 30. Contradicts all_day: an all-day task has no meaningful duration.'),
+      '1-1440. Defaults to the project\'s New task default (with project_id), else the user\'s default task duration ' +
+      '(set in dayGLANCE, 30 unless changed). Pass it only when the user names a length. ' +
+      'Contradicts all_day: an all-day task has no meaningful duration.'),
     all_day: z.boolean().optional().describe(
       'With start: create an all-day task. start must then be a bare YYYY-MM-DD date.'),
     // Permissive on purpose (CLAUDE.md, MCP transport suite): parseRepeat
@@ -406,7 +408,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       inputSchema: z.object({
         task_id: z.string(),
         start: z.string().describe('Local "YYYY-MM-DD HH:MM". Times inside a DST gap or repeat are rejected.'),
-        duration_minutes: z.number().int().optional().describe('1-1440. Defaults to the task\'s own duration, then 30.'),
+        duration_minutes: z.number().int().optional().describe('1-1440. Defaults to the task\'s own duration, then the user\'s default task duration.'),
         idempotency_key: IDEMPOTENCY_ARG,
       }),
     },

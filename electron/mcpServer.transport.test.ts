@@ -486,6 +486,29 @@ describe('project writes carry the project-level target date (2026-10-21)', () =
       await h.close();
     }
   });
+
+  // A create given no duration (#2367): the main process invents none, so the
+  // renderer gives the project's New task default, else the user's default
+  // task duration. A 30 filled in on this side would hide both.
+  it('a scheduled create_task with no duration reaches the bridge with none, and the tool says what it defaults to', async () => {
+    const bridge = fakeBridge(projectScript);
+    const h = await start({ writeDeps: writeDeps(bridge.bridge) });
+    try {
+      const client = await h.connect();
+      const { tools } = await client.listTools();
+      const tool = tools.find((x) => x.name === 'dayglance_create_task');
+      const durationField = JSON.stringify(tool.inputSchema.properties.duration_minutes);
+      expect(durationField).toContain('New task default');
+      expect(durationField).toContain('default task duration');
+      const r = await client.callTool({ name: 'dayglance_create_task', arguments: { title: 'Gym', project_id: 'p-fit', start: '2026-10-05 07:00' } });
+      expect(r.isError).toBeFalsy();
+      const params = bridge.calls[0].params as { projectId: string; schedule: Record<string, unknown> };
+      expect(params).toMatchObject({ projectId: 'p-fit', schedule: { date: '2026-10-05', startTime: '07:00', allDay: false } });
+      expect(params.schedule).not.toHaveProperty('durationMinutes');
+    } finally {
+      await h.close();
+    }
+  });
 });
 
 describe('repeating tasks over the wire (#2066)', () => {

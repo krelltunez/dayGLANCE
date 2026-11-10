@@ -771,3 +771,71 @@ describe('goals, projects and subtasks over MCP (2026-10-04)', () => {
     expect(setters.setTasks.mock.calls[0][0][0].subtasks).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// A create or schedule the call gives no duration (#2367, #2336): the project's
+// New task default, else the user's default task duration (state.defaultTaskDuration,
+// read per write by useMcpBridge), else 30. The main process invents none
+// (electron/mcpCreateArgs.ts), so a scheduled create and a series take it too.
+// ---------------------------------------------------------------------------
+describe('the duration a create or schedule takes when the call gives none', () => {
+  const DATE = '2026-08-10';
+  const fitness = { id: 'p-fit', title: 'Fitness', color: 'bg-emerald-500', status: 'active', taskDefaults: { duration: 45 } };
+  const plain = { id: 'p-plain', title: 'Plain', color: 'bg-blue-500', status: 'active' };
+  const st = (over = {}) => ({ tasks: [], unscheduledTasks: [], recurringTasks: [], users: [], goals: [], projects: [fitness, plain], ...over });
+  const at = (startTime) => ({ date: DATE, startTime, allDay: false });
+  const create = (state, params) => handleMcpWrite(state, makeSetters(), { method: 'create_task', params });
+
+  it('the project\'s New task default, for an inbox, a scheduled and a repeating create', () => {
+    expect(create(st(), { taskId: 'i1', title: 'Run', projectId: 'p-fit' }).data.task.duration_minutes).toBe(45);
+    expect(create(st(), { taskId: 's1', title: 'Run', projectId: 'p-fit', schedule: at('07:00') }).data.block.duration_minutes).toBe(45);
+    const setters = makeSetters();
+    handleMcpWrite(st(), setters, { method: 'create_task', params: {
+      taskId: 'r1', title: 'Run', projectId: 'p-fit', schedule: at('07:00'), recurrence: { type: 'daily' },
+    } });
+    expect(setters.setRecurringTasks.mock.calls[0][0][0].duration).toBe(45);
+  });
+
+  it('the project\'s default wins over the user\'s default task duration', () => {
+    const r = create(st({ defaultTaskDuration: 60 }), { taskId: 's2', title: 'Run', projectId: 'p-fit', schedule: at('07:00') });
+    expect(r.data.block.duration_minutes).toBe(45);
+  });
+
+  it('no project, or a project with no default duration: the user\'s default task duration', () => {
+    const s = st({ defaultTaskDuration: 60 });
+    expect(create(s, { taskId: 'i3', title: 'Call' }).data.task.duration_minutes).toBe(60);
+    expect(create(s, { taskId: 's3', title: 'Call', schedule: at('11:00') }).data.block.duration_minutes).toBe(60);
+    expect(create(s, { taskId: 's4', title: 'Call', projectId: 'p-plain', schedule: at('11:00') }).data.block.duration_minutes).toBe(60);
+  });
+
+  it('30 when there is neither, or the setting is unreadable', () => {
+    expect(create(st(), { taskId: 's5', title: 'Call', schedule: at('11:00') }).data.block.duration_minutes).toBe(30);
+    expect(create(st({ defaultTaskDuration: 0 }), { taskId: 's6', title: 'Call', schedule: at('11:00') }).data.block.duration_minutes).toBe(30);
+  });
+
+  it('what the call (that is, the user) asks for always wins', () => {
+    const s = st({ defaultTaskDuration: 60 });
+    expect(create(s, { taskId: 'i7', title: 'Run', projectId: 'p-fit', durationMinutes: 20 }).data.task.duration_minutes).toBe(20);
+    expect(create(s, { taskId: 's7', title: 'Run', projectId: 'p-fit', schedule: { ...at('07:00'), durationMinutes: 20 } })
+      .data.block.duration_minutes).toBe(20);
+  });
+
+  it('the routine check uses the duration the task will have, not 30', () => {
+    // A routine 09:00-10:00. Created at 08:30 with no duration: 30 minutes
+    // ends at 09:00 and fits; the user's 60 would run into the routine.
+    const routine = { routines: [{ id: 'rt', name: 'Morning pages', startTime: '09:00', duration: 60, isAllDay: false }],
+      routinesDate: DATE, routineCompletions: {}, routinesEnabled: true, todayDate: DATE };
+    expect(create(st(routine), { taskId: 'c1', title: 'Call', schedule: at('08:30') }).ok).toBe(true);
+    const r = create(st({ ...routine, defaultTaskDuration: 60 }), { taskId: 'c2', title: 'Call', schedule: at('08:30') });
+    expect(r.ok).toBe(false);
+    expect(r.error.code).toBe('routine_conflict');
+  });
+
+  it('schedule_task: the task\'s own duration, else the user\'s default', () => {
+    const s = st({ defaultTaskDuration: 60, unscheduledTasks: [{ id: 'u1', title: 'Own', duration: 20 }, { id: 'u2', title: 'None' }] });
+    const own = handleMcpWrite(s, makeSetters(), { method: 'schedule_task', params: { taskId: 'u1', date: DATE, startTime: '13:00' } });
+    expect(own.data.block.duration_minutes).toBe(20);
+    const none = handleMcpWrite(s, makeSetters(), { method: 'schedule_task', params: { taskId: 'u2', date: DATE, startTime: '13:00' } });
+    expect(none.data.block.duration_minutes).toBe(60);
+  });
+});

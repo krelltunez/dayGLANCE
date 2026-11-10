@@ -26,6 +26,11 @@
 //
 // Values given explicitly win (an MCP create's notes or duration, a draft the
 // user has already changed); the defaults fill only what is missing.
+//
+// A project with no default duration gives the app's default task duration
+// (Settings > General, utils/defaultTaskDuration.js, #2367). This module stays
+// pure, so callers read that setting and pass it as `defaultDuration`; 30 when
+// they do not.
 
 import { getProjectColor } from './colorUtils.js';
 import { ENERGY_EFFORT, ENERGY_RESTORE } from './energyAxis.js';
@@ -119,6 +124,9 @@ export const defaultEnergy = (defaults) => (defaults?.energy ? { energy: default
 export const defaultSubtasks = (titles = [], newId = () => crypto.randomUUID()) =>
   titles.map((title) => ({ id: newId(), title, completed: false }));
 
+/** The app's default task duration as passed in, or 30 for anything that is not a positive whole number. */
+export const baseDuration = (minutes) => (Number.isInteger(minutes) && minutes > 0 ? minutes : DEFAULT_TASK_DURATION);
+
 /**
  * The fields a task created in `project` takes, given what the caller already
  * has (`given`): colour and users as before, plus the defaults wherever
@@ -127,13 +135,15 @@ export const defaultSubtasks = (titles = [], newId = () => crypto.randomUUID()) 
  * @param {object} project
  * @param {object|null} parentGoal  for the colour's fallback
  * @param {{ title?: string, duration?: number, notes?: string, subtasks?: object[] }} [given]
+ * @param {{ newId?: () => string, defaultDuration?: number }} [opts]  `defaultDuration`:
+ *   the app's default task duration, for a project that sets none
  */
-export function projectTaskFields(project, parentGoal, given = {}, { newId } = {}) {
+export function projectTaskFields(project, parentGoal, given = {}, { newId, defaultDuration } = {}) {
   const d = taskDefaultsOf(project);
   return {
     title: withTags(given.title ?? '', d.tags),
     color: getProjectColor(project, parentGoal),
-    duration: Number.isFinite(given.duration) ? given.duration : (d.duration ?? DEFAULT_TASK_DURATION),
+    duration: Number.isFinite(given.duration) ? given.duration : (d.duration ?? baseDuration(defaultDuration)),
     notes: typeof given.notes === 'string' && given.notes ? given.notes : (d.notes || ''),
     subtasks: Array.isArray(given.subtasks) && given.subtasks.length ? given.subtasks : defaultSubtasks(d.subtasks, newId),
     ...defaultEnergy(d),
@@ -155,16 +165,19 @@ const sameTitles = (subtasks = [], titles = []) =>
  *
  * Colour and users are not here: the field sets those as it always has.
  */
-export function draftWithProjectDefaults(draft, from, to, { newId } = {}) {
+export function draftWithProjectDefaults(draft, from, to, { newId, defaultDuration } = {}) {
   const was = taskDefaultsOf(from);
   const next = taskDefaultsOf(to);
   const out = { ...draft };
 
   // Each field is written only when it changes, so a project without
-  // defaults leaves the draft exactly as it was.
-  const duration = draft.duration ?? DEFAULT_TASK_DURATION;
-  const nextDuration = next.duration ?? DEFAULT_TASK_DURATION;
-  if (duration === (was.duration ?? DEFAULT_TASK_DURATION) && duration !== nextDuration) out.duration = nextDuration;
+  // defaults leaves the draft exactly as it was. A draft no project has
+  // touched starts at the app's default task duration (`defaultDuration`), so
+  // that, not 30, is the duration still as "nothing" left it.
+  const base = baseDuration(defaultDuration);
+  const duration = draft.duration ?? base;
+  const nextDuration = next.duration ?? base;
+  if (duration === (was.duration ?? base) && duration !== nextDuration) out.duration = nextDuration;
 
   const notes = draft.notes || '';
   if (notes === (was.notes || '') && notes !== (next.notes || '')) out.notes = next.notes || '';

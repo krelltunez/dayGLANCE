@@ -60,3 +60,22 @@ describe('the UI frame wrapper is owner-scoped too', () => {
     expect(wrapper).toMatch(/\[gtdFrames, frameSets,/);
   });
 });
+
+// The default task duration (#2367) is a per-device setting in localStorage,
+// not React state: the bridge reads it per write, as it reads retiredTaskIds,
+// and the write model hands it to the create and schedule mutations. Dropping
+// it leaves every model test green and turns each MCP create back to 30.
+describe('the MCP bridge hands writes the default task duration', () => {
+  const bridge = readFileSync(new URL('./useMcpBridge.js', import.meta.url), 'utf8');
+  const model = readFileSync(new URL('../utils/mcpWriteModel.js', import.meta.url), 'utf8');
+
+  it('reads it per write into the state the write model sees', () => {
+    expect(bridge).toContain("import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';");
+    expect(bridge).toMatch(/const live = \{ \.\.\.stateRef\.current,[^}]*defaultTaskDuration: readDefaultTaskDuration\(\)/);
+  });
+
+  it('passes it to create_task and schedule_task', () => {
+    expect(model).toContain('applyCreateTask(state, { ...params, defaultDurationMinutes: state.defaultTaskDuration, nowIso })');
+    expect(model).toContain('applyScheduleTask(state, { ...params, defaultDurationMinutes: state.defaultTaskDuration, nowIso })');
+  });
+});

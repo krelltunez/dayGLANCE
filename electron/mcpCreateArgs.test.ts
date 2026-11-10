@@ -57,12 +57,15 @@ describe('planCreateTask — inbox shape', () => {
 });
 
 describe('planCreateTask — scheduled shape', () => {
-  it('start "YYYY-MM-DD HH:MM" → direct scheduled plan with default duration 30', () => {
+  it('start "YYYY-MM-DD HH:MM" → direct scheduled plan, with no duration invented', () => {
+    // The renderer gives a duration-less create its project's New task default,
+    // else the user's default task duration: a 30 filled in here would hide both.
     const r = plan({ title: 'T', start: '2026-08-14 09:30' });
     expect(r).toEqual({
       ok: true,
-      plan: { title: 'T', schedule: { date: '2026-08-14', startTime: '09:30', durationMinutes: 30, allDay: false } },
+      plan: { title: 'T', schedule: { date: '2026-08-14', startTime: '09:30', allDay: false } },
     });
+    expect(r.ok && 'durationMinutes' in r.plan.schedule!).toBe(false);
   });
 
   it('duration_minutes overrides the scheduled default', () => {
@@ -70,11 +73,11 @@ describe('planCreateTask — scheduled shape', () => {
     expect(r.ok && r.plan.schedule?.durationMinutes).toBe(90);
   });
 
-  it('all_day takes a BARE date and stores the UI shape (00:00, allDay, duration 30)', () => {
+  it('all_day takes a BARE date and stores the UI shape (00:00, allDay; the renderer fills the duration)', () => {
     const r = plan({ title: 'T', start: '2026-08-14', all_day: true });
     expect(r).toEqual({
       ok: true,
-      plan: { title: 'T', schedule: { date: '2026-08-14', startTime: '00:00', durationMinutes: 30, allDay: true } },
+      plan: { title: 'T', schedule: { date: '2026-08-14', startTime: '00:00', allDay: true } },
     });
   });
 
@@ -152,7 +155,7 @@ describe('planCreateTask — by-design rejections (copy must say design, not uns
       ok: true,
       plan: {
         title: 'Renew server',
-        schedule: { date: '2026-10-13', startTime: '09:00', durationMinutes: 30, allDay: false },
+        schedule: { date: '2026-10-13', startTime: '09:00', allDay: false },
         recurrence: { type: 'monthly', monthDay: 13, monthWeekday: null, startDate: '2026-10-13' },
       },
     });

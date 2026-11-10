@@ -119,6 +119,41 @@ describe('draftWithProjectDefaults: the new-task form when its project changes',
   });
 });
 
+// The app's default task duration (#2367): a new-task form starts at it, not
+// at 30, so it is the duration "nothing" left on the draft. Without it, a user
+// whose default is 60 picks a project with a 45-minute default and keeps 60.
+describe('with a default task duration other than 30', () => {
+  const opts = { newId, defaultDuration: 60 };
+  const blank60 = { title: 'Run 5k', duration: 60, notes: '', subtasks: [] };
+
+  it('an untouched draft (at the default) takes the project\'s duration', () => {
+    expect(draftWithProjectDefaults(blank60, null, fitness, opts).duration).toBe(45);
+  });
+
+  it('clearing the project puts the default back, not 30', () => {
+    const a = draftWithProjectDefaults(blank60, null, fitness, opts);
+    expect(draftWithProjectDefaults(a, fitness, null, opts).duration).toBe(60);
+  });
+
+  it('a project without a default duration leaves the draft at the default', () => {
+    expect(draftWithProjectDefaults(blank60, null, plain, opts).duration).toBe(60);
+  });
+
+  it('a duration the user chose still stays, 30 included', () => {
+    expect(draftWithProjectDefaults({ ...blank60, duration: 30 }, null, fitness, opts).duration).toBe(30);
+  });
+
+  it('a quick-add in a project with no default duration takes the default; one with a default takes its own', () => {
+    expect(projectTaskFields(plain, null, { title: 'Do it' }, opts).duration).toBe(60);
+    expect(projectTaskFields(fitness, null, { title: 'Do it' }, opts).duration).toBe(45);
+  });
+
+  it('no default passed, or an unreadable one, is 30 as before', () => {
+    expect(projectTaskFields(plain, null, { title: 'Do it' }, { newId }).duration).toBe(30);
+    expect(projectTaskFields(plain, null, { title: 'Do it' }, { newId, defaultDuration: 0 }).duration).toBe(30);
+  });
+});
+
 // The energy default (#2336 follow-up): a project of restoring things marks its
 // new tasks Restore whatever their titles say, as the user's own word would.
 describe('the energy default', () => {

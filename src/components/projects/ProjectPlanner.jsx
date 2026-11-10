@@ -47,6 +47,7 @@ import { sortByProjectOrder, applyProjectReorder, projectReorderIds, topProjectO
 import { readRetiredTaskIds } from '../../utils/retiredTaskIds.js';
 import { keyboardSheet } from '../../utils/keyboardInset.js';
 import { projectTaskFields } from '../../utils/projectTaskDefaults.js';
+import { readDefaultTaskDuration } from '../../utils/defaultTaskDuration.js';
 
 /**
  * PLANNER — a per-project planning dashboard, themed to the project's color.
@@ -396,7 +397,7 @@ const ProjectPlanner = ({ project, onClose, initialHyperglanceOpen = false }) =>
       projectOrder,
       // Title (with the default tags), colour, duration, notes, checklist and
       // users: what the project gives a new task (utils/projectTaskDefaults.js).
-      ...projectTaskFields(project, parentGoal, { title }),
+      ...projectTaskFields(project, parentGoal, { title }, { defaultDuration: readDefaultTaskDuration() }),
       completed: false,
       isAllDay: false,
       priority: 0,
