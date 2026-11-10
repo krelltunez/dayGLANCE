@@ -12,6 +12,7 @@ import TaskPlanHistory from './TaskPlanHistory.jsx';
 import TaskStarButton from './TaskStarButton.jsx';
 import CardSubtasks from './CardSubtasks.jsx';
 import { desktopCardReservedPx } from '../utils/cardSubtasks.js';
+import { cardShowsSubtasks, cardTitleClamp, cardTitleTooltip, desktopCardTitleLines } from '../utils/cardTitle.js';
 import TaskEnergyMarker from './TaskEnergyMarker.jsx';
 import UserAssignmentBadge from './UserAssignmentBadge.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
@@ -21,7 +22,7 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 
-const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
+const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel, wrapTitle = false }) => {
   const { t } = useTranslation();
   const {
     isTablet,
@@ -55,6 +56,29 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
   const isCalendarEvent = isImported && !task.isTaskCalendar;
   const isMicroHeight = height <= 40;
   const isRecurringTask = typeof task.id === 'string' && task.id.startsWith('recurring-');
+
+  // A long title (#2368): wrapped onto the lines a tall card has room for,
+  // unless the card lists subtasks (they keep the room below a one-line
+  // title). The week view's popover (`wrapTitle`) is there to show the task,
+  // so it wraps either way, and grows to fit.
+  const hasMetaRow = extractTags(task.title).length > 0
+    || (goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId));
+  const showsSubtasks = !isImported && !isNarrowWidth && cardShowsSubtasks(task, showCardSubtasks);
+  const titleLines = desktopCardTitleLines({
+    height,
+    hasMetaRow,
+    hasTimeRow: !isNarrowWidth && !isImported && height >= 55,
+    showsSubtasks: showsSubtasks && !wrapTitle,
+  });
+  const titleClamp = cardTitleClamp(titleLines);
+  const titleWraps = titleLines > 1;
+  // The full title on hover, and the rename hint under it where a
+  // double-click renames.
+  const titleTooltip = cardTitleTooltip(task.title, !isImported && !isTablet ? t('task.doubleClickToRename') : null);
+  // The notes panel opens just past the card. In the week popover the card
+  // can be taller than `height` (a wrapped title), so it goes by the
+  // popover's own edge there.
+  const panelOffset = wrapTitle ? '100%' : `${height}px`;
 
   const NotesButton = ({ inMenu = false }) => (
     <button
@@ -222,7 +246,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
               </button>
             )}
             <div className="pr-6">
-              <div className="flex items-center gap-1">
+              <div className={`flex ${titleWraps ? 'items-start' : 'items-center'} gap-1`}>
                 {(!isImported || task.isTaskCalendar) && (
                   <button
                     onClick={() => toggleComplete(task.id)}
@@ -243,16 +267,18 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                   {!isTablet && editingTaskId === task.id ? (
                     <TaskTitleRenameField />
                   ) : (
-                    <div className="flex items-center gap-0.5">
+                    <div className={`flex ${titleWraps ? 'items-start' : 'items-center'} gap-0.5`}>
                       <div
-                        className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate flex-1 min-w-0 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                        className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight ${titleClamp.className} flex-1 min-w-0 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                        style={titleClamp.style}
+                        data-title-lines={titleLines}
                         onDoubleClick={!isTablet ? (e) => {
                           if (!isImported) {
                             e.stopPropagation();
                             startEditingTask(task, false);
                           }
                         } : undefined}
-                        title={stripWikilinks(task.title)}
+                        title={titleTooltip}
                       >
                         {renderTitleWithoutTags(task.title)}
                       </div>
@@ -292,8 +318,8 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
         ) : (
           /* WIDE LAYOUT: Title+tags row 1 with action buttons, time row 2 */
           <>
-            <div className="flex items-center justify-between gap-1">
-              <div className="flex items-center gap-1 flex-1 min-w-0">
+            <div className={`flex ${titleWraps ? 'items-start' : 'items-center'} justify-between gap-1`}>
+              <div className={`flex ${titleWraps ? 'items-start' : 'items-center'} gap-1 flex-1 min-w-0`}>
                 {(!isImported || task.isTaskCalendar) && (
                   <button
                     onClick={() => toggleComplete(task.id)}
@@ -315,14 +341,16 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                   ) : (
                     <div className="flex items-center gap-0.5">
                       <div
-                        className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate flex-1 min-w-0 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                        className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight ${titleClamp.className} flex-1 min-w-0 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                        style={titleClamp.style}
+                        data-title-lines={titleLines}
                         onDoubleClick={!isTablet ? (e) => {
                           if (!isImported) {
                             e.stopPropagation();
                             startEditingTask(task, false);
                           }
                         } : undefined}
-                        title={!isImported && !isTablet ? t('task.doubleClickToRename') : undefined}
+                        title={titleTooltip}
                       >
                         {renderTitleWithoutTags(task.title)}
                       </div>
@@ -377,7 +405,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                 height={height}
                 reservedPx={desktopCardReservedPx({
                   height,
-                  hasMetaRow: extractTags(task.title).length > 0 || (goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId)),
+                  hasMetaRow,
                 })}
                 onToggle={(subtaskId) => toggleSubtask(task.id, subtaskId, false)}
                 onMore={() => setExpandedNotesTaskId(task.id)}
@@ -395,7 +423,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
         return (
           <div
             className="notes-panel-container absolute left-0 right-0 z-40"
-            style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
+            style={showAbove ? { bottom: panelOffset } : { top: panelOffset }}
           >
             <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
               <NotesSubtasksPanel
@@ -428,7 +456,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
         return (
           <div
             className="notes-panel-container absolute left-0 right-0 z-40"
-            style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
+            style={showAbove ? { bottom: panelOffset } : { top: panelOffset }}
           >
             <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
               <div className={`p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`} onClick={(e) => e.stopPropagation()}>
