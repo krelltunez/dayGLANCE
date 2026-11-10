@@ -97,6 +97,36 @@ describe('ViewCycler', () => {
     expect(setViewMode).toHaveBeenCalledWith('day');
   });
 
+  // On a touch screen the finger that long-pressed lifts over the backdrop
+  // that just appeared, and the browser sends that lift a click there.
+  // MUTATION: drop the "press began on the backdrop" check and this fails.
+  it('a touch long press: the click its release lands on the backdrop does not close the list', () => {
+    const root = mount();
+    act(() => { press(cycler(root)); vi.advanceTimersByTime(LONG_PRESS_MS); });
+    const backdrop = () => root.root.find((n) => n.type === 'div' && n.props['data-view-menu-backdrop'] !== undefined);
+    act(() => { cycler(root).props.onPointerUp(); backdrop().props.onClick(); });
+    expect(menu(root)).toHaveLength(1);
+    // Android's contextmenu for the same long press, also landing there.
+    const preventDefault = vi.fn();
+    act(() => { backdrop().props.onContextMenu({ preventDefault }); });
+    expect(preventDefault).toHaveBeenCalled();
+    expect(menu(root)).toHaveLength(1);
+    // A tap that starts on the backdrop closes it.
+    act(() => { backdrop().props.onPointerDown(); backdrop().props.onClick(); });
+    expect(menu(root)).toHaveLength(0);
+    expect(setViewMode).not.toHaveBeenCalled();
+  });
+
+  it('a right-click on the backdrop closes the list, without the browser\'s menu', () => {
+    const root = mount();
+    act(() => { cycler(root).props.onContextMenu({ preventDefault() {} }); });
+    const backdrop = root.root.find((n) => n.type === 'div' && n.props['data-view-menu-backdrop'] !== undefined);
+    const preventDefault = vi.fn();
+    act(() => { backdrop.props.onPointerDown(); backdrop.props.onContextMenu({ preventDefault }); });
+    expect(preventDefault).toHaveBeenCalled();
+    expect(menu(root)).toHaveLength(0);
+  });
+
   it('a press that moves is not a long press', () => {
     const root = mount();
     act(() => { press(cycler(root)); cycler(root).props.onPointerMove({ clientX: 40, clientY: 10 }); });

@@ -32,6 +32,13 @@ export default function ViewMenu({ states, current, icons, anchor, onPick, onClo
   const { t } = useTranslation();
   const { textPrimary, textSecondary, cardBg, borderClass, darkMode } = useDayPlannerCtx();
   const listRef = useRef(null);
+  // Whether the press now ending began on the backdrop. Only a press that
+  // starts there closes the list: on a touch screen the long press that opened
+  // it ends with the finger lifting over the new backdrop, and the browser
+  // sends that lift a click (and Android a contextmenu) on whatever is under
+  // it, which closed the list as it appeared. A mouse press that starts on the
+  // cycler is never a click on the backdrop, so desktop never saw this.
+  const pressOnBackdrop = useRef(false);
 
   // Focus the current view's row on open, so the arrow keys start there.
   useEffect(() => {
@@ -64,11 +71,22 @@ export default function ViewMenu({ states, current, icons, anchor, onPick, onClo
 
   return createPortal(
     <>
-      {/* Backdrop: any click outside closes, and a right-click there does not open the browser's menu. */}
+      {/* Backdrop: a click or right-click that starts outside the list closes it; a right-click there never opens the browser's menu. */}
       <div
         className="fixed inset-0 z-[80]"
-        onClick={() => onClose({ restoreFocus: false })}
-        onContextMenu={(e) => { e.preventDefault(); onClose({ restoreFocus: false }); }}
+        data-view-menu-backdrop
+        onPointerDown={() => { pressOnBackdrop.current = true; }}
+        onClick={() => {
+          if (!pressOnBackdrop.current) return;
+          pressOnBackdrop.current = false;
+          onClose({ restoreFocus: false });
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (!pressOnBackdrop.current) return;
+          pressOnBackdrop.current = false;
+          onClose({ restoreFocus: false });
+        }}
       />
       <div
         ref={listRef}
