@@ -476,8 +476,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               the header's buttons squeezed a phone-width title until it ran
               under the badge. A long one-word title wraps rather than overflow. */}
           <div data-project-title-block className="flex-1 min-w-0 flex flex-col items-start gap-1">
-            {/* On hold sits with the title it describes, not among the buttons;
-                on a narrow card it wraps under the title. */}
+            {/* On hold and Done sit with the title they describe, not among the
+                buttons; on a narrow card they wrap under the title. */}
             <div data-project-title-row className="flex flex-wrap items-center gap-x-1.5 gap-y-1 max-w-full min-w-0">
               <span className={`text-sm font-semibold ${textPrimary} leading-tight break-words max-w-full`}>
                 {project.title}
@@ -488,6 +488,14 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 }`}>
                   <CirclePause size={9} />
                   {t('goals.onHold')}
+                </span>
+              )}
+              {project.status === 'completed' && (
+                <span data-done-chip className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${
+                  darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-50 text-green-600'
+                }`}>
+                  <CheckCircle2 size={9} />
+                  {t('common.done')}
                 </span>
               )}
             </div>
@@ -574,14 +582,6 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               >
                 <LogIn size={12} />
               </button>
-            )}
-            {project.status === 'completed' && (
-              <span className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ${
-                darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-50 text-green-600'
-              }`}>
-                <CheckCircle2 size={10} />
-                {t('common.done')}
-              </span>
             )}
             {stalled && project.status !== 'completed' && (
               <span className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ${

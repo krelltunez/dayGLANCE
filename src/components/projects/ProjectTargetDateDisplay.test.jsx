@@ -124,6 +124,17 @@ describe('the project card\'s target-date badge', () => {
     expect(/<span class="([^"]*)">GLANCElauncher</.exec(block)?.[1]).toContain('break-words');
   });
 
+  // MUTATION: put the Done badge back among the header's buttons and this fails.
+  it('a completed project\'s Done badge sits in the title row, before any of the header\'s buttons', async () => {
+    const html = await renderCard({ ...card, status: 'completed' });
+    const block = html.slice(html.indexOf('data-project-title-block'));
+    const row = /<div data-project-title-row="true"[^>]*>([\s\S]*?)<\/div>/.exec(block)?.[1] ?? '';
+    expect(row).toContain('data-done-chip');
+    expect(html.match(/data-done-chip/g)).toHaveLength(1);
+    expect(html.indexOf('data-done-chip')).toBeLessThan(html.indexOf('<button', html.indexOf('data-project-title-block')));
+    expect(await renderCard(card)).not.toContain('data-done-chip');
+  });
+
   it('renders nothing without a target date, and hides it on a completed project', async () => {
     expect(await renderCard(card)).not.toContain('data-project-target-date');
     expect(await renderCard({ ...card, status: 'completed', targetDate: '2026-10-05' })).not.toContain('data-project-target-date');
