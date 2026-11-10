@@ -19,6 +19,7 @@ import ContinuationCard from './ContinuationCard.jsx';
 import TaskEnergyMarker from './TaskEnergyMarker.jsx';
 import CardSubtasks from './CardSubtasks.jsx';
 import { mobileCardReservedPx } from '../utils/cardSubtasks.js';
+import { cardShowsSubtasks, cardTitleClamp, mobileCardTitleLines, mobileTitleExtraPx } from '../utils/cardTitle.js';
 import { overnightSpillMinutes } from '@glance-apps/agenda-core';
 import { continuationLayoutRow } from '../utils/continuations.js';
 
@@ -395,6 +396,18 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
             const taskWidth = taskWidths[task.id];
             const isMeasured = taskWidth !== undefined;
             const isNarrowWidth = taskWidth < 180;
+            // A long title (#2368): wrapped onto the lines a tall card has
+            // room for, up to four, or two over subtasks that all still fit
+            // (wide cards only), and not on a card too narrow to wrap words
+            // whole (utils/cardTitle.js).
+            const titleLines = mobileCardTitleLines({
+              height,
+              width: taskWidth,
+              hasProjectRow: goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId),
+              subtasks: !isNarrowWidth && cardShowsSubtasks(task, showCardSubtasks) ? task.subtasks : null,
+            });
+            const titleClamp = cardTitleClamp(titleLines);
+            const titleWraps = titleLines > 1;
 
             // Mobile action buttons component
             const MobileActionButtons = ({ inMenu = false }) => (
@@ -592,7 +605,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                         </div>
                       )}
                     </button>
-                    <div className="flex items-center gap-1 pr-6">
+                    <div className={`flex ${titleWraps ? 'items-start' : 'items-center'} gap-1 pr-6`}>
                       <button
                         onClick={() => toggleComplete(task.id)}
                         className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
@@ -600,7 +613,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                         {task.completed && <Check size={10} strokeWidth={3} />}
                       </button>
                       {isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-60" />}
-                      <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
+                      <span className={`text-sm font-medium ${titleClamp.className} min-w-0 ${task.completed ? 'line-through' : ''}`} style={titleClamp.style} data-title-lines={titleLines}>
                         {renderTitle(task.title)}
                       </span>
                       {/* Energy (#2331): shown, not set, on a phone; the long-press menu sets it. */}
@@ -630,8 +643,8 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                 ) : (
                   /* WIDE: checkbox + title + action buttons + time row */
                   <div className="h-full px-2 py-1 flex flex-col text-white">
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <div className={`flex ${titleWraps ? 'items-start' : 'items-center'} justify-between gap-1`}>
+                      <div className={`flex ${titleWraps ? 'items-start' : 'items-center'} gap-1.5 min-w-0 flex-1`}>
                         <button
                           onClick={() => toggleComplete(task.id)}
                           className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
@@ -639,7 +652,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                           {task.completed && <Check size={10} strokeWidth={3} />}
                         </button>
                         {isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-60" />}
-                        <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
+                        <span className={`text-sm font-medium ${titleClamp.className} min-w-0 ${task.completed ? 'line-through' : ''}`} style={titleClamp.style} data-title-lines={titleLines}>
                           {renderTitle(task.title)}
                         </span>
                         <TaskEnergyMarker task={task} size={11} readOnly />
@@ -677,7 +690,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                         reservedPx={mobileCardReservedPx({
                           height,
                           hasProjectRow: goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId),
-                        })}
+                        }) + mobileTitleExtraPx(titleLines)}
                         onToggle={(subtaskId) => toggleSubtask(task.id, subtaskId, false)}
                         onMore={() => setExpandedNotesTaskId(task.id)}
                       />

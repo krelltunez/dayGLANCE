@@ -590,7 +590,7 @@ const TimeGrid = () => {
                   ...(runsPastMidnight ? { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 } : {}),
                 }}
                 >
-                  <TimelineTaskCardContent task={task} height={height} isNarrowWidth={isNarrowWidth} zoom={z} />
+                  <TimelineTaskCardContent task={task} height={height} width={taskWidth} isNarrowWidth={isNarrowWidth} zoom={z} />
                   {/* Resize handle at top - moves the start, keeps the end (#2273).
                       Shown on hover on desktop so it stays off the title. */}
                   {(!isImported || !!task.nativeEventId) && (

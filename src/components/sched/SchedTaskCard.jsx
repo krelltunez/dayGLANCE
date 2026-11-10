@@ -13,6 +13,7 @@ import { taskColorToHex, hexToRgba } from '../../utils/colorUtils.js';
 import { isObsidianNoteOnlyTask, renderTitleWithoutTags, URL_REGEX } from '../../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from '../../utils/taskUtils.js';
 import { formatLocalizedDate } from '../../utils/localeFormatting.js';
+import { cardTitleTooltip } from '../../utils/cardTitle.js';
 import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
 import DeadlinePickerPopover from '../DeadlinePickerPopover.jsx';
 
@@ -226,7 +227,7 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
       )}
       <div className="flex flex-col min-w-0 flex-1 gap-1">
         <span className="flex items-center gap-1.5 min-w-0">
-          <span className={`text-base font-medium ${textPrimary} truncate ${task.completed ? 'line-through' : ''}`}>
+          <span className={`text-base font-medium ${textPrimary} truncate ${task.completed ? 'line-through' : ''}`} title={cardTitleTooltip(task.title)}>
             {renderTitleWithoutTags(task.title)}
           </span>
           {/* On a phone the Do badge is a dot here; elsewhere, the pill below. */}

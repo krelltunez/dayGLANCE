@@ -12,6 +12,7 @@ import TaskPlanHistory from './TaskPlanHistory.jsx';
 import TaskStarButton from './TaskStarButton.jsx';
 import CardSubtasks from './CardSubtasks.jsx';
 import { desktopCardReservedPx } from '../utils/cardSubtasks.js';
+import { cardShowsSubtasks, cardTitleClamp, cardTitleTooltip, desktopCardTitleLines, desktopTitleExtraPx } from '../utils/cardTitle.js';
 import TaskEnergyMarker from './TaskEnergyMarker.jsx';
 import UserAssignmentBadge from './UserAssignmentBadge.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
@@ -21,7 +22,10 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 
-const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
+// The week popover's row of actions under the time (`popover`): the buttons' 22px and a 4px gap.
+const POPOVER_ACTIONS_ROW_PX = 26;
+
+const CardContent = ({ task, height, width, isNarrowWidth, flipNotesPanel, popover = false }) => {
   const { t } = useTranslation();
   const {
     isTablet,
@@ -55,6 +59,32 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
   const isCalendarEvent = isImported && !task.isTaskCalendar;
   const isMicroHeight = height <= 40;
   const isRecurringTask = typeof task.id === 'string' && task.id.startsWith('recurring-');
+
+  // A long title (#2368): wrapped onto the lines a tall card has room for, up
+  // to four, or two over subtasks that all still fit (utils/cardTitle.js).
+  // The week view's popover (`popover`) is there to show the task: its title
+  // is never cut, its actions get their own row so the title has the card's
+  // width, and it grows to fit.
+  const hasMetaRow = extractTags(task.title).length > 0
+    || (goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId));
+  const showsSubtasks = !isImported && !isNarrowWidth && cardShowsSubtasks(task, showCardSubtasks);
+  const actionsBelow = popover && !isImported && !isNarrowWidth;
+  const titleLines = popover ? Infinity : desktopCardTitleLines({
+    height,
+    width,
+    hasMetaRow,
+    hasTimeRow: !isNarrowWidth && !isImported && height >= 55,
+    subtasks: showsSubtasks ? task.subtasks : null,
+  });
+  const titleClamp = cardTitleClamp(titleLines);
+  const titleWraps = titleLines > 1;
+  // The full title on hover, and the rename hint under it where a
+  // double-click renames.
+  const titleTooltip = cardTitleTooltip(task.title, !isImported && !isTablet ? t('task.doubleClickToRename') : null);
+  // The notes panel opens just past the card. In the week popover the card
+  // can be taller than `height` (a wrapped title), so it goes by the
+  // popover's own edge there.
+  const panelOffset = popover ? '100%' : `${height}px`;
 
   const NotesButton = ({ inMenu = false }) => (
     <button
@@ -222,7 +252,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
               </button>
             )}
             <div className="pr-6">
-              <div className="flex items-center gap-1">
+              <div className={`flex ${titleWraps ? 'items-start' : 'items-center'} gap-1`}>
                 {(!isImported || task.isTaskCalendar) && (
                   <button
                     onClick={() => toggleComplete(task.id)}
@@ -243,16 +273,18 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                   {!isTablet && editingTaskId === task.id ? (
                     <TaskTitleRenameField />
                   ) : (
-                    <div className="flex items-center gap-0.5">
+                    <div className={`flex ${titleWraps ? 'items-start' : 'items-center'} gap-0.5`}>
                       <div
-                        className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate flex-1 min-w-0 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                        className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight ${titleClamp.className} flex-1 min-w-0 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                        style={titleClamp.style}
+                        data-title-lines={titleLines}
                         onDoubleClick={!isTablet ? (e) => {
                           if (!isImported) {
                             e.stopPropagation();
                             startEditingTask(task, false);
                           }
                         } : undefined}
-                        title={stripWikilinks(task.title)}
+                        title={titleTooltip}
                       >
                         {renderTitleWithoutTags(task.title)}
                       </div>
@@ -292,8 +324,8 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
         ) : (
           /* WIDE LAYOUT: Title+tags row 1 with action buttons, time row 2 */
           <>
-            <div className="flex items-center justify-between gap-1">
-              <div className="flex items-center gap-1 flex-1 min-w-0">
+            <div className={`flex ${titleWraps ? 'items-start' : 'items-center'} justify-between gap-1`}>
+              <div className={`flex ${titleWraps ? 'items-start' : 'items-center'} gap-1 flex-1 min-w-0`}>
                 {(!isImported || task.isTaskCalendar) && (
                   <button
                     onClick={() => toggleComplete(task.id)}
@@ -315,14 +347,16 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                   ) : (
                     <div className="flex items-center gap-0.5">
                       <div
-                        className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate flex-1 min-w-0 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                        className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight ${titleClamp.className} flex-1 min-w-0 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                        style={titleClamp.style}
+                        data-title-lines={titleLines}
                         onDoubleClick={!isTablet ? (e) => {
                           if (!isImported) {
                             e.stopPropagation();
                             startEditingTask(task, false);
                           }
                         } : undefined}
-                        title={!isImported && !isTablet ? t('task.doubleClickToRename') : undefined}
+                        title={titleTooltip}
                       >
                         {renderTitleWithoutTags(task.title)}
                       </div>
@@ -352,7 +386,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                   )}
                 </div>
               </div>
-              {!isImported && (
+              {!isImported && !actionsBelow && (
                 <div className="flex items-center gap-0.5 flex-shrink-0">
                   {/* Energy (#2331): the first of the card's actions, at their
                       size, so it lines up with them whether or not the card
@@ -369,16 +403,24 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                 {formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration, defaultValue: '{{count}} min' })}
               </div>
             )}
+            {/* The week popover's actions, on their own row so the title has
+                the card's width (#2368): on the right, where a card keeps
+                them, so the energy marker's hover-only slot is not a gap
+                at the start of the row. */}
+            {actionsBelow && (
+              <div className="flex items-center justify-end gap-0.5 mt-1" data-popover-actions>
+                <TaskEnergyMarker task={task} readOnly={isTablet} size={14} pad="p-1" />
+                <ActionButtons />
+              </div>
+            )}
             {/* Subtasks, as many as the card has room for (wide cards only;
                 a repeating task's are ticked per occurrence, CardSubtasks.jsx). */}
             {!isImported && showCardSubtasks !== false && task.subtasks?.length > 0 && (
               <CardSubtasks
                 task={task}
                 height={height}
-                reservedPx={desktopCardReservedPx({
-                  height,
-                  hasMetaRow: extractTags(task.title).length > 0 || (goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId)),
-                })}
+                reservedPx={desktopCardReservedPx({ height, hasMetaRow })
+                  + (actionsBelow ? POPOVER_ACTIONS_ROW_PX : desktopTitleExtraPx(titleLines))}
                 onToggle={(subtaskId) => toggleSubtask(task.id, subtaskId, false)}
                 onMore={() => setExpandedNotesTaskId(task.id)}
               />
@@ -395,7 +437,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
         return (
           <div
             className="notes-panel-container absolute left-0 right-0 z-40"
-            style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
+            style={showAbove ? { bottom: panelOffset } : { top: panelOffset }}
           >
             <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
               <NotesSubtasksPanel
@@ -428,7 +470,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
         return (
           <div
             className="notes-panel-container absolute left-0 right-0 z-40"
-            style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
+            style={showAbove ? { bottom: panelOffset } : { top: panelOffset }}
           >
             <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
               <div className={`p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`} onClick={(e) => e.stopPropagation()}>
@@ -445,15 +487,16 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
 /**
  * A timeline card's contents. `zoom` (timeline magnification, see
  * utils/timelineZoom.js) draws them larger while laying them out as they
- * would be at 100%: the card's height reaches the contents divided by the
- * zoom, so a card keeps its tier (micro, short, full) at every level. The
+ * would be at 100%: the card's height (and `width`, the measured card width,
+ * when the column knows it) reaches the contents divided by the zoom, so a
+ * card keeps its tier (micro, short, full) at every level. The
  * card itself is placed by the column in real pixels and is not zoomed.
  */
-const TimelineTaskCardContent = ({ zoom = 1, height, ...props }) => (zoom === 1
-  ? <CardContent height={height} {...props} />
+const TimelineTaskCardContent = ({ zoom = 1, height, width, ...props }) => (zoom === 1
+  ? <CardContent height={height} width={width} {...props} />
   : (
     <div data-card-zoom={zoom} className="relative flex-1 min-w-0 h-full flex" style={{ zoom }}>
-      <CardContent height={height / zoom} {...props} />
+      <CardContent height={height / zoom} width={width === undefined ? undefined : width / zoom} {...props} />
     </div>
   ));
 

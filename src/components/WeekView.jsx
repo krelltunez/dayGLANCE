@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatDuration } from '../utils/formatDuration.js';
 import { weekWindow, compactHourLabel, clippedCounts, gutterEdge } from '../utils/weekWindow.js';
@@ -6,6 +6,7 @@ import { HOUR_GUTTER_W } from '../constants/timeline.js';
 import * as Icons from 'lucide-react';
 import { Zap } from 'lucide-react';
 import { dateToString } from '../utils/taskUtils.js';
+import { cardTitleTooltip } from '../utils/cardTitle.js';
 import { splitChipTitleTag } from '../utils/textFormatting.jsx';
 import { columnTimeFromEvent, dragBlockRange, dropClampMinutes } from '../utils/dragUtils.js';
 import { continuationLayoutRow, dragPreviewSpillFor } from '../utils/continuations.js';
@@ -31,6 +32,16 @@ const WeekViewTaskPopover = ({ task, anchor, onClose }) => {
   const POPOVER_W = 300;
   const POPOVER_H = 220;
 
+  // The card shows a long title whole here, with its actions on a row of
+  // their own (#2368), so the popover can grow past POPOVER_H: it is placed
+  // by the height it actually has.
+  const [measuredH, setMeasuredH] = useState(POPOVER_H);
+  useLayoutEffect(() => {
+    const h = popoverRef.current?.offsetHeight;
+    if (h && h !== measuredH) setMeasuredH(h);
+  }, [task, measuredH]);
+  const popoverH = Math.max(POPOVER_H, measuredH);
+
   const isImported = task.imported;
   const isCalendarEvent = isImported && !task.isTaskCalendar;
   const taskCalStyle = getTaskCalendarStyle(task, darkMode);
@@ -38,7 +49,7 @@ const WeekViewTaskPopover = ({ task, anchor, onClose }) => {
   let left = anchor.right + 8;
   if (left + POPOVER_W > window.innerWidth - 8) left = anchor.left - POPOVER_W - 8;
   let top = anchor.top;
-  if (top + POPOVER_H > window.innerHeight - 8) top = window.innerHeight - POPOVER_H - 8;
+  if (top + popoverH > window.innerHeight - 8) top = window.innerHeight - popoverH - 8;
   top = Math.max(8, top);
   left = Math.max(8, left);
 
@@ -82,7 +93,8 @@ const WeekViewTaskPopover = ({ task, anchor, onClose }) => {
           task={task}
           height={POPOVER_H}
           isNarrowWidth={false}
-          flipNotesPanel={top + POPOVER_H > window.innerHeight / 2}
+          popover
+          flipNotesPanel={top + popoverH > window.innerHeight / 2}
         />
       )}
     </div>
@@ -350,6 +362,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
                 ...(task.joboDo ? pastDoChipStyle : {}),
               }}
               data-jobo-past-do={task.joboDo ? task.joboRecordId : undefined}
+              title={cardTitleTooltip(task.title)}
               onClick={(e) => {
                 e.stopPropagation();
                 onTaskClick(task, e.currentTarget.getBoundingClientRect());
@@ -395,6 +408,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
               key={`continuation-${task.id}`}
               data-task-id={task.id}
               data-continuation-from={c.fromDate || ''}
+              title={cardTitleTooltip(task.title)}
               draggable={chipDraggable}
               onDragStart={chipDraggable ? (e) => handleDragStart(task, 'calendar', e) : undefined}
               onDragEnd={chipDraggable ? handleDragEnd : undefined}
