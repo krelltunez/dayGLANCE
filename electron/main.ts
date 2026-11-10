@@ -510,7 +510,7 @@ function positionTrayPopup(tw: BrowserWindow, iconBounds?: Electron.Rectangle): 
 }
 
 function createTray(): void {
-  // Downsample the high-res app icon to a 20pt mark (40 px), centre it in the
+  // Downsample the high-res app icon to a 19pt mark (38 px), centre it in the
   // menu bar's 22pt image (44 px), and tell Electron it's a @2x image so macOS
   // renders it at 22 logical points (trayIcon.ts). setTemplateImage makes it
   // white on dark bars, dark on light bars.

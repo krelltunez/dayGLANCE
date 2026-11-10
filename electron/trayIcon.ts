@@ -1,12 +1,12 @@
 // The menu bar icon's size (dayGLANCE's app icon as a template image). The
-// image is the menu bar's 22pt height; the visible mark is drawn at 20pt and
+// image is the menu bar's 22pt height; the visible mark is drawn at 19pt and
 // centred in it, so it sits at the size of the system icons around it and
-// beside lastGLANCE's 19pt mark rather than filling the bar edge to edge.
+// beside lastGLANCE's 20pt mark rather than filling the bar edge to edge.
 
 /** The menu bar image's height, in points. */
 export const MENU_BAR_PT = 22;
 /** The visible mark, in points. */
-export const MENU_BAR_GLYPH_PT = 20;
+export const MENU_BAR_GLYPH_PT = 19;
 
 /**
  * Centre a square bitmap (`size` px a side, 4 bytes a pixel, as
