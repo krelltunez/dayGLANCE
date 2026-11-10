@@ -1,6 +1,6 @@
 {
   "name": "@glance-apps/obsidian-format",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The dayGLANCE Obsidian vault line-format core: identity, decorations, line building/rewriting, note naming, and the task parser. Format, never policy.",
   "license": "MIT",
   "type": "module",
