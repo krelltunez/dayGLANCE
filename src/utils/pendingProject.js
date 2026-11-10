@@ -10,8 +10,14 @@
 // row's own picker already assumed (#2116 review). Every path that saves
 // newTask (addTask, saveMobileEditTask) passes it through createPendingProject
 // first, which swaps in the real id.
-import { PROJECT_FALLBACK_COLOR } from './colorUtils.js';
+//
+// A goal's "General" project (#2365, utils/goalGeneralProject.js) is pending
+// the same way, with `newProject.general` set: named for the user, made with
+// `goalGeneral: true`, and, if the goal has one by the time the task is saved
+// (another device, another editor), that one is used instead of a second.
+import { PROJECT_FALLBACK_COLOR, getProjectColor } from './colorUtils.js';
 import { seedTaskDefaults } from './projectTaskDefaults.js';
+import { findGoalGeneralProject } from './goalGeneralProject.js';
 
 export const NEW_PROJECT_ID = '__new-project__';
 
@@ -22,11 +28,13 @@ export const NEW_PROJECT_ID = '__new-project__';
  * Under a goal, it starts with the New task defaults the goal (else its
  * area) holds for new projects, as the project form seeds them.
  */
-export function newProjectFields({ title, goal, area = null, color = null }) {
+export function newProjectFields({ title, goal, area = null, color = null, general = false }) {
   const taskDefaults = goal ? seedTaskDefaults(goal, area) : undefined;
   return {
     title: title.trim(),
     ...(goal ? { goalId: goal.id } : {}),
+    // The goal's General project (#2365); a project needs a goal to be one.
+    ...(general && goal ? { goalGeneral: true } : {}),
     color: color || goal?.color || PROJECT_FALLBACK_COLOR,
     assignedUserSyncIds: goal?.assignedUserSyncIds || [],
     ...(taskDefaults ? { taskDefaults } : {}),
@@ -70,14 +78,22 @@ export function withPendingProject(newTask, newProject, goals = []) {
  *
  * @returns {{ newTask: object, project: object | null }}
  */
-export function createPendingProject(newTask, { addProject, goals = [], areas = [] }) {
+export function createPendingProject(newTask, { addProject, goals = [], areas = [], projects = [] }) {
   if (newTask?.projectId !== NEW_PROJECT_ID) return { newTask, project: null };
   const { newProject, projectId: _placeholder, ...rest } = newTask;
   const title = (newProject?.title || '').trim();
   if (!title) return { newTask: rest, project: null };
   const goal = newProject.goalId ? goals.find((g) => g.id === newProject.goalId) || null : null;
+  const general = !!newProject.general && !!goal;
+  // A General project that appeared since it was picked is the one to use.
+  const existing = general ? findGoalGeneralProject(projects, goal.id) : null;
+  if (existing) {
+    return { newTask: { ...rest, projectId: existing.id, color: getProjectColor(existing, goal) }, project: existing };
+  }
   const area = goal?.areaId ? areas.find((a) => a.id === goal.areaId) || null : null;
-  const project = addProject(newProjectFields({ title, goal, area, color: rest.color }));
+  // A General project is the goal's: its colour is the goal's, not one picked
+  // for this task (which the project would then give every task filed there).
+  const project = addProject(newProjectFields({ title, goal, area, color: general ? null : rest.color, general }));
   // The task takes the project's colour, which is the one it showed, or the
   // project's default where it showed the default.
   return { newTask: { ...rest, projectId: project.id, color: project.color }, project };

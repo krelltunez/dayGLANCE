@@ -147,3 +147,25 @@ describe('filterProjectGroups', () => {
     expect(ids(filterProjectGroups(groups, 'zzz'))).toEqual([[], []]);
   });
 });
+
+// #2365: the task editor's picker offers a goal's General project, so a goal
+// with no projects has to be listed there; the Inbox filter and the Day Dial
+// still leave it out.
+describe('keepEmptyGoals', () => {
+  const lists = { goals: [{ id: 'g1', title: 'Garden' }, { id: 'g2', title: 'Books' }], projects: [{ id: 'p1', title: 'Reading list', goalId: 'g2' }] };
+
+  it('is off by default: an empty goal is left out', () => {
+    expect(groupInboxProjects(lists).areas.flatMap((a) => a.goals).map((g) => g.id)).toEqual(['g2']);
+  });
+
+  it('on, the empty goal is kept, with no projects', () => {
+    const goals = groupInboxProjects(lists, { keepEmptyGoals: true }).areas.flatMap((a) => a.goals);
+    expect(goals.map((g) => [g.id, g.projects.length])).toEqual([['g1', 0], ['g2', 1]]);
+  });
+
+  it('a filter that names an empty goal keeps it; one that does not drops it', () => {
+    const groups = groupInboxProjects(lists, { keepEmptyGoals: true });
+    expect(filterProjectGroups(groups, 'gard').areas.flatMap((a) => a.goals).map((g) => g.id)).toEqual(['g1']);
+    expect(filterProjectGroups(groups, 'reading').areas.flatMap((a) => a.goals).map((g) => g.id)).toEqual(['g2']);
+  });
+});

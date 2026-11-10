@@ -115,3 +115,52 @@ describe('a new project from the task modal and its goal\'s defaults', () => {
     expect(addProject.mock.calls[0][0].taskDefaults).toEqual({ duration: 45, notes: 'Why:', energy: 'restore' });
   });
 });
+
+// #2365: a goal's General project, picked under its goal in the task editor.
+describe('a pending General project', () => {
+  const pending = (over = {}) => ({
+    title: 'Plant tomatoes', color: 'bg-red-500', projectId: NEW_PROJECT_ID,
+    newProject: { title: 'General', goalId: 'g1', general: true }, ...over,
+  });
+
+  it('is made marked as the goal\'s General project, in the goal\'s colour (not one picked for this task)', () => {
+    const addProject = added();
+    const { newTask, project } = createPendingProject(pending(), { addProject, goals: [goal] });
+    expect(addProject).toHaveBeenCalledWith(expect.objectContaining({ title: 'General', goalId: 'g1', goalGeneral: true, color: 'bg-green-500' }));
+    expect(newTask).toMatchObject({ projectId: 'p-new', color: 'bg-green-500' });
+    expect(newTask.newProject).toBeUndefined();
+    expect(project.goalGeneral).toBe(true);
+  });
+
+  // MUTATION: drop the lookup and every editor that picked General before the
+  // first save landed makes a General project of its own.
+  it('if the goal has one by the time the task is saved, that one is used and none is made', () => {
+    const addProject = added();
+    const existing = { id: 'p-gen', title: 'Odds and ends', goalId: 'g1', goalGeneral: true, status: 'active' };
+    const { newTask, project } = createPendingProject(pending(), { addProject, goals: [goal], projects: [existing] });
+    expect(addProject).not.toHaveBeenCalled();
+    expect(newTask).toMatchObject({ projectId: 'p-gen', color: 'bg-green-500' });
+    expect(project).toBe(existing);
+  });
+
+  it('a finished General project is not reused: a new one is made', () => {
+    const addProject = added();
+    const done = { id: 'p-gen', goalId: 'g1', goalGeneral: true, status: 'completed' };
+    createPendingProject(pending(), { addProject, goals: [goal], projects: [done] });
+    expect(addProject).toHaveBeenCalledTimes(1);
+  });
+
+  it('"New project…" makes a plain project, never a General one, and keeps the colour picked', () => {
+    const addProject = added();
+    const plain = pending({ newProject: { title: 'Run a 10k', goalId: 'g1' } });
+    createPendingProject(plain, { addProject, goals: [goal], projects: [{ id: 'p-gen', goalId: 'g1', goalGeneral: true, status: 'active' }] });
+    const fields = addProject.mock.calls[0][0];
+    expect(fields.goalGeneral).toBeUndefined();
+    expect(fields.color).toBe('bg-red-500');
+  });
+
+  it('a project needs a goal to be one', () => {
+    expect(newProjectFields({ title: 'General', goal: null, general: true }).goalGeneral).toBeUndefined();
+    expect(newProjectFields({ title: 'General', goal, general: true }).goalGeneral).toBe(true);
+  });
+});
