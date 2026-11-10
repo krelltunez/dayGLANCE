@@ -43,3 +43,25 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # The suite again on the newest Node. Node 25 changed the runtime under the
+  # tests (it defines localStorage and sessionStorage on globalThis), and a
+  # suite green on 22 alone failed 23 tests on a release machine (#2358).
+  # Tests only: the audit, lint and build above do not depend on the runtime.
+  test-node-25:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
