@@ -199,14 +199,13 @@ describe('the Android wiring', () => {
     expect(promoKt).toContain(`const val LAUNCHER_PACKAGE = "${LAUNCHER_PACKAGE}"`);
   });
 
-  it('links GitHub releases in the github flavour and nothing in play, for now', () => {
+  it('links GitHub releases in the github flavour and Google Play in play', () => {
     const flavour = (name) => {
       const start = gradle.indexOf(`create("${name}")`);
       return gradle.slice(start, gradle.indexOf('\n        }', start));
     };
     expect(flavour('github')).toContain(`buildConfigField("String", "LAUNCHER_PROMO_URL", "\\"${GITHUB}\\"")`);
-    expect(flavour('play')).toContain('buildConfigField("String", "LAUNCHER_PROMO_URL", "\\"\\"")');
-    expect(flavour('play')).toContain(PLAY);
+    expect(flavour('play')).toContain(`buildConfigField("String", "LAUNCHER_PROMO_URL", "\\"${PLAY}\\"")`);
   });
 
   it('exposes launcherPromoInfo on the main bridge only, never the headless one', () => {

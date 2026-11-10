@@ -367,8 +367,8 @@ manifest's `<queries>` for that), and the flavour's `LAUNCHER_PROMO_URL`.
 
 Neither shows below Android 12 (no `knownSigner`, so the launcher could only run
 in demo mode), when the launcher is installed, or when the build's URL is empty.
-The `play` flavour's URL stays empty until the launcher is approved on Google
-Play; the `github` flavour links the launcher's latest GitHub release. The card
+The `play` flavour links the launcher's Google Play listing; the `github`
+flavour links its latest GitHub release. The card
 also waits until the app has been used on the device for three days (a
 device-local first-seen stamp, written at the app's first start) and never
 returns once dismissed. Both stamps are `dg-` keys: not synced, and not in the

@@ -5,8 +5,8 @@
 //
 // The native shell reports the facts (bridge/LauncherPromo.kt,
 // `launcherPromoInfo()`): the SDK level, whether `app.glance.launcher` is
-// installed, and the flavour's link. An empty link means the build offers the
-// launcher nowhere (the Play build, until the launcher is approved on Play).
+// installed, and the flavour's link (Google Play or the GitHub releases). An
+// empty link means the build offers the launcher nowhere.
 //
 // The card waits until the app has been used on this device for a few days
 // and, once dismissed, never returns here. Both stamps are device-local: `dg-`

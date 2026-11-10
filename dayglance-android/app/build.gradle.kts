@@ -121,9 +121,7 @@ android {
         create("play") {
             dimension = "distribution"
             buildConfigField("boolean", "BILLING_ENABLED", "true")
-            // Empty until GLANCElauncher is approved on Google Play. Once it is, set this to
-            // "https://play.google.com/store/apps/details?id=app.glance.launcher".
-            buildConfigField("String", "LAUNCHER_PROMO_URL", "\"\"")
+            buildConfigField("String", "LAUNCHER_PROMO_URL", "\"https://play.google.com/store/apps/details?id=app.glance.launcher\"")
         }
         create("github") {
             dimension = "distribution"
