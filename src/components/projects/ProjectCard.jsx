@@ -29,6 +29,7 @@ import { beginLongPressReorder, isLongPressRowDevice } from '../../utils/longPre
 import { formatLocalizedDate } from '../../utils/localeFormatting.js';
 import { projectTaskFields } from '../../utils/projectTaskDefaults.js';
 import { hyperGlanceRuns, isOnHold } from '../../utils/projectStatus.js';
+import { readDefaultTaskDuration } from '../../utils/defaultTaskDuration.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
 
@@ -348,7 +349,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
       projectOrder: topProjectOrder(projectUnscheduled),
       // Title (with the default tags), colour, duration, notes, checklist and
       // users: what the project gives a new task (utils/projectTaskDefaults.js).
-      ...projectTaskFields(project, parentGoal, { title }),
+      ...projectTaskFields(project, parentGoal, { title }, { defaultDuration: readDefaultTaskDuration() }),
       completed: false,
       isAllDay: false,
       priority: 0,

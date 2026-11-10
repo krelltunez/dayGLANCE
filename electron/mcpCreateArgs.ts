@@ -22,6 +22,12 @@
 //   - all_day with a time in start:      all-day takes a bare date
 //   - repeat without start:              a series lives on the calendar
 //
+// NO DURATION IS INVENTED HERE. A create without duration_minutes leaves it
+// out of the plan, timed, all-day or series alike, so the renderer gives the
+// task its project's New task default, else the app's default task duration
+// (Settings > General), as the app's own create paths do (taskMutations.js
+// createDuration). Filling in 30 here would hide both.
+//
 // A THIRD SHAPE, repeat (#2066): with start, `repeat` turns the scheduled
 // create into a recurring SERIES whose first date is start's. The pattern is
 // validated by mcpRepeatArgs.ts, which also carries the by-design rejection of
@@ -65,7 +71,8 @@ export interface CreatePlan {
     date: string;
     /** '00:00' for all-day, matching the UI's own stored shape. */
     startTime: string;
-    durationMinutes: number;
+    /** Only when the call gave one: the renderer fills the default. */
+    durationMinutes?: number;
     allDay: boolean;
   };
 }
@@ -149,7 +156,7 @@ export function planCreateTask(args: CreateTaskArgs, timeZone: string): CreatePl
         `Expected strict YYYY-MM-DD, got ${JSON.stringify(start)}`,
       );
     }
-    plan.schedule = { date: start as string, startTime: '00:00', durationMinutes: 30, allDay: true };
+    plan.schedule = { date: start as string, startTime: '00:00', allDay: true };
     return withRepeat(plan, repeat);
   }
 
@@ -166,7 +173,7 @@ export function planCreateTask(args: CreateTaskArgs, timeZone: string): CreatePl
   plan.schedule = {
     date,
     startTime: time,
-    durationMinutes: typeof duration_minutes === 'number' ? duration_minutes : 30,
+    ...(typeof duration_minutes === 'number' ? { durationMinutes: duration_minutes } : {}),
     allDay: false,
   };
   return withRepeat(plan, repeat);

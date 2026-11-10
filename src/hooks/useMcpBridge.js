@@ -8,6 +8,7 @@ import {
   noteDescriptionUndoOp, undoNoteDescriptionOps, NOTE_DESCRIPTION_UNDO_KIND,
 } from '../utils/mcpNoteDescriptions.js';
 import { noteTextHash } from '@glance-apps/obsidian-format';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 
 // The renderer half of the MCP IPC channel (docs/mcp-server-spec.md §10
 // Phase 2), following the useTrayPopupVisible precedent from PR #1302: this
@@ -78,7 +79,9 @@ export default function useMcpBridge(state, setters, notes) {
           // commit. The id-retirement record is read fresh per write, not
           // carried in state: it lives in localStorage, and the Obsidian commit
           // that re-keys a task writes it there (useObsidianSync recordRetirements).
-          const live = { ...stateRef.current, retiredTaskIds: readRetiredTaskIds() };
+          // The default task duration (#2367) is read the same way: a per-device
+          // setting in localStorage, taken by a create or schedule given no duration.
+          const live = { ...stateRef.current, retiredTaskIds: readRetiredTaskIds(), defaultTaskDuration: readDefaultTaskDuration() };
           const params = request?.params ?? {};
           const split = splitDescriptionWrite(live, method, params);
           if (split) {

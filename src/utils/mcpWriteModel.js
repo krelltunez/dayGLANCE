@@ -16,6 +16,11 @@
 // in the main process records it, and bulk undo replays the ops back through
 // applyUndoOps. Replayed writes carry no descriptor (nothing changed).
 //
+// THE DEFAULT TASK DURATION (#2367) rides in `state.defaultTaskDuration`,
+// read per write by the bridge as retiredTaskIds is: a create or a schedule
+// the call gives no duration takes the project's New task defaults, else this,
+// as the app's own create paths do (taskMutations.js createDuration).
+//
 // RETIRED IDS RESOLVE TO THEIR SUCCESSOR (resolveMcpTaskId). A task id an MCP
 // client holds can stop naming anything while the task lives on: the Obsidian
 // placement pass re-keys a project task to obsidian-dg-<blockId> seconds after
@@ -130,7 +135,7 @@ function dispatchWrite(state, setters, method, params) {
 
   switch (method) {
     case 'create_task': {
-      const r = applyCreateTask(state, { ...params, nowIso });
+      const r = applyCreateTask(state, { ...params, defaultDurationMinutes: state.defaultTaskDuration, nowIso });
       if (!r.ok) return r;
       if (r.series) {
         // A repeating task (#2066) is one template in recurringTasks; its
@@ -167,7 +172,7 @@ function dispatchWrite(state, setters, method, params) {
       // deadline on the way to the calendar, so this snapshot is the only
       // faithful record of the inbox task.
       const beforeTask = (state.unscheduledTasks ?? []).find((t) => t.id === params.taskId);
-      const r = applyScheduleTask(state, { ...params, nowIso });
+      const r = applyScheduleTask(state, { ...params, defaultDurationMinutes: state.defaultTaskDuration, nowIso });
       if (!r.ok) return r;
       if (!r.replayed) {
         setters.setUnscheduledTasks(r.unscheduledTasks);

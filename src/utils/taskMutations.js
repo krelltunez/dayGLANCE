@@ -36,7 +36,7 @@ const createdStamp = (nowIso) => createdTimestamp(nowIso ? new Date(nowIso) : ne
 // can close a Focus session. The sync merge compares stamps as instants.
 const offsetStampAt = (nowIso) => completionTimestamp(Number.isFinite(Date.parse(nowIso)) ? new Date(nowIso) : new Date());
 import { getProjectColor } from './colorUtils.js';
-import { taskDefaultsOf, withTags, defaultSubtasks, defaultEnergy, DEFAULT_TASK_DURATION } from './projectTaskDefaults.js';
+import { taskDefaultsOf, withTags, defaultSubtasks, defaultEnergy, baseDuration } from './projectTaskDefaults.js';
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { applyRecurringInstanceEdit } from './recurringInstanceEdit.js';
 
@@ -207,10 +207,20 @@ export function parseRecurringInstanceId(id) {
  * deterministically from its idempotency key, so a replayed create finds the
  * id already present and returns the existing task unchanged.
  */
+/**
+ * The duration a create gives a task: the call's own (`given`), else the
+ * project's New task defaults, else the app's default task duration
+ * (`defaultDurationMinutes`, read by the caller: this module stays pure),
+ * else 30. The same for an inbox task, a scheduled one and a series.
+ */
+const createDuration = (given, projectDefaults, defaultDurationMinutes) => (typeof given === 'number'
+  ? given
+  : (projectDefaults.duration ?? baseDuration(defaultDurationMinutes)));
+
 export function applyCreateTask(state, {
   taskId, title, notes, projectId, assigneeSyncId,
   priority, deadline, durationMinutes, schedule, recurrence,
-  transitionId, nowIso,
+  defaultDurationMinutes, transitionId, nowIso,
 }) {
   const unscheduled = state.unscheduledTasks ?? [];
   const tasks = state.tasks ?? [];
@@ -238,7 +248,7 @@ export function applyCreateTask(state, {
 
   if (recurrence) {
     return createRecurringSeries(state, {
-      taskId, title: trimmed, notes, projectId, assignedUserSyncIds, schedule, recurrence, nowIso,
+      taskId, title: trimmed, notes, projectId, assignedUserSyncIds, schedule, recurrence, defaultDurationMinutes, nowIso,
     });
   }
 
@@ -260,7 +270,7 @@ export function applyCreateTask(state, {
   const base = {
     id: taskId,
     title: withTags(trimmed, defaults.tags),
-    duration: typeof durationMinutes === 'number' ? durationMinutes : (defaults.duration ?? DEFAULT_TASK_DURATION),
+    duration: createDuration(durationMinutes, defaults, defaultDurationMinutes),
     color: project ? getProjectColor(project, parentGoal) : 'bg-blue-500',
     completed: false,
     isAllDay: false,
@@ -277,13 +287,16 @@ export function applyCreateTask(state, {
   };
 
   if (schedule) {
+    // A schedule without a duration (the call gave none) takes the same
+    // default an inbox create does: the project's, else the app's.
+    const minutes = createDuration(schedule.durationMinutes, defaults, defaultDurationMinutes);
     // Placed directly on the calendar, so it can land on a routine exactly as
     // schedule_task can. Checked after the `existing` replay branch above: a
     // retry of a create that already succeeded must stay a no-op replay even
     // if a routine has since been placed over it.
     const conflict = routineConflictGuard(state, schedule.date, {
       startTime: schedule.startTime,
-      durationMinutes: schedule.durationMinutes,
+      durationMinutes: minutes,
       allDay: !!schedule.allDay,
     });
     if (conflict) return conflict;
@@ -292,7 +305,7 @@ export function applyCreateTask(state, {
       ...base,
       date: schedule.date,
       startTime: schedule.startTime,
-      duration: schedule.durationMinutes,
+      duration: minutes,
       isAllDay: !!schedule.allDay,
     };
     return { ok: true, replayed: false, unscheduledTasks: unscheduled, tasks: [...tasks, task], task, scheduled: true };
@@ -326,7 +339,7 @@ const DEFAULT_COLOR = 'bg-blue-500';
  * does not check them when a series is created in the editor.
  */
 function createRecurringSeries(state, {
-  taskId, title, notes, projectId, assignedUserSyncIds, schedule, recurrence, nowIso,
+  taskId, title, notes, projectId, assignedUserSyncIds, schedule, recurrence, defaultDurationMinutes, nowIso,
 }) {
   const recurring = state.recurringTasks ?? [];
   const existing = recurring.find((t) => String(t.id) === String(taskId));
@@ -341,14 +354,14 @@ function createRecurringSeries(state, {
   if (!users && project?.assignedUserSyncIds?.length) users = [...project.assignedUserSyncIds];
 
   const allDay = !!schedule.allDay;
-  // The project's New task defaults, as a one-off create takes them; the
-  // duration is the schedule's, which a series always names.
+  // The project's New task defaults, as a one-off create takes them,
+  // duration included when the call names none.
   const defaults = taskDefaultsOf(project);
   const template = {
     id: taskId,
     title: withTags(title, defaults.tags),
     startTime: allDay ? '00:00' : schedule.startTime,
-    duration: schedule.durationMinutes,
+    duration: createDuration(schedule.durationMinutes, defaults, defaultDurationMinutes),
     color: project ? getProjectColor(project, parentGoal) : DEFAULT_COLOR,
     isAllDay: allDay,
     notes: typeof notes === 'string' && notes ? notes : (defaults.notes || ''),
@@ -515,7 +528,7 @@ function recurringTaskInstanceFields(template, dateStr) {
  * useDragDrop.js:468 stamps it; the deadline path predates it) so the
  * GLANCEintents emit correlates to the caller's idempotency key.
  */
-export function applyScheduleTask(state, { taskId, date, startTime, durationMinutes, transitionId, nowIso }) {
+export function applyScheduleTask(state, { taskId, date, startTime, durationMinutes, defaultDurationMinutes, transitionId, nowIso }) {
   const unscheduled = state.unscheduledTasks ?? [];
   const tasks = state.tasks ?? [];
 
@@ -537,9 +550,12 @@ export function applyScheduleTask(state, { taskId, date, startTime, durationMinu
   }
   if (task._native) return err(WRITE_ERROR_CODES.NATIVE_READONLY, NATIVE_MSG(taskId));
 
+  // The call's duration, else the task's own, else (a task that never had
+  // one) the app's default task duration, as the app's own drop gives it.
+  const minutes = durationMinutes ?? task.duration ?? baseDuration(defaultDurationMinutes);
   const scheduleConflict = routineConflictGuard(state, date, {
     startTime,
-    durationMinutes: durationMinutes ?? task.duration ?? 30,
+    durationMinutes: minutes,
   });
   if (scheduleConflict) return scheduleConflict;
 
@@ -548,7 +564,7 @@ export function applyScheduleTask(state, { taskId, date, startTime, durationMinu
     ...preserved,
     date,
     startTime,
-    duration: durationMinutes ?? task.duration ?? 30,
+    duration: minutes,
     isAllDay: false,
     ...(transitionId ? { transitionId } : {}),
     lastModified: nowIso,
