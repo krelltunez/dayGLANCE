@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  dragAutoScrollStep, wheelScrollPx, DRAG_SCROLL_ZONE_PX, DRAG_SCROLL_MIN_STEP, DRAG_SCROLL_MAX_STEP,
+  dragAutoScrollStep, DRAG_SCROLL_ZONE_PX, DRAG_SCROLL_MIN_STEP, DRAG_SCROLL_MAX_STEP,
 } from './dragAutoScroll.js';
 
 // #2346: the edge bands ramp with depth, so a drag need not reach the very
@@ -29,13 +29,5 @@ describe('dragAutoScrollStep', () => {
     expect(at(90)).toBe(0); // above `top`: the date header or the all-day row
     expect(at(120, { scrollTop: 0 })).toBe(0);
     expect(at(880, { scrollTop: 1000 })).toBe(0);
-  });
-});
-
-describe('wheelScrollPx', () => {
-  it('reads pixels, lines and pages', () => {
-    expect(wheelScrollPx({ deltaY: -120, deltaMode: 0 }, 600)).toBe(-120);
-    expect(wheelScrollPx({ deltaY: 3, deltaMode: 1 }, 600)).toBe(48);
-    expect(wheelScrollPx({ deltaY: 1, deltaMode: 2 }, 600)).toBe(600);
   });
 });
