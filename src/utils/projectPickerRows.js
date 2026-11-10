@@ -10,6 +10,14 @@
 // are defaults: the user's own fold, remembered on the device, wins
 // (`isOpen`). While a filter is typed every group is open, since a match
 // hidden under a fold would read as no match.
+//
+// With `general` (#2365), each goal's first row is its "General" project
+// (utils/goalGeneralProject.js): the one it has, moved first, or a `general`
+// row for the one picking it will make. A goal with no projects then still
+// has a row to pick. `showGeneral(goal)` says whether the made-on-pick row is
+// offered (the picker hides it while a filter names neither it nor the goal).
+
+import { generalValue, isGoalGeneral } from './goalGeneralProject.js';
 
 /**
  * @param {ReturnType<import('./inboxProjectGroups.js').groupInboxProjects>} groups
@@ -17,16 +25,23 @@
  * @param {(key: string, defaultOpen: boolean) => boolean} [options.isOpen]  the fold
  *   in force for a group, given its default
  * @param {boolean} [options.filtering]  a filter is typed: every group open
- * @param {string|null} [options.selectedId]  the task's project
+ * @param {string|null} [options.selectedId]  the task's project, or a goal's
+ *   General value (goalGeneralProject.js) while that project is pending
+ * @param {boolean} [options.general]  offer each goal's General project
+ * @param {(goal: object) => boolean} [options.showGeneral]  whether a goal
+ *   without one offers the row that makes it
  *
  * A group row carries the ids of every project under it (`ids`, folded or
  * not), so a picker can act on the whole group: the calendar filter hides an
  * area or a goal in one click (#2332).
  * @returns {Array<
  *   { type: 'group', key: string, kind: 'area'|'goal'|'standalone', level: number, title: string|null, color?: string, count: number, ids: Array<string|number>, open: boolean }
- *   | { type: 'project', key: string, level: number, project: object }>}
+ *   | { type: 'project', key: string, level: number, project: object }
+ *   | { type: 'general', key: string, level: number, goal: object }>}
  */
-export function projectPickerRows(groups, { isOpen = (_key, def) => def, filtering = false, selectedId = null } = {}) {
+export function projectPickerRows(groups, {
+  isOpen = (_key, def) => def, filtering = false, selectedId = null, general = false, showGeneral = () => true,
+} = {}) {
   const rows = [];
   const holds = (projects) => !!selectedId && projects.some((p) => p.id === selectedId);
   const fold = (key, defaultOpen) => (filtering ? true : isOpen(key, defaultOpen));
@@ -35,9 +50,15 @@ export function projectPickerRows(groups, { isOpen = (_key, def) => def, filteri
   });
   const goalRows = (goal, level) => {
     const key = `goal-${goal.id}`;
-    const open = fold(key, holds(goal.projects));
+    const pendingHere = general && selectedId === generalValue(goal.id);
+    const open = fold(key, holds(goal.projects) || pendingHere);
     rows.push({ type: 'group', key, kind: 'goal', level, title: goal.title, color: goal.color, count: goal.projects.length, ids: goal.projects.map((p) => p.id), open });
-    if (open) projectRows(goal.projects, level + 1);
+    if (!open) return;
+    const own = general ? goal.projects.find(isGoalGeneral) : null;
+    if (general && !own && (pendingHere || showGeneral(goal))) {
+      rows.push({ type: 'general', key: `general-${goal.id}`, level: level + 1, goal });
+    }
+    projectRows(own ? [own, ...goal.projects.filter((p) => p !== own)] : goal.projects, level + 1);
   };
 
   groups.areas.forEach((area) => {

@@ -82,7 +82,7 @@ const planner = (overrides = {}) => ({
   ...overrides,
 });
 
-function setup(initialTask = { title: 'Write it' }, { projects = PROJECTS, plannerOverrides } = {}) {
+function setup(initialTask = { title: 'Write it' }, { projects = PROJECTS, goals = GOALS, plannerOverrides } = {}) {
   const setNewTask = vi.fn();
   function Harness() {
     const [newTask, setTask] = useState(initialTask);
@@ -94,7 +94,7 @@ function setup(initialTask = { title: 'Write it' }, { projects = PROJECTS, plann
     root = create(
       <I18nextProvider i18n={i18n}>
         <DayPlannerContext.Provider value={planner(plannerOverrides)}>
-          <FeaturesContext.Provider value={{ goals: GOALS, projects, areas: AREAS }}>
+          <FeaturesContext.Provider value={{ goals, projects, areas: AREAS }}>
             <Harness />
           </FeaturesContext.Provider>
         </DayPlannerContext.Provider>
@@ -155,7 +155,8 @@ describe('the list, by area and goal', () => {
     click(group('goal-g-read'));
     click(group('standalone'));
     expect(rows()).toEqual([
-      'none', 'new', '[area-a-work]', '[goal-g-ship]', '[area-none]', '[goal-g-read]', 'p-books', '[standalone]', 'p-legacy', 'p-solo',
+      // Each goal opens on its General project (#2365): here, one to make.
+      'none', 'new', '[area-a-work]', '[goal-g-ship]', '[area-none]', '[goal-g-read]', 'general-g-read', 'p-books', '[standalone]', 'p-legacy', 'p-solo',
     ]);
   });
 
@@ -252,6 +253,8 @@ describe('the keyboard', () => {
     expect(focused()).toBe('goal-g-ship');
     key(group('goal-g-ship'), 'ArrowRight');
     expect(rows()).toContain('p-api');
+    key(panel(), 'ArrowDown');
+    expect(focused()).toBe('general-g-ship'); // the goal's General project first (#2365)
     key(panel(), 'ArrowDown');
     expect(focused()).toBe('p-api');
     key(group('goal-g-ship'), 'ArrowLeft');
@@ -350,7 +353,9 @@ describe('the filter', () => {
     click(trigger());
     const input = () => find({ 'data-project-picker-filter': true })[0];
     act(() => { input().props.onChange({ target: { value: 'ship' } }); });
-    expect(rows()).toEqual(['none', 'new', '[area-a-work]', '[goal-g-ship]', 'p-api', 'p-docs']);
+    // The filter names the goal, so its General project is offered too (#2365);
+    // Enter still picks the first existing project.
+    expect(rows()).toEqual(['none', 'new', '[area-a-work]', '[goal-g-ship]', 'general-g-ship', 'p-api', 'p-docs']);
     const e = { key: 'Enter', preventDefault: vi.fn(), stopPropagation: vi.fn() };
     act(() => { input().props.onKeyDown(e); });
     expect(e.preventDefault).toHaveBeenCalled();
@@ -506,5 +511,80 @@ describe('a project on hold in the picker', () => {
     const order = rows();
     expect(order.indexOf('p-paused')).toBeGreaterThan(order.indexOf('p-solo'));
     expect(find({ 'data-picker-on-hold': true })).toHaveLength(1);
+  });
+});
+
+// #2365: a task never links to a goal; a loose one goes in the goal's own
+// "General" project (utils/goalGeneralProject.js), the first row under every
+// goal: the one it has, or one made when the task is saved.
+describe('a goal\'s General project', () => {
+  const EMPTY = { id: 'g-garden', title: 'Grow vegetables', color: 'bg-lime-500', assignedUserSyncIds: ['u-garden'],
+    taskDefaults: { duration: 45, tags: ['garden'] } };
+  const goals = [...GOALS, EMPTY];
+  const general = { id: 'p-gen', title: 'Odds and ends', goalId: 'g-read', goalGeneral: true };
+
+  it('a goal with no projects is listed, and unfolds to General, to be made', () => {
+    const p = setup(undefined, { goals });
+    p.click(p.trigger());
+    expect(p.rows()).toContain('[goal-g-garden]');
+    p.click(p.group('goal-g-garden'));
+    const row = p.option('general-g-garden');
+    expect(p.text(row)).toContain('General');
+    expect(p.text(row)).toContain('new');
+    expect(row.props['aria-label']).toBe('General: a new project in Grow vegetables');
+  });
+
+  it('picking it files the task in a General project made on save: named, under the goal, the goal\'s colour and users', () => {
+    const p = setup({ title: 'Plant tomatoes', duration: 30, color: 'bg-blue-500' }, { goals });
+    p.click(p.trigger());
+    p.click(p.group('goal-g-garden'));
+    p.click(p.option('general-g-garden'));
+    const task = p.lastTask();
+    expect(task.projectId).toBe(NEW_PROJECT_ID);
+    expect(task.newProject).toMatchObject({ title: 'General', goalId: 'g-garden', general: true });
+    expect(task.color).toBe(getProjectColor({}, EMPTY));
+    expect(task.assignedUserSyncIds).toEqual(['u-garden']);
+    // No name to type: the field stays the picker, showing what was picked.
+    expect(p.find({ 'data-task-new-project': true })).toHaveLength(0);
+    expect(p.text(p.trigger())).toContain('General');
+    expect(p.text(p.find({ 'data-project-picker-goal': true })[0])).toBe('Grow vegetables');
+    expect(p.find({ 'data-task-general-pending': true })).toHaveLength(1);
+  });
+
+  it('a new task takes what the goal holds for new projects, as the made project will; picking another project takes it back', () => {
+    const p = setup({ title: 'Plant tomatoes', duration: 30 }, { goals });
+    p.click(p.trigger());
+    p.click(p.group('goal-g-garden'));
+    p.click(p.option('general-g-garden'));
+    expect(p.lastTask()).toMatchObject({ title: 'Plant tomatoes #garden', duration: 45 });
+    p.click(p.trigger());
+    p.click(p.group('goal-g-ship'));
+    p.click(p.option('p-api'));
+    expect(p.lastTask()).toMatchObject({ title: 'Plant tomatoes', duration: 30, projectId: 'p-api' });
+  });
+
+  it('reopened while pending, the picker shows it chosen, its goal unfolded', () => {
+    const p = setup({ title: 'x', projectId: NEW_PROJECT_ID, newProject: { title: 'General', goalId: 'g-garden', general: true } }, { goals });
+    p.click(p.trigger());
+    expect(p.option('general-g-garden').props['aria-current']).toBe('true');
+  });
+
+  it('a goal that has a General project offers that one, first, and picking it is picking a project', () => {
+    const p = setup(undefined, { projects: [...PROJECTS, general] });
+    p.click(p.trigger());
+    p.click(p.group('goal-g-read'));
+    const rows = p.rows();
+    expect(rows).not.toContain('general-g-read');
+    expect(rows.slice(rows.indexOf('[goal-g-read]') + 1, rows.indexOf('[goal-g-read]') + 3)).toEqual(['p-gen', 'p-books']);
+    p.click(p.option('p-gen'));
+    expect(p.lastTask()).toMatchObject({ projectId: 'p-gen' });
+    expect(p.lastTask().newProject).toBeUndefined();
+  });
+
+  it('a finished General project does not count: the goal offers a new one', () => {
+    const p = setup(undefined, { projects: [...PROJECTS, { ...general, status: 'completed' }] });
+    p.click(p.trigger());
+    p.click(p.group('goal-g-read'));
+    expect(p.rows()).toContain('general-g-read');
   });
 });

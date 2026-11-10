@@ -4012,7 +4012,7 @@ const DayPlanner = () => {
       return;
     }
     setRecurringEditConfirm(null);
-    const ready = createPendingProject(newTask, { addProject, goals, areas }).newTask;
+    const ready = createPendingProject(newTask, { addProject, goals, areas, projects }).newTask;
     saveMobileEditTaskFrom(ready, scope);
     // Its project becomes the picker's "last used" on this device (#2274).
     rememberLastUsedProject(ready.projectId);
@@ -6016,7 +6016,7 @@ const DayPlanner = () => {
           });
         }
       : null,
-    addProject, goals, areas,
+    addProject, goals, areas, projects,
   });
   const focusDo = useFocusDo({
     enabled: joboEnabled, loaded: joboLoaded, writable: joboWritable,

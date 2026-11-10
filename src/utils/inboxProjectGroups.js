@@ -24,8 +24,10 @@ export const isActiveProject = (p) => !!p && p.status !== 'archived' && p.status
 
 /**
  * @param {{ projects?: object[], goals?: object[], areas?: object[] }} lists
- * @param {{ isListed?: (project: object) => boolean }} [options]  which projects
- *   appear; by default every one not completed or archived
+ * @param {{ isListed?: (project: object) => boolean, keepEmptyGoals?: boolean }} [options]
+ *   which projects appear, by default every one not completed or archived;
+ *   `keepEmptyGoals` keeps a goal with none of them (the task editor's picker,
+ *   which offers each goal's "General" project, utils/goalGeneralProject.js)
  * @returns {{ areas: Array<{ id: string|null, title: string|null, goals: Array<{ id, title, color, projects: object[] }> }>,
  *   standalone: object[], hasAreas: boolean }}
  *   `areas` in the areas' own order, then goals with no (or a missing) area
@@ -33,7 +35,7 @@ export const isActiveProject = (p) => !!p && p.status !== 'archived' && p.status
  *   false when no goal is in a real area: the popover then skips the area
  *   level and lists the goals directly.
  */
-export function groupInboxProjects({ projects = [], goals = [], areas = [] } = {}, { isListed = isActiveProject } = {}) {
+export function groupInboxProjects({ projects = [], goals = [], areas = [] } = {}, { isListed = isActiveProject, keepEmptyGoals = false } = {}) {
   // On-hold projects are still offered, after the active ones in each group
   // (utils/projectStatus.js): every picker built from this lists them last.
   const active = pausedLast(projects.filter((p) => p && isListed(p)));
@@ -41,7 +43,7 @@ export function groupInboxProjects({ projects = [], goals = [], areas = [] } = {
   const goalIds = new Set(drawnGoals.map((g) => g.id));
   const goalGroups = drawnGoals
     .map((g) => ({ id: g.id, title: g.title, color: g.color, areaId: g.areaId, projects: active.filter((p) => p.goalId === g.id) }))
-    .filter((g) => g.projects.length > 0);
+    .filter((g) => keepEmptyGoals || g.projects.length > 0);
 
   const areaIds = new Set(areas.map((a) => a.id));
   const inArea = (g) => g.areaId && areaIds.has(g.areaId);
@@ -115,8 +117,10 @@ export function filterProjectGroups(groups, query) {
     .map((area) => ({
       ...area,
       goals: area.goals
-        .map((goal) => ((hit(area.title) || hit(goal.title)) ? goal : { ...goal, projects: goal.projects.filter((p) => hit(p.title)) }))
-        .filter((goal) => goal.projects.length > 0),
+        .map((goal) => ((hit(area.title) || hit(goal.title)) ? { ...goal, named: true } : { ...goal, projects: goal.projects.filter((p) => hit(p.title)) }))
+        // A goal named by the filter stays even with no projects (kept only
+        // by keepEmptyGoals): the picker offers its General project.
+        .filter((goal) => goal.projects.length > 0 || goal.named),
     }))
     .filter((area) => area.goals.length > 0);
   return { ...groups, areas, standalone: groups.standalone.filter((p) => hit(p.title)) };

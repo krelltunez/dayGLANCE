@@ -94,10 +94,12 @@ export default function useTaskActions({
   // ID from the start, letting the next periodic sync de-duplicate instead of cloning.
   getObsidianTaskMeta,
   onWriteObsidianTask,
-  // A project named in the task modal is created as the task is saved.
+  // A project named in the task modal is created as the task is saved; a
+  // goal's General project already made by then is used instead (#2365).
   addProject,
   goals,
   areas,
+  projects = [],
 }) {
   const colors = TASK_COLORS;
 
@@ -153,7 +155,7 @@ export default function useTaskActions({
   // Its project becomes the picker's "last used" on this device (#2274).
   const addTask = (toInbox = false) => {
     if (!newTask.title.trim()) return;
-    const ready = createPendingProject(newTask, { addProject, goals, areas });
+    const ready = createPendingProject(newTask, { addProject, goals, areas, projects });
     addTaskFrom(ready.newTask, toInbox, ready.project);
     rememberLastUsedProject(ready.newTask.projectId);
   };

@@ -10,6 +10,7 @@ import { projectPickerRows } from '../utils/projectPickerRows.js';
 import { readRememberedOpen, rememberOpen } from '../hooks/useRememberedOpen.js';
 import { pinnedLastUsedProject, readLastUsedProject } from '../utils/lastUsedProject.js';
 import { isOnHold } from '../utils/projectStatus.js';
+import { generalValue, goalIdOfGeneralValue } from '../utils/goalGeneralProject.js';
 
 // The task editor's project picker (#2279), desktop and phone. A native
 // <select> could only group the projects one level, by goal, and could not
@@ -19,6 +20,9 @@ import { isOnHold } from '../utils/projectStatus.js';
 // remembered on the device (under its own keys, apart from the filter's).
 // The last project a task was saved with heads the list as a one-tap choice
 // (#2274, utils/lastUsedProject.js); the field itself never defaults to it.
+// Every goal, even one with no projects yet, offers its "General" project
+// first (#2365, utils/goalGeneralProject.js): a task never links to a goal,
+// so a loose one goes in the goal's own project, made when the task is saved.
 //
 // It opens in place, below the field, rather than as a popover: the phone's
 // editor is a scrolling bottom sheet, which would clip a floating list.
@@ -38,7 +42,8 @@ const FILTER_FROM = 8;
  * @param {string} props.id               the field's id, for its <label>
  * @param {string} props.value            the task's project id, '' for none
  * @param {(value: string) => void} props.onChange  '' for no project,
- *   NEW_PROJECT_ID for "New project…", or a project's id
+ *   NEW_PROJECT_ID for "New project…", a goal's General value (a General
+ *   project to make, goalGeneralProject.js), or a project's id
  */
 export default function TaskProjectPicker({ id, value, onChange }) {
   const { t } = useTranslation();
@@ -53,7 +58,7 @@ export default function TaskProjectPicker({ id, value, onChange }) {
   const filterRef = useRef(null);
   const rowNodes = useRef(new Map());
 
-  const groups = useMemo(() => groupInboxProjects({ projects, goals, areas: areas || [] }), [projects, goals, areas]);
+  const groups = useMemo(() => groupInboxProjects({ projects, goals, areas: areas || [] }, { keepEmptyGoals: true }), [projects, goals, areas]);
   const projectCount = groups.standalone.length
     + groups.areas.reduce((n, area) => n + area.goals.reduce((m, goal) => m + goal.projects.length, 0), 0);
   const filtering = query.trim() !== '';
@@ -61,8 +66,17 @@ export default function TaskProjectPicker({ id, value, onChange }) {
 
   const selectedId = value && value !== NEW_PROJECT_ID ? value : null;
   const selected = selectedId ? projects.find((p) => p.id === selectedId) || null : null;
-  const selectedGoal = selected?.goalId ? goals.find((g) => g.id === selected.goalId) || null : null;
-  const selectedKey = selected ? `project-${selected.id}` : 'none';
+  // A goal's General project waiting to be made, as the task's choice.
+  const pendingGoalId = goalIdOfGeneralValue(value);
+  const pendingGoal = pendingGoalId !== null ? goals.find((g) => String(g.id) === pendingGoalId) || null : null;
+  const selectedGoal = selected?.goalId ? goals.find((g) => g.id === selected.goalId) || null : pendingGoal;
+  const selectedKey = selected ? `project-${selected.id}` : pendingGoal ? `general-${pendingGoal.id}` : 'none';
+  const generalLabel = t('goals.generalProject');
+  // While a filter is typed, the made-on-pick General row shows where the
+  // filter names its goal or the word itself.
+  const q = query.trim().toLocaleLowerCase();
+  const named = (text) => typeof text === 'string' && text.toLocaleLowerCase().includes(q);
+  const showGeneral = (goal) => !filtering || named(goal.title) || named(generalLabel);
 
   const isOpen = (key, defaultOpen) => folds[key] ?? readRememberedOpen(OPEN_KEY(key), defaultOpen);
   // The last project a task was saved with, pinned on top as a one-tap
@@ -74,7 +88,7 @@ export default function TaskProjectPicker({ id, value, onChange }) {
     ...(pinned ? [{ type: 'pinned', key: 'last-used', project: pinned }] : []),
     { type: 'choice', key: 'none', value: '' },
     { type: 'choice', key: 'new', value: NEW_PROJECT_ID },
-    ...projectPickerRows(shown, { isOpen, filtering, selectedId }),
+    ...projectPickerRows(shown, { isOpen, filtering, selectedId, general: true, showGeneral }),
   ];
   // While a filter is typed, the groups are labels, not folds.
   const focusable = rows.filter((row) => !(filtering && row.type === 'group')).map((row) => row.key);
@@ -98,6 +112,7 @@ export default function TaskProjectPicker({ id, value, onChange }) {
   const activate = (row) => {
     if (row.type === 'group') toggleGroup(row);
     else if (row.type === 'project' || row.type === 'pinned') choose(row.project.id);
+    else if (row.type === 'general') choose(generalValue(row.goal.id));
     else choose(row.value);
   };
 
@@ -261,7 +276,18 @@ export default function TaskProjectPicker({ id, value, onChange }) {
     }
     const isSelected = row.key === selectedKey;
     let content;
-    if (row.type === 'project') {
+    let label;
+    if (row.type === 'general') {
+      // The goal's General project, made when the task is saved.
+      label = t('task.generalProjectLabel', { goal: row.goal.title });
+      content = (
+        <>
+          {dot(getProjectColor({}, row.goal))}
+          <span className="truncate flex-1">{generalLabel}</span>
+          <span data-picker-general-new className="text-xs opacity-60 flex-shrink-0">{t('task.generalProjectNew')}</span>
+        </>
+      );
+    } else if (row.type === 'project') {
       const goal = row.project.goalId ? goals.find((g) => g.id === row.project.goalId) : null;
       content = (
         <>
@@ -283,10 +309,11 @@ export default function TaskProjectPicker({ id, value, onChange }) {
         type="button"
         data-project-picker-option={row.type === 'project' ? row.project.id : row.key}
         aria-current={isSelected ? 'true' : undefined}
+        aria-label={label}
         onClick={() => activate(row)}
         onKeyDown={(e) => onRowKeyDown(e, row)}
         className={`${rowBase} ${isSelected ? rowOn : `${rowHover} ${textPrimary}`}`}
-        style={indent(row.type === 'project' ? row.level : 0)}
+        style={indent(row.type === 'project' || row.type === 'general' ? row.level : 0)}
       >
         {content}
         {isSelected && <Check size={14} className="flex-shrink-0 text-blue-500" />}
@@ -319,6 +346,13 @@ export default function TaskProjectPicker({ id, value, onChange }) {
             {selectedGoal && (
               <span data-project-picker-goal className={`truncate text-xs ${textSecondary}`}>{selectedGoal.title}</span>
             )}
+          </>
+        ) : pendingGoal ? (
+          <>
+            {dot(getProjectColor({}, pendingGoal))}
+            <span className="truncate">{generalLabel}</span>
+            <span data-project-picker-goal className={`truncate text-xs ${textSecondary}`}>{pendingGoal.title}</span>
+            <span data-picker-general-new className={`text-xs ${textSecondary} opacity-60 flex-shrink-0`}>{t('task.generalProjectNew')}</span>
           </>
         ) : (
           <span className={`truncate ${darkMode ? 'text-gray-400' : 'text-stone-400'}`}>{t('task.noProject')}</span>
