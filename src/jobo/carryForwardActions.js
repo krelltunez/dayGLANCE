@@ -10,6 +10,7 @@ import { followUpDraft } from './carryForward.js';
 import { obstacleName } from '../utils/dayOccupancy.js';
 import { completionTimestamp } from '../utils/taskUtils.js';
 import { restoreOccurrence, skipOccurrence, skippedOccurrences, updateTemplate } from './skipOccurrence.js';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 
 const sameId = (a, b) => String(a) === String(b);
 
@@ -60,7 +61,7 @@ export function createCarryForwardActions({
     if (swipeSchedulingInboxTaskId) swipeSchedulingInboxTaskId.current = null;
     setMobileEditingTask?.(null);
     setNewTask({
-      startTime: getNextQuarterHour(), duration: 30, date, isAllDay: false, recurrence: null,
+      startTime: getNextQuarterHour(), duration: readDefaultTaskDuration(), date, isAllDay: false, recurrence: null,
       ...draft,
     });
     setShowAddTask(true);

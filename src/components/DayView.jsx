@@ -18,6 +18,7 @@ import { getHGBarsForDate } from '../hooks/useHyperGlance.js';
 import HyperGlanceBar from './HyperGlanceBar.jsx';
 import { frameColorBg, frameColorBorder } from '../utils/colorUtils.js';
 import { cardDoubleClickHandler } from '../utils/cardDoubleClick.js';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -215,7 +216,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
     if (draggedTask) return;
     if (isOverTaskCard(e.target)) return;
     const t = timeFromEvent(e);
-    setNewTask({ title: '', startTime: t, duration: 30, date: col.dateStr, isAllDay: false });
+    setNewTask({ title: '', startTime: t, duration: readDefaultTaskDuration(), date: col.dateStr, isAllDay: false });
     setShowAddTask(true);
   };
 

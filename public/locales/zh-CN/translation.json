@@ -512,6 +512,8 @@
     "enableAspire": "Aspire",
     "enableAspireHint": "人生规划：人生愿望清单、五年愿景和座右铭。目前为占位页面，从“目标与项目”空间打开。",
     "inbox": "收件箱",
+    "defaultDuration": "默认任务时长",
+    "defaultDurationHint": "未设置时长的新任务所使用的时长，包括从收件箱拖到时间线上的任务。仅适用于此设备。",
     "inboxAutoArchive": "自动存档已完成的收件箱任务",
     "inboxArchiveNever": "绝不",
     "inboxArchive7": "7天后",

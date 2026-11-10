@@ -505,6 +505,8 @@
     "enableAspire": "Aspire",
     "enableAspireHint": "Pianificazione della vita: una lista dei desideri, una visione a cinque anni e motti. Per ora un segnaposto, aperto dallo spazio Obiettivi e progetti.",
     "inbox": "In arrivo",
+    "defaultDuration": "Durata predefinita delle attività",
+    "defaultDurationHint": "Quanto dura una nuova attività se non ne indichi la durata, comprese le attività In arrivo trascinate nell'agenda. Su questo dispositivo.",
     "inboxAutoArchive": "Archivia automaticamente le attività completate nella casella in arrivo",
     "inboxArchiveNever": "Mai",
     "inboxArchive7": "Dopo 7 giorni",

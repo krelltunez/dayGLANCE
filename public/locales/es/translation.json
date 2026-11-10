@@ -505,6 +505,8 @@
     "enableAspire": "Aspire",
     "enableAspireHint": "Planificación de vida: una lista de deseos, una visión a cinco años y lemas. Por ahora un marcador de posición, abierto desde el espacio Objetivos y proyectos.",
     "inbox": "Bandeja de entrada",
+    "defaultDuration": "Duración predeterminada de las tareas",
+    "defaultDurationHint": "Cuánto dura una tarea nueva si no le indicas una duración, incluidas las tareas de la bandeja de entrada que arrastras a la agenda. En este dispositivo.",
     "inboxAutoArchive": "Archivar automáticamente tareas completadas de la bandeja",
     "inboxArchiveNever": "Nunca",
     "inboxArchive7": "Después de 7 días",

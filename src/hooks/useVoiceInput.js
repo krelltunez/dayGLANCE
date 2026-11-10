@@ -12,6 +12,7 @@ import { parseTranscriptTasks } from '../utils/voiceQuickAdd.js';
 import { normalizeVoiceParseResult } from '../utils/voiceParseResult.js';
 import { voiceUsesAI, voiceTranscribesWithAI } from '../utils/voiceAI.js';
 import { speechRecognitionLocale } from '../utils/localeFormatting.js';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 
 /**
  * Voice input pipeline — extracted from App.jsx (see "App.jsx — Ongoing
@@ -496,7 +497,7 @@ export default function useVoiceInput({
             id: taskId,
             title,
             startTime: parsed.time || '00:00',
-            duration: parsed.duration || 30,
+            duration: parsed.duration || readDefaultTaskDuration(),
             color: colors[0].class,
             isAllDay: !parsed.time,
             notes: parsed.notes || '',
@@ -507,9 +508,9 @@ export default function useVoiceInput({
             lastModified: new Date().toISOString(),
           }]);
         } else if (parsed.date && parsed.time) {
-          setTasks(prev => [...prev, { id: taskId, title, startTime: parsed.time, duration: parsed.duration || 30, date: parsed.date, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [] }]);
+          setTasks(prev => [...prev, { id: taskId, title, startTime: parsed.time, duration: parsed.duration || readDefaultTaskDuration(), date: parsed.date, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [] }]);
         } else {
-          const inboxTask = { id: taskId, title, duration: parsed.duration || 30, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [], priority: parsed.priority || 0 };
+          const inboxTask = { id: taskId, title, duration: parsed.duration || readDefaultTaskDuration(), color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [], priority: parsed.priority || 0 };
           if (parsed.deadline) inboxTask.deadline = parsed.deadline;
           if (parsed.date && !parsed.time) {
             setTasks(prev => [...prev, { ...inboxTask, startTime: '09:00', date: parsed.date }]);

@@ -21,6 +21,7 @@ export const SECTION_SEARCH = {
   routines: ['settings.routines', 'settings.enableRoutines'],
   habits: ['settings.habitTracking', 'settings.enableHabitTracking'],
   multiUser: ['settings.multiUser', 'settings.multiUserMode', 'settings.multiUserPeople'],
+  defaultDuration: ['settings.defaultDuration', 'settings.defaultDurationHint', 'task.duration'],
   inbox: ['settings.inbox', 'settings.inboxAutoArchive', 'settings.binAutoEmpty'],
   followUpTag: ['followUp.settingTitle', 'followUp.settingLabel'],
   experimental: ['settings.experimental', 'settings.enableJobo', 'settings.enableAspire'],
