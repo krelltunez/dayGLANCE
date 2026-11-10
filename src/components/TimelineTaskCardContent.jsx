@@ -12,7 +12,7 @@ import TaskPlanHistory from './TaskPlanHistory.jsx';
 import TaskStarButton from './TaskStarButton.jsx';
 import CardSubtasks from './CardSubtasks.jsx';
 import { desktopCardReservedPx } from '../utils/cardSubtasks.js';
-import { cardShowsSubtasks, cardTitleClamp, cardTitleTooltip, desktopCardTitleLines } from '../utils/cardTitle.js';
+import { cardShowsSubtasks, cardTitleClamp, cardTitleTooltip, desktopCardTitleLines, desktopTitleExtraPx } from '../utils/cardTitle.js';
 import TaskEnergyMarker from './TaskEnergyMarker.jsx';
 import UserAssignmentBadge from './UserAssignmentBadge.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
@@ -22,7 +22,10 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 
-const CardContent = ({ task, height, width, isNarrowWidth, flipNotesPanel, wrapTitle = false }) => {
+// The week popover's row of actions under the time (`popover`): the buttons' 22px and a 4px gap.
+const POPOVER_ACTIONS_ROW_PX = 26;
+
+const CardContent = ({ task, height, width, isNarrowWidth, flipNotesPanel, popover = false }) => {
   const { t } = useTranslation();
   const {
     isTablet,
@@ -57,19 +60,21 @@ const CardContent = ({ task, height, width, isNarrowWidth, flipNotesPanel, wrapT
   const isMicroHeight = height <= 40;
   const isRecurringTask = typeof task.id === 'string' && task.id.startsWith('recurring-');
 
-  // A long title (#2368): wrapped onto the lines a tall card has room for,
-  // unless the card lists subtasks (they keep the room below a one-line
-  // title). The week view's popover (`wrapTitle`) is there to show the task,
-  // so it wraps either way, and grows to fit.
+  // A long title (#2368): wrapped onto the lines a tall card has room for, up
+  // to four, or two over subtasks that all still fit (utils/cardTitle.js).
+  // The week view's popover (`popover`) is there to show the task: its title
+  // is never cut, its actions get their own row so the title has the card's
+  // width, and it grows to fit.
   const hasMetaRow = extractTags(task.title).length > 0
     || (goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId));
   const showsSubtasks = !isImported && !isNarrowWidth && cardShowsSubtasks(task, showCardSubtasks);
-  const titleLines = desktopCardTitleLines({
+  const actionsBelow = popover && !isImported && !isNarrowWidth;
+  const titleLines = popover ? Infinity : desktopCardTitleLines({
     height,
     width,
     hasMetaRow,
     hasTimeRow: !isNarrowWidth && !isImported && height >= 55,
-    showsSubtasks: showsSubtasks && !wrapTitle,
+    subtasks: showsSubtasks ? task.subtasks : null,
   });
   const titleClamp = cardTitleClamp(titleLines);
   const titleWraps = titleLines > 1;
@@ -79,7 +84,7 @@ const CardContent = ({ task, height, width, isNarrowWidth, flipNotesPanel, wrapT
   // The notes panel opens just past the card. In the week popover the card
   // can be taller than `height` (a wrapped title), so it goes by the
   // popover's own edge there.
-  const panelOffset = wrapTitle ? '100%' : `${height}px`;
+  const panelOffset = popover ? '100%' : `${height}px`;
 
   const NotesButton = ({ inMenu = false }) => (
     <button
@@ -381,7 +386,7 @@ const CardContent = ({ task, height, width, isNarrowWidth, flipNotesPanel, wrapT
                   )}
                 </div>
               </div>
-              {!isImported && (
+              {!isImported && !actionsBelow && (
                 <div className="flex items-center gap-0.5 flex-shrink-0">
                   {/* Energy (#2331): the first of the card's actions, at their
                       size, so it lines up with them whether or not the card
@@ -398,16 +403,24 @@ const CardContent = ({ task, height, width, isNarrowWidth, flipNotesPanel, wrapT
                 {formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration, defaultValue: '{{count}} min' })}
               </div>
             )}
+            {/* The week popover's actions, on their own row so the title has
+                the card's width (#2368): on the right, where a card keeps
+                them, so the energy marker's hover-only slot is not a gap
+                at the start of the row. */}
+            {actionsBelow && (
+              <div className="flex items-center justify-end gap-0.5 mt-1" data-popover-actions>
+                <TaskEnergyMarker task={task} readOnly={isTablet} size={14} pad="p-1" />
+                <ActionButtons />
+              </div>
+            )}
             {/* Subtasks, as many as the card has room for (wide cards only;
                 a repeating task's are ticked per occurrence, CardSubtasks.jsx). */}
             {!isImported && showCardSubtasks !== false && task.subtasks?.length > 0 && (
               <CardSubtasks
                 task={task}
                 height={height}
-                reservedPx={desktopCardReservedPx({
-                  height,
-                  hasMetaRow,
-                })}
+                reservedPx={desktopCardReservedPx({ height, hasMetaRow })
+                  + (actionsBelow ? POPOVER_ACTIONS_ROW_PX : desktopTitleExtraPx(titleLines))}
                 onToggle={(subtaskId) => toggleSubtask(task.id, subtaskId, false)}
                 onMore={() => setExpandedNotesTaskId(task.id)}
               />

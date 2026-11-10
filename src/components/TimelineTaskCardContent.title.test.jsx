@@ -8,12 +8,13 @@ import { DayPlannerContext } from '../context/DayPlannerContext.jsx';
 import { FeaturesContext } from '../context/FeaturesContext.jsx';
 import { SyncContext } from '../context/SyncContext.jsx';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
+import CardSubtasks from './CardSubtasks.jsx';
 
 vi.mock('react-dom', async (importOriginal) => ({ ...(await importOriginal()), createPortal: (node) => node }));
 
 // #2368: a timeline card's long title. The full title is the tooltip (with
 // the rename hint under it where a double-click renames), and a tall card
-// wraps it, unless the card lists subtasks.
+// wraps it: up to four lines, or two over subtasks that all still fit.
 
 let i18n;
 beforeAll(async () => {
@@ -43,7 +44,7 @@ const features = {
 
 const LONG = 'Call the roofer about the leak over the back bedroom before the rain on Thursday';
 
-function titleOf({ task, planner: over = {}, ...props }) {
+function renderCard({ task, planner: over = {}, ...props }) {
   let root;
   act(() => {
     root = create(
@@ -58,8 +59,9 @@ function titleOf({ task, planner: over = {}, ...props }) {
       </I18nextProvider>,
     );
   });
-  return root.root.find((n) => n.props && n.props['data-title-lines'] !== undefined);
+  return root;
 }
+const titleOf = (args) => renderCard(args).root.find((n) => n.props && n.props['data-title-lines'] !== undefined);
 
 const task = (over = {}) => ({ id: 't1', title: LONG, color: 'bg-blue-500', startTime: '09:00', duration: 60, subtasks: [], ...over });
 
@@ -105,10 +107,26 @@ describe('a tall card wraps the title', () => {
     expect(titleOf({ task: task(), height: 400, width: 260, zoom: 2, isNarrowWidth: true }).props['data-title-lines']).toBe(1);
   });
 
-  it('a tall card that lists subtasks keeps one line', () => {
-    const el = titleOf({ task: task({ subtasks: [{ id: 's1', title: 'Find the leak' }] }), height: 200, isNarrowWidth: false });
+  it('a very tall card stops at four lines', () => {
+    expect(titleOf({ task: task(), height: 600, isNarrowWidth: false }).props['data-title-lines']).toBe(4);
+  });
+
+  it('over subtasks that all still fit, two lines, and the subtask fit makes room for them', () => {
+    const root = renderCard({ task: task({ subtasks: [{ id: 's1', title: 'Find the leak' }] }), height: 200, isNarrowWidth: false });
+    const el = root.root.find((n) => n.props && n.props['data-title-lines'] !== undefined);
+    expect(el.props['data-title-lines']).toBe(2);
+    // 8 padding + 22 title row + 18 time row, and 13 for the second line.
+    expect(root.root.findByType(CardSubtasks).props.reservedPx).toBe(48 + 13);
+  });
+
+  it('one line when a second would push a subtask out of sight', () => {
+    // 100px: two subtasks fit under one line, one under two.
+    const twoSubtasks = [{ id: 's1', title: 'Find the leak' }, { id: 's2', title: 'Get a quote' }];
+    const root = renderCard({ task: task({ subtasks: twoSubtasks }), height: 100, isNarrowWidth: false });
+    const el = root.root.find((n) => n.props && n.props['data-title-lines'] !== undefined);
     expect(el.props['data-title-lines']).toBe(1);
     expect(el.props.className).toContain('truncate');
+    expect(root.root.findByType(CardSubtasks).props.reservedPx).toBe(48);
   });
 
   it('with the card subtasks setting off, the subtasks are not in the way', () => {
@@ -121,8 +139,24 @@ describe('a tall card wraps the title', () => {
     expect(el.props['data-title-lines']).toBe(3);
   });
 
-  it('the week popover wraps even with subtasks', () => {
-    const el = titleOf({ task: task({ subtasks: [{ id: 's1', title: 'Find the leak' }] }), height: 220, isNarrowWidth: false, wrapTitle: true });
-    expect(el.props['data-title-lines']).toBeGreaterThan(3);
+});
+
+describe('the week popover', () => {
+  it('shows the whole title, subtasks or not', () => {
+    const el = titleOf({ task: task({ subtasks: [{ id: 's1', title: 'Find the leak' }] }), height: 220, isNarrowWidth: false, popover: true });
+    expect(el.props['data-title-lines']).toBe(Infinity);
+    expect(el.props.style).not.toHaveProperty('WebkitLineClamp');
+  });
+
+  it('puts the actions on a row of their own, so the title has the card\'s width', () => {
+    const postpone = (root) => root.root.findAll((n) => n.type === 'button' && n.props.title === 'Postpone to tomorrow');
+    const popover = renderCard({ task: task(), height: 220, isNarrowWidth: false, popover: true });
+    const row = popover.root.find((n) => n.props && n.props['data-popover-actions']);
+    expect(postpone(popover)).toHaveLength(1);
+    expect(row.findAll((n) => n.type === 'button' && n.props.title === 'Postpone to tomorrow')).toHaveLength(1);
+    // A timeline card keeps them beside the title.
+    const card = renderCard({ task: task(), height: 220, isNarrowWidth: false });
+    expect(card.root.findAll((n) => n.props && n.props['data-popover-actions'])).toHaveLength(0);
+    expect(postpone(card)).toHaveLength(1);
   });
 });

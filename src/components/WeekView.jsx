@@ -32,8 +32,9 @@ const WeekViewTaskPopover = ({ task, anchor, onClose }) => {
   const POPOVER_W = 300;
   const POPOVER_H = 220;
 
-  // The card wraps a long title here (#2368), so the popover can grow past
-  // POPOVER_H: it is placed by the height it actually has.
+  // The card shows a long title whole here, with its actions on a row of
+  // their own (#2368), so the popover can grow past POPOVER_H: it is placed
+  // by the height it actually has.
   const [measuredH, setMeasuredH] = useState(POPOVER_H);
   useLayoutEffect(() => {
     const h = popoverRef.current?.offsetHeight;
@@ -92,7 +93,7 @@ const WeekViewTaskPopover = ({ task, anchor, onClose }) => {
           task={task}
           height={POPOVER_H}
           isNarrowWidth={false}
-          wrapTitle
+          popover
           flipNotesPanel={top + popoverH > window.innerHeight / 2}
         />
       )}

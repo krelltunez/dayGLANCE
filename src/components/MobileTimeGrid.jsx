@@ -19,7 +19,7 @@ import ContinuationCard from './ContinuationCard.jsx';
 import TaskEnergyMarker from './TaskEnergyMarker.jsx';
 import CardSubtasks from './CardSubtasks.jsx';
 import { mobileCardReservedPx } from '../utils/cardSubtasks.js';
-import { cardShowsSubtasks, cardTitleClamp, mobileCardTitleLines } from '../utils/cardTitle.js';
+import { cardShowsSubtasks, cardTitleClamp, mobileCardTitleLines, mobileTitleExtraPx } from '../utils/cardTitle.js';
 import { overnightSpillMinutes } from '@glance-apps/agenda-core';
 import { continuationLayoutRow } from '../utils/continuations.js';
 
@@ -397,14 +397,14 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
             const isMeasured = taskWidth !== undefined;
             const isNarrowWidth = taskWidth < 180;
             // A long title (#2368): wrapped onto the lines a tall card has
-            // room for, unless the card lists subtasks (wide cards only),
-            // which keep the room below a one-line title, or is too narrow
-            // to wrap words whole (utils/cardTitle.js).
+            // room for, up to four, or two over subtasks that all still fit
+            // (wide cards only), and not on a card too narrow to wrap words
+            // whole (utils/cardTitle.js).
             const titleLines = mobileCardTitleLines({
               height,
               width: taskWidth,
               hasProjectRow: goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId),
-              showsSubtasks: !isNarrowWidth && cardShowsSubtasks(task, showCardSubtasks),
+              subtasks: !isNarrowWidth && cardShowsSubtasks(task, showCardSubtasks) ? task.subtasks : null,
             });
             const titleClamp = cardTitleClamp(titleLines);
             const titleWraps = titleLines > 1;
@@ -690,7 +690,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                         reservedPx={mobileCardReservedPx({
                           height,
                           hasProjectRow: goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId),
-                        })}
+                        }) + mobileTitleExtraPx(titleLines)}
                         onToggle={(subtaskId) => toggleSubtask(task.id, subtaskId, false)}
                         onMore={() => setExpandedNotesTaskId(task.id)}
                       />
