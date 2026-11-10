@@ -563,6 +563,18 @@ describe('a goal\'s General project', () => {
     expect(p.lastTask()).toMatchObject({ title: 'Plant tomatoes', duration: 30, projectId: 'p-api' });
   });
 
+  // #2367 meets #2365: a new form starts at the default task duration, so that,
+  // not 30, is the duration nothing has touched. Without it the goal's 45
+  // is never applied for a user whose default is 60.
+  it('with a default task duration other than 30, General still applies the goal\'s duration', () => {
+    store.set('day-planner-default-task-duration', '60');
+    const p = setup({ title: 'Plant tomatoes', duration: 60 }, { goals });
+    p.click(p.trigger());
+    p.click(p.group('goal-g-garden'));
+    p.click(p.option('general-g-garden'));
+    expect(p.lastTask().duration).toBe(45);
+  });
+
   it('reopened while pending, the picker shows it chosen, its goal unfolded', () => {
     const p = setup({ title: 'x', projectId: NEW_PROJECT_ID, newProject: { title: 'General', goalId: 'g-garden', general: true } }, { goals });
     p.click(p.trigger());
