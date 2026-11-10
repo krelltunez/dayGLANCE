@@ -21,6 +21,7 @@
     "preview": "vite preview",
     "reviewer-code": "node scripts/reviewer-code.js",
     "bump": "node scripts/bump-version.mjs",
+    "packages": "node scripts/packages-release.mjs",
     "ssrf:vectors": "node scripts/export-ssrf-vectors.mjs",
     "lint": "eslint src --max-warnings 0",
     "test": "vitest run",
