@@ -336,7 +336,8 @@ launcher writes; the launcher reads the outcome from the next snapshot.
 Both the provider and the receiver sit behind `com.dayglance.permission.LAUNCHER`,
 `protectionLevel="signature|knownSigner"`, with `knownCerts` naming the
 **launcher's** signing certificates (`res/values/launcher_certs.xml`): its
-release certificate, and its Play app signing certificate once it ships there. dayGLANCE's own
+release certificate, which also signs its Google Play build (the launcher's key
+was uploaded to Play App Signing). dayGLANCE's own
 signature satisfies the `signature` half, so the app can always reach its own
 provider. `knownSigner` exists from Android 12; on older devices the permission
 is signature-only and the launcher stays in demo mode. The launcher declares
@@ -352,8 +353,8 @@ authority: a test APK would otherwise refuse to install beside the store app
 never paired.
 
 A digest is read from the launcher's keystore (`keytool -list -v`, SHA-256,
-lowercase, no colons). The Play entry stays a placeholder until the launcher ships
-there. There is no debug entry: where the launcher's release key is present, its
+lowercase, no colons). Play's App signing key certificate shows the same digest,
+so no separate Play entry is needed. There is no debug entry: where the launcher's release key is present, its
 debug builds carry that key too.
 
 ## Telling users about the launcher
@@ -367,8 +368,8 @@ manifest's `<queries>` for that), and the flavour's `LAUNCHER_PROMO_URL`.
 
 Neither shows below Android 12 (no `knownSigner`, so the launcher could only run
 in demo mode), when the launcher is installed, or when the build's URL is empty.
-The `play` flavour's URL stays empty until the launcher is approved on Google
-Play; the `github` flavour links the launcher's latest GitHub release. The card
+The `play` flavour links the launcher's Google Play listing; the `github`
+flavour links its latest GitHub release. The card
 also waits until the app has been used on the device for three days (a
 device-local first-seen stamp, written at the app's first start) and never
 returns once dismissed. Both stamps are `dg-` keys: not synced, and not in the

@@ -8,16 +8,15 @@
   To read one:  keytool -list -v -keystore <keystore> -alias <alias> | grep SHA256
   then strip the colons and lowercase.
 
-  There is no debug entry: where the launcher's release key is present, its debug
-  builds carry that key too. The PLAY entry is a placeholder, filled in once the
-  launcher ships on Play (Play Console → App integrity → App signing key
-  certificate).
+  One entry covers every launcher build: the launcher's upload key was given to
+  Play App Signing, so the Play build is signed with the release key too (its
+  App signing key certificate in Play Console matches this digest). There is no
+  debug entry: where the release key is present, debug builds carry it too. If
+  the launcher is ever signed with another key, add that digest here.
 -->
 <resources>
     <string-array name="launcher_known_certs">
-        <!-- GLANCElauncher release certificate -->
+        <!-- GLANCElauncher release certificate (GitHub releases and Google Play) -->
         <item>7e6d39d03c5d4c4f4c947c4d7f9657e9ae6ab94d296c97d684333450c2b7791d</item>
-        <!-- GLANCElauncher Play app signing certificate (PLACEHOLDER: fill in once the launcher ships on Play) -->
-        <item>0000000000000000000000000000000000000000000000000000000000000003</item>
     </string-array>
 </resources>
