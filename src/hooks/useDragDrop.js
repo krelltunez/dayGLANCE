@@ -7,7 +7,7 @@ import { anchorDragImageAtTop, dropClampMinutes } from '../utils/dragUtils.js';
 import { nativeEventEndString } from '../utils/nativeCalendar.js';
 import { pixelsToSnappedMinutes, resizeBlockByPixels } from '../utils/taskResize.js';
 import { timelinePosition } from '../utils/timelinePosition.js';
-import { dragAutoScrollStep, wheelScrollPx } from '../utils/dragAutoScroll.js';
+import { dragAutoScrollStep } from '../utils/dragAutoScroll.js';
 
 // Pure utilities used by position helpers
 const timeToMinutes = (time) => {
@@ -326,24 +326,6 @@ export default function useDragDrop({
       scroller.scrollTop = Math.max(0, Math.min(maxScroll, scroller.scrollTop + step));
     }, 16);
   };
-
-  // The wheel while a task is held scrolls the timeline (#2346), where the
-  // browser delivers it during a drag. Ours rather than the browser's, so a
-  // browser that would also scroll natively does not scroll twice. Ctrl/Cmd +
-  // wheel stays the timeline zoom's (useTimelineZoom).
-  useEffect(() => {
-    const el = calendarRef.current;
-    if (!draggedTask || !el) return undefined;
-    const onWheel = (event) => {
-      if (event.ctrlKey || event.metaKey) return;
-      const maxScroll = el.scrollHeight - el.clientHeight;
-      if (maxScroll <= 0) return;
-      event.preventDefault();
-      el.scrollTop = Math.max(0, Math.min(maxScroll, el.scrollTop + wheelScrollPx(event, el.clientHeight)));
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [draggedTask, calendarRef]);
 
   const handleDragOver = (e, targetDate = null) => {
     e.preventDefault();

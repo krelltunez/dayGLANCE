@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// #2346: while a task is held, the wheel scrolls the timeline, and the edge
-// bands scroll it at a speed set by how deep the cursor is in them. Run
-// through the real hook, with React's state, refs and effects stood in for
-// (as useDragDrop.dropZones.test.js does), effects re-run when their deps change.
+// #2346: while a task is held, the edge bands scroll the timeline at a speed
+// set by how deep the cursor is in them. Not the wheel: Chromium delivers no
+// wheel events during a native drag (utils/dragAutoScroll.js). Run through the
+// real hook, with React's state, refs and effects stood in for (as
+// useDragDrop.dropZones.test.js does), effects re-run when their deps change.
 
 const stateCells = [];
 const refCells = [];
@@ -61,7 +62,6 @@ const useStartDrag = () => {
   useRender().handleDragStart({ id: 't', duration: 30 }, 'timeline', { dataTransfer: {}, currentTarget: null });
   return useRender();
 };
-const wheel = (over = {}) => ({ deltaY: 100, deltaMode: 0, ctrlKey: false, metaKey: false, preventDefault: vi.fn(), ...over });
 
 beforeEach(() => {
   stateCells.length = 0; refCells.length = 0; effects.length = 0;
@@ -72,28 +72,10 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('scrolling the timeline while a task is dragged', () => {
-  it('the wheel scrolls it only while a task is held, and is taken from the browser', () => {
+  it('attaches no wheel handler: a native drag gets no wheel events to handle', () => {
     useRender();
-    expect(el.listeners.wheel).toBeUndefined();
     useStartDrag();
-    expect(el.listeners.wheel.opts).toEqual({ passive: false });
-    const e = wheel();
-    el.listeners.wheel.fn(e);
-    expect(el.scrollTop).toBe(700);
-    expect(e.preventDefault).toHaveBeenCalled();
-    el.listeners.wheel.fn(wheel({ deltaY: -5000 }));
-    expect(el.scrollTop).toBe(0);
-    useRender().handleDragEnd();
-    useRender();
     expect(el.listeners.wheel).toBeUndefined();
-  });
-
-  it('leaves Ctrl/Cmd + wheel to the timeline zoom', () => {
-    useStartDrag();
-    const e = wheel({ ctrlKey: true });
-    el.listeners.wheel.fn(e);
-    expect(el.scrollTop).toBe(600);
-    expect(e.preventDefault).not.toHaveBeenCalled();
   });
 
   it('the top band scrolls faster the deeper the cursor is in it', () => {

@@ -1,14 +1,17 @@
 // Scrolling the timeline while a task is dragged (#2346). Pure.
 //
-// Two ways, both on the calendar's own scroller:
-//   - The edge bands: holding the cursor near the top (under the sticky date
-//     header and all-day row) or the bottom scrolls. The speed ramps with how
-//     deep the cursor is in the band, so a short push at the band's inner edge
-//     scrolls slowly and there is no need to go right up to the edge, where
-//     the all-day row starts and a drop would land there instead.
-//   - The wheel: where the browser delivers wheel events during a drag, they
-//     scroll the timeline. Whether it does depends on the browser and the OS
-//     (a native drag runs the OS's own loop); the bands work everywhere.
+// The edge bands, on the calendar's own scroller: holding the cursor near the
+// top (under the sticky date header and all-day row) or the bottom scrolls.
+// The speed ramps with how deep the cursor is in the band, so a short push at
+// the band's inner edge scrolls slowly and there is no need to go right up to
+// the edge, where the all-day row starts and a drop would land there instead.
+//
+// Not the mouse wheel. During a native HTML5 drag, Chromium (Chrome, Edge and
+// every Electron build) hands the pointer to the OS's drag loop and delivers
+// no wheel events to the page, on Windows, Linux and macOS alike; a wheel
+// handler shipped in #2349 never fired in the desktop app and was removed.
+// Wheel scrolling mid-drag would need the timeline's drag rebuilt on pointer
+// events instead of native drag and drop.
 
 /** How far in from each edge the band reaches. */
 export const DRAG_SCROLL_ZONE_PX = 80;
@@ -34,13 +37,4 @@ export function dragAutoScrollStep({ cursorY, top, bottom, scrollTop, maxScroll 
   if (fromTop > 0 && fromTop < DRAG_SCROLL_ZONE_PX && scrollTop > 0) return -speed(fromTop);
   if (fromBottom > 0 && fromBottom < DRAG_SCROLL_ZONE_PX && scrollTop < maxScroll) return speed(fromBottom);
   return 0;
-}
-
-const LINE_PX = 16;
-
-/** A wheel event's vertical travel in pixels, whatever unit it came in (pixels, lines or pages). */
-export function wheelScrollPx({ deltaY = 0, deltaMode = 0 } = {}, pageHeight = 0) {
-  if (deltaMode === 1) return deltaY * LINE_PX;
-  if (deltaMode === 2) return deltaY * pageHeight;
-  return deltaY;
 }
