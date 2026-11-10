@@ -398,9 +398,11 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
             const isNarrowWidth = taskWidth < 180;
             // A long title (#2368): wrapped onto the lines a tall card has
             // room for, unless the card lists subtasks (wide cards only),
-            // which keep the room below a one-line title.
+            // which keep the room below a one-line title, or is too narrow
+            // to wrap words whole (utils/cardTitle.js).
             const titleLines = mobileCardTitleLines({
               height,
+              width: taskWidth,
               hasProjectRow: goalsProjectsEnabled && !!task.projectId && projects.some(p => p.id === task.projectId),
               showsSubtasks: !isNarrowWidth && cardShowsSubtasks(task, showCardSubtasks),
             });

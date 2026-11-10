@@ -21,6 +21,15 @@ describe('cardTitleLines (#2368)', () => {
     expect(cardTitleLines({ height: 400, linePx: 17.5, showsSubtasks: true })).toBe(1);
   });
 
+  it('a card too narrow to wrap words whole keeps one line; an unmeasured one is not held back', () => {
+    expect(cardTitleLines({ height: 200, linePx: 17.5, width: 130, minWidth: 180 })).toBe(1);
+    expect(cardTitleLines({ height: 200, linePx: 17.5, width: 180, minWidth: 180 })).toBe(10);
+    expect(cardTitleLines({ height: 200, linePx: 17.5, width: undefined, minWidth: 180 })).toBe(10);
+    expect(desktopCardTitleLines({ height: 200, width: 130, hasMetaRow: false, hasTimeRow: false })).toBe(1);
+    expect(mobileCardTitleLines({ height: 200, width: 120, hasProjectRow: false })).toBe(1);
+    expect(mobileCardTitleLines({ height: 200, width: 160, hasProjectRow: false })).toBe(8);
+  });
+
   it('maxLines caps the wrap', () => {
     expect(cardTitleLines({ height: 400, linePx: 17.5, maxLines: 3 })).toBe(3);
   });

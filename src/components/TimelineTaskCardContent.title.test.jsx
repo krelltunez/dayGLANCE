@@ -94,6 +94,17 @@ describe('a tall card wraps the title', () => {
     expect(el.props.style).toMatchObject({ WebkitLineClamp: 3 });
   });
 
+  it('a tall card too narrow to wrap words whole (side-by-side overlaps) keeps one line', () => {
+    const el = titleOf({ task: task(), height: 200, width: 130, isNarrowWidth: true });
+    expect(el.props['data-title-lines']).toBe(1);
+    expect(titleOf({ task: task(), height: 200, width: 220, isNarrowWidth: true }).props['data-title-lines']).toBeGreaterThan(1);
+  });
+
+  it('the width is read as at 100% zoom', () => {
+    // 260px drawn at 2x zoom is a 130px card.
+    expect(titleOf({ task: task(), height: 400, width: 260, zoom: 2, isNarrowWidth: true }).props['data-title-lines']).toBe(1);
+  });
+
   it('a tall card that lists subtasks keeps one line', () => {
     const el = titleOf({ task: task({ subtasks: [{ id: 's1', title: 'Find the leak' }] }), height: 200, isNarrowWidth: false });
     expect(el.props['data-title-lines']).toBe(1);
