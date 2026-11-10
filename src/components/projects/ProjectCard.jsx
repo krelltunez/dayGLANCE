@@ -374,16 +374,26 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           } ${isMobile || wide ? 'w-full' : 'min-w-[180px] max-w-[260px] w-full'}`}
           style={{ borderLeft: `3px solid ${projectHex}88` }}
         >
-          {/* Row 1: title + edit/delete */}
-          <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1 dnd-no-select">
+          {/* Row 1: title and its Done badge, then edit/delete. The badge sits
+              with the title, as On hold does on the full card; a long title
+              truncates and the badge stays. */}
+          <div className={`flex items-center gap-1.5 px-3 pt-2.5 ${totalCount > 0 ? 'pb-1' : 'pb-2.5'} dnd-no-select`}>
             {dragHandleProps && (
               <div {...dragHandleProps} data-drag-handle className={`flex-shrink-0 p-1.5 -m-1 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title={t('sched.dragToReorder')}>
                 <GripVertical size={12} />
               </div>
             )}
-            <span className={`text-sm font-medium ${textPrimary} flex-1 min-w-0 truncate`}>
-              {project.title}
-            </span>
+            <div data-project-title-row className="flex-1 min-w-0 flex items-center gap-1.5">
+              <span className={`text-sm font-medium ${textPrimary} min-w-0 truncate`}>
+                {project.title}
+              </span>
+              <span data-done-chip className={`flex-shrink-0 flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${
+                darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-50 text-green-600'
+              }`}>
+                <CheckCircle2 size={9} />
+                {t('common.done')}
+              </span>
+            </div>
             {noteBadge}
             {onMoveToClick && (
               <button onClick={() => onMoveToClick(project)} className={`${btnBase} ${editBtn}`} title={t('goals.dropToReassign')} aria-label={t('goals.dropToReassign')}>
@@ -397,17 +407,10 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               <Trash2 size={12} />
             </button>
           </div>
-          {/* Row 2: Done badge + task count + expand chevron */}
-          <div className="flex items-center gap-2 px-3 pb-2.5">
-            <span className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ${
-              darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-50 text-green-600'
-            }`}>
-              <CheckCircle2 size={10} /> {t('common.done')}
-            </span>
-            {totalCount > 0 && (
+          {/* Row 2: task count + expand chevron; nothing to show without tasks */}
+          {totalCount > 0 && (
+            <div className="flex items-center gap-2 px-3 pb-2.5">
               <span className={`text-xs ${textSecondary} opacity-60`}>{t('common.taskProgress', { done: completedCount, total: totalCount })}</span>
-            )}
-            {totalCount > 0 && (
               <button
                 onClick={() => setCompactExpanded(v => !v)}
                 className={`ml-auto ${btnBase} ${editBtn}`}
@@ -415,8 +418,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               >
                 <ChevronDown size={13} className={`transition-transform ${compactExpanded ? 'rotate-180' : ''}`} />
               </button>
-            )}
-          </div>
+            </div>
+          )}
           {/* Expanded task list */}
           {compactExpanded && totalCount > 0 && (
             <div className={`border-t px-3 py-2 flex flex-col gap-1 ${
