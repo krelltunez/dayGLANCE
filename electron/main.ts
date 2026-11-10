@@ -76,6 +76,7 @@ import {
 import { trayReloadDebounceMs } from './trayReloadPolicy.js';
 import { decideRecovery } from './rendererRecovery.js';
 import { buildApplicationMenuTemplate, isApplicationMenuLabels, supportsCustomApplicationMenu, type ApplicationMenuLabels } from './applicationMenu.js';
+import { MENU_BAR_GLYPH_PT, MENU_BAR_PT, padSquareBitmap } from './trayIcon.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -509,17 +510,24 @@ function positionTrayPopup(tw: BrowserWindow, iconBounds?: Electron.Rectangle): 
 }
 
 function createTray(): void {
-  // Downsample the high-res app icon to 44×44 px, then tell Electron it's a
-  // @2x image so macOS renders it at 22 logical points — the standard menu bar
-  // icon size. setTemplateImage makes it white on dark bars, dark on light bars.
+  // Downsample the high-res app icon to a 20pt mark (40 px), centre it in the
+  // menu bar's 22pt image (44 px), and tell Electron it's a @2x image so macOS
+  // renders it at 22 logical points (trayIcon.ts). setTemplateImage makes it
+  // white on dark bars, dark on light bars.
   const srcPath = DEV
     ? path.join(process.cwd(), 'public/icon-512.png')
     : path.join(__dirname, '../dist/icon-512.png');
   const rawIcon = nativeImage.createFromPath(srcPath);
   if (rawIcon.isEmpty()) console.error('[tray] menu-bar icon failed to load from', srcPath);
-  const iconBuf = rawIcon.resize({ width: 44, height: 44 }).toPNG();
-  let icon = nativeImage.createFromBuffer(iconBuf, { scaleFactor: 2 });
-  if (icon.isEmpty()) icon = rawIcon; // fall back to the un-resized image
+  const glyphPx = MENU_BAR_GLYPH_PT * 2, canvasPx = MENU_BAR_PT * 2;
+  let icon = rawIcon;
+  try {
+    const glyph = rawIcon.resize({ width: glyphPx, height: glyphPx, quality: 'best' }).toBitmap();
+    const padded = nativeImage.createFromBitmap(padSquareBitmap(glyph, glyphPx, canvasPx), { width: canvasPx, height: canvasPx, scaleFactor: 2 });
+    if (!padded.isEmpty()) icon = padded;
+  } catch (err) {
+    console.error('[tray] menu-bar icon could not be sized; using the app icon as is', err);
+  }
   icon.setTemplateImage(true);
   tray = new Tray(icon);
   tray.setToolTip('dayGLANCE');
