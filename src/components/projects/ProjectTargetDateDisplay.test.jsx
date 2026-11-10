@@ -72,6 +72,19 @@ const renderCard = async (project) => renderToStaticMarkup(
   </I18nextProvider>,
 );
 
+// The compact card every list draws a completed project on.
+const renderCompact = async (project, tasks = []) => renderToStaticMarkup(
+  <I18nextProvider i18n={await i18n()}>
+    <DayPlannerContext.Provider value={{ ...planner(), unscheduledTasks: tasks }}>
+      <FeaturesContext.Provider value={features([project])}>
+        <SyncContext.Provider value={sync}>
+          <ProjectCard project={project} onEditClick={noop} compact />
+        </SyncContext.Provider>
+      </FeaturesContext.Provider>
+    </DayPlannerContext.Provider>
+  </I18nextProvider>,
+);
+
 const renderPlanner = async (project) => renderToStaticMarkup(
   <I18nextProvider i18n={await i18n()}>
     <DayPlannerContext.Provider value={planner()}>
@@ -122,6 +135,39 @@ describe('the project card\'s target-date badge', () => {
     expect(block).toMatch(/GLANCElauncher<\/span><\/div><span data-project-target-date="true"/);
     // A one-word title wraps rather than running out of its box.
     expect(/<span class="([^"]*)">GLANCElauncher</.exec(block)?.[1]).toContain('break-words');
+  });
+
+  // MUTATION: put the Done badge back among the header's buttons and this fails.
+  it('a completed project\'s Done badge sits in the title row, before any of the header\'s buttons', async () => {
+    const html = await renderCard({ ...card, status: 'completed' });
+    const block = html.slice(html.indexOf('data-project-title-block'));
+    const row = /<div data-project-title-row="true"[^>]*>([\s\S]*?)<\/div>/.exec(block)?.[1] ?? '';
+    expect(row).toContain('data-done-chip');
+    expect(html.match(/data-done-chip/g)).toHaveLength(1);
+    expect(html.indexOf('data-done-chip')).toBeLessThan(html.indexOf('<button', html.indexOf('data-project-title-block')));
+    expect(await renderCard(card)).not.toContain('data-done-chip');
+  });
+
+  // MUTATION: put the compact card's Done back on its second row and this fails.
+  it('on the compact card a completed project is drawn on, Done sits beside the title, before the buttons', async () => {
+    const done = { ...card, status: 'completed' };
+    const html = await renderCompact(done, [{ id: 't1', title: 'Haul', projectId: 'p1', completed: true }]);
+    const row = /<div data-project-title-row="true"[^>]*>([\s\S]*?)<\/div>/.exec(html)?.[1] ?? '';
+    expect(row).toContain('Roof');
+    expect(row).toContain('data-done-chip');
+    expect(html.match(/data-done-chip/g)).toHaveLength(1);
+    expect(html.indexOf('data-done-chip')).toBeLessThan(html.indexOf('<button'));
+    // The task count stays on the row below.
+    expect(html.indexOf('1/1')).toBeGreaterThan(html.indexOf('data-done-chip'));
+  });
+
+  it('a compact card without tasks has no second row', async () => {
+    const html = await renderCompact({ ...card, status: 'completed' });
+    // Row 2 (the task count and its arrow) is the one div of that layout.
+    expect(html).not.toContain('flex items-center gap-2 px-3 pb-2.5');
+    expect(html).not.toMatch(/aria-label="(Show|Hide)"/);
+    const withTasks = await renderCompact({ ...card, status: 'completed' }, [{ id: 't1', title: 'Haul', projectId: 'p1', completed: true }]);
+    expect(withTasks).toContain('flex items-center gap-2 px-3 pb-2.5');
   });
 
   it('renders nothing without a target date, and hides it on a completed project', async () => {
