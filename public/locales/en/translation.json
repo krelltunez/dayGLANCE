@@ -2714,6 +2714,12 @@
       "doDeleted": "Do deleted"
     }
   },
+  "timeline": {
+    "addTask": "Add a Task ({{start}} – {{end}})",
+    "addFrame": "Add a Frame ({{start}} – {{end}})",
+    "selectionLabel": "Selected time: {{range}}",
+    "selectionHint": "Click to add a task for this time. Right-click for more."
+  },
   "timelineZoom": {
     "label": "Timeline size",
     "hint": "Saved on this device. To adjust it in place, pinch or Ctrl+scroll over the timeline."

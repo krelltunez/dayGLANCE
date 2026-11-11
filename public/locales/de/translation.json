@@ -2714,6 +2714,12 @@
       "doDeleted": "Ausführung gelöscht"
     }
   },
+  "timeline": {
+    "addTask": "Aufgabe hinzufügen ({{start}} – {{end}})",
+    "addFrame": "Rahmen hinzufügen ({{start}} – {{end}})",
+    "selectionLabel": "Ausgewählte Zeit: {{range}}",
+    "selectionHint": "Klicken, um für diese Zeit eine Aufgabe hinzuzufügen. Rechtsklick für mehr."
+  },
   "timelineZoom": {
     "label": "Zeitleistengröße",
     "hint": "Auf diesem Gerät gespeichert. Zum direkten Anpassen über der Zeitleiste zusammenziehen oder Strg+Scrollen."

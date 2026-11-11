@@ -2714,6 +2714,12 @@
       "doDeleted": "Exécution supprimée"
     }
   },
+  "timeline": {
+    "addTask": "Ajouter une tâche ({{start}} – {{end}})",
+    "addFrame": "Ajouter une plage ({{start}} – {{end}})",
+    "selectionLabel": "Plage sélectionnée : {{range}}",
+    "selectionHint": "Cliquez pour ajouter une tâche sur ce créneau. Clic droit pour plus d'options."
+  },
   "timelineZoom": {
     "label": "Taille de la chronologie",
     "hint": "Enregistré sur cet appareil. Pour l’ajuster sur place, pincez ou faites Ctrl+défilement sur la chronologie."

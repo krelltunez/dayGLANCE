@@ -21,6 +21,8 @@ import { useTranslation } from 'react-i18next';
 import PastDoCard from './jobo/PastDoCard.jsx';
 import useTimelineZoom from '../hooks/useTimelineZoom.js';
 import { SCROLLING_HOUR_PX } from '../utils/timelineZoom.js';
+import { useTimelineSelectionState, useTimelineSweep } from '../hooks/useTimelineSelection.js';
+import TimelineSelectionBlock from './TimelineSelectionBlock.jsx';
 import { cardDoubleClickHandler } from '../utils/cardDoubleClick.js';
 import { dragBlockRange } from '../utils/dragUtils.js';
 import DragBlockPreview from './DragBlockPreview.jsx';
@@ -99,6 +101,23 @@ const TimeGrid = () => {
   // minutesToPosition), so the render that resizes the rows placed its cards
   // on the old ones. Render once more, before paint, on the new rows.
   const [, placeOnNewRows] = useReducer((n) => n + 1, 0);
+  // Drag on empty space (or a frame's band) to sweep a range (#2366,
+  // hooks/useTimelineSelection.js): desktop only, never from a task, a
+  // routine or a resize handle (a frame's edges included).
+  const sweep = useTimelineSelectionState();
+  const sweepStart = useTimelineSweep({
+    enabled: !isTablet,
+    canStart: (target) => !!target?.closest
+      && !target.closest('[data-task-id], [data-resize-handle], [data-frame-resize], [data-timeline-selection]')
+      && (target.classList.contains('calendar-slot') || !!target.closest('[data-frame-band]')),
+  });
+  const minuteAt = (clientY) => {
+    if (!calendarRef.current || !timeGridRef.current) return 0;
+    const rect = calendarRef.current.getBoundingClientRect();
+    const y = clientY - rect.top + calendarRef.current.scrollTop - timeGridRef.current.offsetTop;
+    return positionToMinutes(Math.max(0, y));
+  };
+  const onSweepStart = (e, date) => sweepStart(e, { dateStr: dateToString(date), minuteAt, min: 0, max: 1440 });
   const placedAtZoom = useRef(z);
   useLayoutEffect(() => {
     if (placedAtZoom.current === z) return;
@@ -135,6 +154,7 @@ const TimeGrid = () => {
             onDragOver={(e) => handleDragOver(e, date)}
             onDrop={(e) => handleDropOnCalendar(e, date)}
             onClick={(e) => openNewTaskAtTime(e, date)}
+            onMouseDown={(e) => onSweepStart(e, date)}
             onMouseMove={(e) => handleCalendarMouseMove(e, date)}
             onMouseLeave={handleCalendarMouseLeave}
             onContextMenu={(e) => {
@@ -256,6 +276,7 @@ const TimeGrid = () => {
               <div key={frame.frameId}>
                 <div
                   data-ctx-menu
+                  data-frame-band={frame.frameId}
                   className="absolute left-0 right-0 rounded-sm pointer-events-auto select-none"
                   style={{
                     top: `${top}px`,
@@ -269,16 +290,19 @@ const TimeGrid = () => {
                   onMouseMove={(e) => handleCalendarMouseMove(e, date, true)}
                   onMouseLeave={handleCalendarMouseLeave}
                   onClick={(e) => openNewTaskAtTime(e, date, true)}
+                  onMouseDown={(e) => onSweepStart(e, date)}
                 >
                   <span className="absolute top-1 left-1.5 text-[10px] font-medium pointer-events-none select-none" style={{ color: borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)') }}>
                     {frame.label}
                   </span>
                   {/* Resize handles */}
                   <div
+                    data-frame-resize
                     className="absolute top-0 left-0 right-0 h-2 cursor-n-resize"
                     onMouseDown={(e) => handleFrameResizeStart(frame.frameId, dateStr, 'top', e)}
                   />
                   <div
+                    data-frame-resize
                     className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize"
                     onMouseDown={(e) => handleFrameResizeStart(frame.frameId, dateStr, 'bottom', e)}
                   />
@@ -305,6 +329,16 @@ const TimeGrid = () => {
               </div>
             );
           })}
+
+          {/* The swept range (#2366): over the frames, under the tasks. */}
+          {sweep && sweep.dateStr === dateStr && (
+            <TimelineSelectionBlock
+              selection={sweep}
+              top={Math.round(minutesToPosition(sweep.start))}
+              height={Math.round(minutesToPosition(sweep.end)) - Math.round(minutesToPosition(sweep.start))}
+              className="left-1 right-1"
+            />
+          )}
 
           {/* Current time line - only on today */}
           {isDateToday && (

@@ -2716,6 +2716,12 @@
       "doDeleted": "Esecuzione eliminata"
     }
   },
+  "timeline": {
+    "addTask": "Aggiungi un'attività ({{start}} – {{end}})",
+    "addFrame": "Aggiungi blocco ({{start}} – {{end}})",
+    "selectionLabel": "Orario selezionato: {{range}}",
+    "selectionHint": "Clicca per aggiungere un'attività in questo orario. Clic destro per altre opzioni."
+  },
   "timelineZoom": {
     "label": "Dimensione della timeline",
     "hint": "Salvato su questo dispositivo. Per regolarla al volo, pizzica o usa Ctrl+scorrimento sulla timeline."

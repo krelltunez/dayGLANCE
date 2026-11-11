@@ -2827,6 +2827,12 @@
       "doDeleted": "Usunięto wykonanie"
     }
   },
+  "timeline": {
+    "addTask": "Dodaj zadanie ({{start}} – {{end}})",
+    "addFrame": "Dodaj ramkę ({{start}} – {{end}})",
+    "selectionLabel": "Wybrany czas: {{range}}",
+    "selectionHint": "Kliknij, aby dodać zadanie w tym czasie. Prawy przycisk, aby zobaczyć więcej."
+  },
   "timelineZoom": {
     "label": "Rozmiar osi czasu",
     "hint": "Zapisywane na tym urządzeniu. Aby dostosować na miejscu, uszczypnij lub użyj Ctrl+przewijania nad osią czasu."

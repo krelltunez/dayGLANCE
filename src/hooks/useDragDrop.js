@@ -9,6 +9,7 @@ import { pixelsToSnappedMinutes, resizeBlockByPixels } from '../utils/taskResize
 import { timelinePosition } from '../utils/timelinePosition.js';
 import { dragAutoScrollStep } from '../utils/dragAutoScroll.js';
 import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
+import { consumeSwallowedClick } from './useTimelineSelection.js';
 
 // Pure utilities used by position helpers
 const timeToMinutes = (time) => {
@@ -205,6 +206,8 @@ export default function useDragDrop({
   };
 
   const openNewTaskAtTime = (e, targetDate = null, skipCalendarSlotCheck = false) => {
+    // The click that ends a sweep, or clears one, adds nothing (#2366).
+    if (consumeSwallowedClick()) return;
     if (frameResizingRef.current) return;
     if (skipCalendarSlotCheck || e.target.classList.contains('calendar-slot')) {
       const clickedTime = getTimeFromCursorPosition(e);
