@@ -19,6 +19,8 @@ import HyperGlanceBar from './HyperGlanceBar.jsx';
 import { frameColorBg, frameColorBorder } from '../utils/colorUtils.js';
 import { cardDoubleClickHandler } from '../utils/cardDoubleClick.js';
 import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
+import { consumeSwallowedClick, useTimelineSelection, useTimelineSweep } from '../hooks/useTimelineSelection.js';
+import TimelineSelectionBlock from './TimelineSelectionBlock.jsx';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -100,6 +102,20 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
     maxMinute: colEndMin,
     taskDuration,
   });
+
+  // Drag on empty space (or a frame's band) to sweep a range (#2366,
+  // hooks/useTimelineSelection.js): desktop only, never from a task, a
+  // routine or a resize handle (a frame's edges included).
+  const minuteAt = (clientY) => {
+    const r = colContentRef.current?.getBoundingClientRect();
+    return r && hourHeight ? colStartMin + ((clientY - r.top) / hourHeight) * 60 : colStartMin;
+  };
+  const canSweep = (target) => !!target?.closest
+    && !target.closest('[data-task-id], [data-resize-handle], [data-frame-resize], [data-timeline-selection]')
+    && (target.classList.contains('day-col-slot') || !!target.closest('[data-frame-band]'));
+  const sweepStart = useTimelineSweep({ canStart: canSweep, enabled: !isTablet });
+  const onSweepStart = (e) => sweepStart(e, { dateStr: col.dateStr, minuteAt, min: colStartMin, max: colEndMin });
+  const sweep = useTimelineSelection(col.dateStr, { min: colStartMin, max: colEndMin });
 
   const isDraggingOverThisCol = draggedTask && dragPreviewDate && dateToString(dragPreviewDate) === col.dateStr;
   const isHoveringThisCol = hoverPreviewTime && !draggedTask && !isResizing
@@ -193,7 +209,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
   };
 
   const onColMouseMove = (e) => {
-    if (draggedTask || isResizing || frameResizingRef.current) {
+    if (draggedTask || isResizing || frameResizingRef.current || sweep?.dragging) {
       if (hoverPreviewTime) { setHoverPreviewTime(null); setHoverPreviewDate(null); }
       return;
     }
@@ -212,6 +228,8 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
   };
 
   const onColClick = (e) => {
+    // The click that ends a sweep, or clears one, adds nothing (#2366).
+    if (consumeSwallowedClick()) return;
     if (frameResizingRef.current) return;
     if (draggedTask) return;
     if (isOverTaskCard(e.target)) return;
@@ -229,6 +247,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
         onDrop={onColDrop}
         onMouseMove={onColMouseMove}
         onMouseLeave={onColMouseLeave}
+        onMouseDown={onSweepStart}
         onClick={onColClick}
       >
         {/* Hour rows — each is a full-width flex row matching TimeGrid's structure */}
@@ -326,13 +345,14 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
                   <div key={frame.frameId}>
                     <div
                       data-ctx-menu
+                      data-frame-band={frame.frameId}
                       className="absolute left-0 right-0 rounded-sm pointer-events-auto select-none"
                       style={{ top: `${top}px`, height: `${height}px`, background: bg, borderLeft: `3px solid ${border}` }}
                       onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr: col.dateStr }); }}
                     >
                       <span className="absolute top-1 left-1.5 text-[10px] font-medium pointer-events-none select-none" style={{ color: border }}>{frame.label}</span>
-                      <div className="absolute top-0 left-0 right-0 h-2 cursor-n-resize" onMouseDown={(e) => handleFrameResizeStart(frame.frameId, col.dateStr, 'top', e, { hourHeight })} />
-                      <div className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize" onMouseDown={(e) => handleFrameResizeStart(frame.frameId, col.dateStr, 'bottom', e, { hourHeight })} />
+                      <div data-frame-resize className="absolute top-0 left-0 right-0 h-2 cursor-n-resize" onMouseDown={(e) => handleFrameResizeStart(frame.frameId, col.dateStr, 'top', e, { hourHeight })} />
+                      <div data-frame-resize className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize" onMouseDown={(e) => handleFrameResizeStart(frame.frameId, col.dateStr, 'bottom', e, { hourHeight })} />
                     </div>
                     {availableSlots.map((slot, si) => {
                       const sStart = Math.max(timeToMinutes(slot.start), colStartMin);
@@ -355,6 +375,18 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
             </div>
           );
         })()}
+
+        {/* The swept range (#2366): over the frames, under the tasks. */}
+        {sweep && (
+          <div className="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">
+            <TimelineSelectionBlock
+              selection={sweep}
+              top={(Math.max(sweep.start, colStartMin) - colStartMin) * hourHeight / 60}
+              height={(Math.min(sweep.end, colEndMin) - Math.max(sweep.start, colStartMin)) * hourHeight / 60}
+              className="left-1 right-1"
+            />
+          </div>
+        )}
 
         {/* Task pill overlay — covers the event area only (right of gutter) */}
         <div className="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">

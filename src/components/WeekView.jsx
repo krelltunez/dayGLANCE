@@ -7,6 +7,9 @@ import * as Icons from 'lucide-react';
 import { Zap } from 'lucide-react';
 import { dateToString } from '../utils/taskUtils.js';
 import { cardTitleTooltip } from '../utils/cardTitle.js';
+import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
+import { consumeSwallowedClick, useTimelineSelection, useTimelineSweep } from '../hooks/useTimelineSelection.js';
+import TimelineSelectionBlock from './TimelineSelectionBlock.jsx';
 import { splitChipTitleTag } from '../utils/textFormatting.jsx';
 import { columnTimeFromEvent, dragBlockRange, dropClampMinutes } from '../utils/dragUtils.js';
 import { continuationLayoutRow, dragPreviewSpillFor } from '../utils/continuations.js';
@@ -119,6 +122,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
     setDragPreviewTime, setDragPreviewDate,
     handleDragStart, handleDragEnd, handleDropOnCalendar,
     formatTime,
+    setNewTask, setShowAddTask,
   } = useDayPlannerCtx();
   const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, goalsProjectsEnabled, projects, hgVisibleProjects, getFrameInstancesForDate, setFrameContextMenu, setHgContextMenu } = useFeaturesCtx();
 
@@ -137,6 +141,34 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
     maxMinute: endHour * 60,
     taskDuration,
   });
+
+  // Empty space, as DAY and MULTI have it (#2366): a slot of an hour row, or
+  // a frame's band. Never a chip, a routine, a HyperGLANCE strip or a popover.
+  const onEmptySpace = (target) => !!target?.closest
+    && !target.closest('[data-task-id], [data-timeline-selection]')
+    && !!target.closest('[data-week-slot], [data-frame-band]');
+  // Drag to sweep a range (hooks/useTimelineSelection.js), desktop only.
+  const sweepStart = useTimelineSweep({ canStart: onEmptySpace, enabled: !isTablet });
+  const minuteAt = (clientY) => {
+    const r = colRef.current?.getBoundingClientRect();
+    return r && hourHeight ? startMinute + ((clientY - r.top) / hourHeight) * 60 : startMinute;
+  };
+  const sweep = useTimelineSelection(dateStr, { min: startMinute, max: endHour * 60 });
+  // A click on empty space adds a task there with the default task duration,
+  // as DAY and MULTI do (#2366): WEEK had no click to add. Not the click that
+  // closes a task's popover or the routines' overflow: that one only closes it.
+  const pressClosedPopover = useRef(false);
+  const onColMouseDown = (e) => {
+    pressClosedPopover.current = !!activePopoverTaskId || !!overflowPopover;
+    sweepStart(e, { dateStr, minuteAt, min: startMinute, max: endHour * 60 });
+  };
+  const onColClick = (e) => {
+    if (consumeSwallowedClick()) return;
+    if (pressClosedPopover.current) { pressClosedPopover.current = false; return; }
+    if (isTablet || draggedTask || !onEmptySpace(e.target)) return;
+    setNewTask({ title: '', startTime: timeFromEvent(e), duration: readDefaultTaskDuration(), date: dateStr, isAllDay: false });
+    setShowAddTask(true);
+  };
 
   const onColDragOver = (e) => {
     if (!draggedTask) return;
@@ -213,6 +245,8 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
       data-week-col={dateStr}
       onDragOver={onColDragOver}
       onDrop={onColDrop}
+      onMouseDown={onColMouseDown}
+      onClick={onColClick}
       className={`flex-1 flex flex-col min-w-0 relative ${colIdx > 0 ? `border-l ${borderClass}` : ''} ${isToday ? (darkMode ? 'bg-blue-900/10' : 'bg-blue-50/40') : ''}`}
     >
       {/* Hour rows — only render visible hours */}
@@ -221,7 +255,8 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
         return (
           <div
             key={hour}
-            className="relative"
+            data-week-slot
+            className={`relative ${isTablet ? '' : 'cursor-pointer'}`}
             style={{ height: `${hourHeight}px` }}
             onContextMenu={(e) => {
               e.preventDefault();
@@ -267,12 +302,23 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
           <div
             key={frame.frameId}
             data-ctx-menu
+            data-frame-band={frame.frameId}
             className="absolute left-0 right-0 pointer-events-auto select-none"
             style={{ top: `${top}px`, height: `${height}px`, background: bg, borderLeft: `3px solid ${border}` }}
             onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr }); }}
           />
         );
       })}
+
+      {/* The swept range (#2366): over the frames, under the chips. */}
+      {sweep && (
+        <TimelineSelectionBlock
+          selection={sweep}
+          top={(Math.max(sweep.start, startMinute) - startMinute) * hourHeight / 60}
+          height={(Math.min(sweep.end, endHour * 60) - Math.max(sweep.start, startMinute)) * hourHeight / 60}
+          className="left-0.5 right-0.5"
+        />
+      )}
 
       {/* HyperGLANCE project strips — narrow left edge, display only */}
       {hgBars.length > 0 && (

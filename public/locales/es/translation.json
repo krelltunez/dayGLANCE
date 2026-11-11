@@ -2714,6 +2714,12 @@
       "doDeleted": "Ejecución eliminada"
     }
   },
+  "timeline": {
+    "addTask": "Añadir una tarea ({{start}} – {{end}})",
+    "addFrame": "Añadir bloque ({{start}} – {{end}})",
+    "selectionLabel": "Tiempo seleccionado: {{range}}",
+    "selectionHint": "Haz clic para añadir una tarea en este horario. Clic derecho para más opciones."
+  },
   "timelineZoom": {
     "label": "Tamaño de la línea de tiempo",
     "hint": "Se guarda en este dispositivo. Para ajustarlo en el momento, pellizca o usa Ctrl+desplazamiento sobre la línea de tiempo."

@@ -2708,6 +2708,12 @@
       "doDeleted": "已删除执行记录"
     }
   },
+  "timeline": {
+    "addTask": "添加任务（{{start}} – {{end}}）",
+    "addFrame": "添加时间框架（{{start}} – {{end}}）",
+    "selectionLabel": "已选时间：{{range}}",
+    "selectionHint": "单击为这段时间添加任务；右键查看更多选项。"
+  },
   "timelineZoom": {
     "label": "时间轴大小",
     "hint": "保存在此设备上。如需即时调整，可在时间轴上双指缩放或按住 Ctrl 滚动。"

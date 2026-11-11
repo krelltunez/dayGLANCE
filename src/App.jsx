@@ -97,6 +97,8 @@ import ClockTimePicker from './components/ClockTimePicker.jsx';
 import { HabitRing, MiniHabitRing } from './components/HabitRing.jsx';
 import FrameEditor from './components/FrameEditor.jsx';
 import QuickAddFrameForm from './components/QuickAddFrameForm.jsx';
+import { clearTimelineSelection } from './hooks/useTimelineSelection.js';
+import { rangeOverlapsFrame } from './utils/timelineRange.js';
 import SmartSchedulePanel from './components/SmartSchedulePanel.jsx';
 import SuggestionAutocomplete from './components/SuggestionAutocomplete.jsx';
 import GettingStartedChecklist from './components/GettingStartedChecklist.jsx';
@@ -9009,36 +9011,64 @@ const DayPlanner = () => {
         );
       })()}
 
-      {/* Timeline Context Menu (right-click on empty timeline area) */}
+      {/* Timeline Context Menu (right-click on empty timeline area). With a
+          swept range (#2366, hooks/useTimelineSelection.js) it offers a task
+          and a frame for exactly that range; a frame only where the range
+          runs into no frame (a frame's own menu is its band's, unchanged).
+          Without one, a one-hour frame from the time clicked, as before. */}
       {timelineContextMenu && (() => {
-        const { x, y, dateStr: ctxDateStr, timeMinutes } = timelineContextMenu;
-        const endMinutes = Math.min(timeMinutes + 60, 1440);
-        const startH = String(Math.floor(timeMinutes / 60)).padStart(2, '0');
-        const startM = String(timeMinutes % 60).padStart(2, '0');
-        const endH = String(Math.floor(endMinutes / 60)).padStart(2, '0');
-        const endM = String(endMinutes % 60).padStart(2, '0');
-        const tlX = Math.min(x, window.innerWidth - 208);
-        const tlY = Math.min(y, window.innerHeight - 44);
+        const { x, y, dateStr: ctxDateStr, timeMinutes, endMinutes: rangeEnd } = timelineContextMenu;
+        const isRange = typeof rangeEnd === 'number';
+        const endMinutes = isRange ? rangeEnd : Math.min(timeMinutes + 60, 1440);
+        const span = { start: formatTime(minutesToTime(timeMinutes)), end: formatTime(minutesToTime(endMinutes)) };
+        const offerFrame = !isRange || !rangeOverlapsFrame(
+          { start: timeMinutes, end: endMinutes },
+          getFrameInstancesForDate(new Date(ctxDateStr + 'T12:00:00')),
+          timeToMinutes,
+        );
+        const itemCount = (isRange ? 1 : 0) + (offerFrame ? 1 : 0);
+        const tlX = Math.min(x, window.innerWidth - 228);
+        const tlY = Math.min(y, window.innerHeight - 8 - itemCount * 36);
+        const itemClass = `w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`;
         return (
           <div className="fixed inset-0 z-[70]" onClick={() => setTimelineContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setTimelineContextMenu(null); }}>
             <div
-              className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[200px]`}
+              className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[220px]`}
               style={{ left: `${tlX}px`, top: `${tlY}px` }}
             >
-              <button
-                className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
-                onClick={() => {
-                  setQuickAddFrameModal({
-                    dateStr: ctxDateStr,
-                    startMinutes: timeMinutes,
-                    endMinutes,
-                  });
-                  setTimelineContextMenu(null);
-                }}
-              >
-                <Plus size={14} />
-                Add a Frame ({formatTime(`${startH}:${startM}`)} – {formatTime(`${endH}:${endM}`)})
-              </button>
+              {isRange && (
+                <button
+                  data-timeline-menu-add-task
+                  className={itemClass}
+                  onClick={() => {
+                    setNewTask({ title: '', startTime: minutesToTime(timeMinutes), duration: endMinutes - timeMinutes, date: ctxDateStr, isAllDay: false });
+                    setShowAddTask(true);
+                    clearTimelineSelection();
+                    setTimelineContextMenu(null);
+                  }}
+                >
+                  <Plus size={14} />
+                  {t('timeline.addTask', span)}
+                </button>
+              )}
+              {offerFrame && (
+                <button
+                  data-timeline-menu-add-frame
+                  className={itemClass}
+                  onClick={() => {
+                    setQuickAddFrameModal({
+                      dateStr: ctxDateStr,
+                      startMinutes: timeMinutes,
+                      endMinutes,
+                    });
+                    clearTimelineSelection();
+                    setTimelineContextMenu(null);
+                  }}
+                >
+                  <Plus size={14} />
+                  {t('timeline.addFrame', span)}
+                </button>
+              )}
             </div>
           </div>
         );
