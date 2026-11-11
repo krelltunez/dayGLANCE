@@ -171,7 +171,7 @@ export default function useGeneralTopic() {
         </>
       ),
     },
-    // Windows desktop: keep running in the tray, open at login (electron/backgroundMode.ts).
+    // Desktop: open at login (macOS, Windows), keep running in the tray (Windows) (electron/backgroundMode.ts).
     desktopBackground: {
       show: desktopBackgroundSupported(),
       node: <DesktopBackgroundSetting />,

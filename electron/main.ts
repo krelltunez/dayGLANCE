@@ -79,8 +79,9 @@ import { buildApplicationMenuTemplate, isApplicationMenuLabels, supportsCustomAp
 import { MENU_BAR_GLYPH_PT, MENU_BAR_PT, padSquareBitmap } from './trayIcon.js';
 import { isClickAfterBlurHide, popupPosition, trayTooltip } from './trayPopup.js';
 import {
-  closeAction, DEFAULT_DESKTOP_SETTINGS, hasTray, launchedHidden, loadDesktopSettings, loginItemSettings,
-  quitOnMainWindowClose, saveDesktopSettings, supportsBackgroundSettings, type DesktopSettings,
+  closeAction, DEFAULT_DESKTOP_SETTINGS, hasTray, launchedHidden, loadDesktopSettings, loginItemQuery, loginItemSettings,
+  openAtLoginState, quitOnMainWindowClose, saveDesktopSettings, supportsBackgroundSettings, supportsKeepRunning,
+  type DesktopSettings,
 } from './backgroundMode.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1142,13 +1143,22 @@ ipcMain.on('tray:push-focus-state', (_event, state: { active: boolean; secondsRe
   live(trayWindow)?.webContents.send('tray:focus-state', state);
 });
 
-// Background mode settings (Windows): keep running in the tray, open at login.
-// Main-window only; the page shows them in Settings → General.
+// Background settings: keep running in the tray (Windows) and open at login
+// (macOS, Windows). Main-window only; the page shows them in Settings → General.
+// Open at login is read back from the OS, which the user can change outside
+// the app (System Settings > Login Items, Task Manager > Startup apps).
 function backgroundSettingsView() {
+  let report: { openAtLogin?: boolean; status?: string } | null = null;
+  if (supportsBackgroundSettings(process.platform)) {
+    try { report = app.getLoginItemSettings(loginItemQuery(process.platform)); } catch { report = null; }
+  }
+  const login = openAtLoginState(report, desktopSettings.openAtLogin);
   return {
     supported: supportsBackgroundSettings(process.platform),
+    keepRunningSupported: supportsKeepRunning(process.platform),
     keepRunning: desktopSettings.keepRunning,
-    openAtLogin: desktopSettings.openAtLogin,
+    openAtLogin: login.openAtLogin,
+    openAtLoginNeedsApproval: login.needsApproval,
   };
 }
 
@@ -1161,10 +1171,14 @@ ipcMain.handle('shell:set-background-settings', (event, patch: unknown) => {
   if (event.sender !== live(mainWindow)?.webContents) return null;
   if (!supportsBackgroundSettings(process.platform) || !patch || typeof patch !== 'object') return backgroundSettingsView();
   const p = patch as Record<string, unknown>;
-  if (typeof p.keepRunning === 'boolean') desktopSettings = { ...desktopSettings, keepRunning: p.keepRunning };
-  if (typeof p.openAtLogin === 'boolean' && p.openAtLogin !== desktopSettings.openAtLogin) {
+  if (typeof p.keepRunning === 'boolean' && supportsKeepRunning(process.platform)) {
+    desktopSettings = { ...desktopSettings, keepRunning: p.keepRunning };
+  }
+  // Compared with what the OS reports, not the file: a login item the user
+  // removed in System Settings must be re-addable from here.
+  if (typeof p.openAtLogin === 'boolean' && p.openAtLogin !== backgroundSettingsView().openAtLogin) {
     try {
-      app.setLoginItemSettings(loginItemSettings(p.openAtLogin));
+      app.setLoginItemSettings(loginItemSettings(process.platform, p.openAtLogin));
       desktopSettings = { ...desktopSettings, openAtLogin: p.openAtLogin };
     } catch (err) {
       logStartup(`open at login could not be changed: ${err instanceof Error ? err.message : String(err)}`);

@@ -11,9 +11,13 @@
 //  - Linux: no tray (AppIndicator delivers no reliable clicks, and dayGLANCE
 //    has no menu-only tray there), so closing quits, as it always did. Hiding
 //    the window with nothing to bring it back would strand the process.
-//  - "Open at login" (Windows only for now) is off by default and goes through
-//    app.setLoginItemSettings with `--hidden`, so a login start sits in the
-//    tray instead of putting the window in the user's face.
+//  - "Open at login" (macOS and Windows) is off by default and goes through
+//    app.setLoginItemSettings. Windows registers `--hidden`, so a login start
+//    sits in the tray instead of putting the window in the user's face. macOS
+//    registers the app itself (SMAppService on macOS 13 and up, which the MAS
+//    sandbox allows); it passes no arguments, so a login start opens the
+//    window, as lastGLANCE's does. The user can also switch it off in System
+//    Settings > Login Items, so the page reads the OS's state, not the file.
 //
 // The settings live in userData/desktop-settings.json, best-effort: a missing
 // or corrupt file means the defaults.
@@ -28,7 +32,7 @@ export const HIDDEN_ARG = '--hidden';
 export interface DesktopSettings {
   /** Windows: closing hides to the tray. Ignored on macOS and Linux. */
   keepRunning: boolean;
-  /** Windows: start (hidden, in the tray) when the user signs in. */
+  /** macOS and Windows: start when the user signs in (hidden, in the tray, on Windows). */
   openAtLogin: boolean;
   /** The "still running" notice has been shown once. */
   backgroundNoticeShown: boolean;
@@ -43,8 +47,13 @@ export function hasTray(platform: NodeJS.Platform): boolean {
   return platform === 'darwin' || platform === 'win32';
 }
 
-/** The platforms whose Settings show the background options. */
+/** The platforms whose Settings show the Background section (open at login). */
 export function supportsBackgroundSettings(platform: NodeJS.Platform): boolean {
+  return platform === 'darwin' || platform === 'win32';
+}
+
+/** The platforms where "Keep running in the background" is a choice (macOS always hides). */
+export function supportsKeepRunning(platform: NodeJS.Platform): boolean {
   return platform === 'win32';
 }
 
@@ -96,7 +105,32 @@ export function launchedHidden(platform: NodeJS.Platform, argv: readonly string[
   return platform === 'win32' && argv.includes(HIDDEN_ARG);
 }
 
-/** The login item settings for open at login (Windows). */
-export function loginItemSettings(enabled: boolean): { openAtLogin: boolean; args: string[] } {
-  return { openAtLogin: enabled, args: [HIDDEN_ARG] };
+/** The login item settings for open at login: Windows starts hidden, macOS takes no arguments. */
+export function loginItemSettings(platform: NodeJS.Platform, enabled: boolean): { openAtLogin: boolean; args?: string[] } {
+  return platform === 'win32' ? { openAtLogin: enabled, args: [HIDDEN_ARG] } : { openAtLogin: enabled };
+}
+
+/**
+ * The options app.getLoginItemSettings needs to read back what
+ * loginItemSettings registered: on Windows the same args, or the query looks
+ * for a different entry and reports off.
+ */
+export function loginItemQuery(platform: NodeJS.Platform): { args: string[] } | undefined {
+  return platform === 'win32' ? { args: [HIDDEN_ARG] } : undefined;
+}
+
+/**
+ * What the page shows for open at login, from the OS's own report (the user
+ * can change it outside the app). `fallback` is the stored setting, used when
+ * the OS cannot be asked. On macOS 13 and up a registration can wait on the
+ * user's approval in System Settings > Login Items; that counts as on, with a
+ * note.
+ */
+export function openAtLoginState(
+  report: { openAtLogin?: boolean; status?: string } | null,
+  fallback: boolean,
+): { openAtLogin: boolean; needsApproval: boolean } {
+  if (!report) return { openAtLogin: fallback, needsApproval: false };
+  const needsApproval = report.status === 'requires-approval';
+  return { openAtLogin: report.openAtLogin === true || needsApproval, needsApproval };
 }

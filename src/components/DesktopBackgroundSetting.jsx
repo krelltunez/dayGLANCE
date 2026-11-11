@@ -3,15 +3,18 @@ import { MonitorDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
-/** Whether this desktop build offers the background options (Windows only). */
+/** Whether this desktop build offers the Background section (macOS, Windows). */
 export const desktopBackgroundSupported = () =>
-  !!(window.electronAPI?.isElectron && window.electronAPI?.platform === 'win32' && window.electronAPI?.getBackgroundSettings);
+  !!(window.electronAPI?.isElectron
+    && ['darwin', 'win32'].includes(window.electronAPI?.platform)
+    && window.electronAPI?.getBackgroundSettings);
 
 /**
- * Settings › General › Background (Windows desktop): keep dayGLANCE running in
- * the tray when the window closes, and open it at login. The main process owns
- * both (electron/backgroundMode.ts, userData/desktop-settings.json), so this
- * reads them on mount and shows what the main process reports it applied.
+ * Settings › General › Background (desktop): open dayGLANCE at login (macOS,
+ * Windows), and on Windows keep it running in the tray when the window closes
+ * (macOS always does). The main process owns both (electron/backgroundMode.ts,
+ * userData/desktop-settings.json, and the OS's own login item), so this reads
+ * them on mount and shows what the main process reports it applied.
  */
 export default function DesktopBackgroundSetting() {
   const { t } = useTranslation();
@@ -56,10 +59,14 @@ export default function DesktopBackgroundSetting() {
         <MonitorDown size={16} className={textSecondary} />
         {t('settings.desktopBackground')}
       </h4>
-      {toggle('desktop-keep-running', settings.keepRunning, (v) => update({ keepRunning: v }),
+      {settings.keepRunningSupported && toggle('desktop-keep-running', settings.keepRunning, (v) => update({ keepRunning: v }),
         t('settings.desktopKeepRunning'), t('settings.desktopKeepRunningHint'))}
       {toggle('desktop-open-at-login', settings.openAtLogin, (v) => update({ openAtLogin: v }),
-        t('settings.desktopOpenAtLogin'), t('settings.desktopOpenAtLoginHint'))}
+        t('settings.desktopOpenAtLogin'),
+        window.electronAPI?.platform === 'darwin' ? t('settings.desktopOpenAtLoginHintMac') : t('settings.desktopOpenAtLoginHint'))}
+      {settings.openAtLoginNeedsApproval && (
+        <p className={`text-xs ${darkMode ? 'text-amber-400' : 'text-amber-700'} ml-[52px]`}>{t('settings.desktopOpenAtLoginNeedsApproval')}</p>
+      )}
     </div>
   );
 }

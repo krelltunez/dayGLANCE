@@ -256,10 +256,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Registers (or clears) a system-wide hotkey that shows the main app window.
   setMainWindowHotkey: (accelerator: string) => ipcRenderer.invoke('hotkey:register-main-window', accelerator),
 
-  // Background mode (Windows): keep running in the tray when the window
-  // closes, and open at login. Both resolve to { supported, keepRunning,
-  // openAtLogin } (null from a sender other than the main window); set takes a
-  // partial patch and returns the settings as applied (electron/backgroundMode.ts).
+  // Background settings: keep running in the tray when the window closes
+  // (Windows) and open at login (macOS, Windows). Both resolve to { supported,
+  // keepRunningSupported, keepRunning, openAtLogin, openAtLoginNeedsApproval }
+  // (null from a sender other than the main window); set takes a partial patch
+  // and returns the settings as applied (electron/backgroundMode.ts).
   getBackgroundSettings: () => ipcRenderer.invoke('shell:get-background-settings'),
   setBackgroundSettings: (patch: { keepRunning?: boolean; openAtLogin?: boolean }) =>
     ipcRenderer.invoke('shell:set-background-settings', patch),

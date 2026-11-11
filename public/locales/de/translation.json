@@ -482,6 +482,8 @@
     "desktopKeepRunningHint": "Beim Schließen des Fensters bleibt dayGLANCE im Infobereich, damit Erinnerungen und das Tray-Popup weiter funktionieren. Ausschalten, um beim Schließen zu beenden.",
     "desktopOpenAtLogin": "Bei der Anmeldung öffnen",
     "desktopOpenAtLoginHint": "dayGLANCE beim Anmelden bei Windows im Infobereich starten.",
+    "desktopOpenAtLoginHintMac": "dayGLANCE beim Anmelden an Ihrem Mac starten.",
+    "desktopOpenAtLoginNeedsApproval": "Wartet auf Ihre Freigabe: Erlauben Sie dayGLANCE unter Systemeinstellungen > Allgemein > Anmeldeobjekte.",
     "globalShortcuts": "Globale Tastenkürzel",
     "globalShortcutsHint": "Öffnet das Schnellhinzufügen-Popup von überall auf Ihrem Computer.",
     "globalShortcutsMainWindowHint": "Zeigt das Hauptfenster von überall auf Ihrem Computer.",

@@ -504,6 +504,8 @@
     "desktopKeepRunningHint": "Zamknięcie okna pozostawia dayGLANCE w zasobniku, więc przypomnienia i okno zasobnika nadal działają. Wyłącz, aby zamknięcie okna kończyło aplikację.",
     "desktopOpenAtLogin": "Otwieraj po zalogowaniu",
     "desktopOpenAtLoginHint": "Uruchamiaj dayGLANCE w zasobniku po zalogowaniu do systemu Windows.",
+    "desktopOpenAtLoginHintMac": "Uruchamiaj dayGLANCE po zalogowaniu na komputerze Mac.",
+    "desktopOpenAtLoginNeedsApproval": "Czeka na Twoją zgodę: zezwól na dayGLANCE w Ustawieniach systemowych > Ogólne > Rzeczy otwierane podczas logowania.",
     "globalShortcuts": "Skróty globalne",
     "globalShortcutsHint": "Otwórz okno szybkiego dodawania z dowolnego miejsca na komputerze.",
     "globalShortcutsMainWindowHint": "Pokaż główne okno aplikacji z dowolnego miejsca na komputerze.",

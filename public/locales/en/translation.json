@@ -485,6 +485,8 @@
     "desktopKeepRunningHint": "Closing the window keeps dayGLANCE in the tray, so reminders and the tray popup keep working. Turn off to quit when the window closes.",
     "desktopOpenAtLogin": "Open at login",
     "desktopOpenAtLoginHint": "Start dayGLANCE in the tray when you sign in to Windows.",
+    "desktopOpenAtLoginHintMac": "Start dayGLANCE when you log in to your Mac.",
+    "desktopOpenAtLoginNeedsApproval": "Waiting for your approval: allow dayGLANCE in System Settings > General > Login Items.",
     "globalShortcuts": "Global Shortcuts",
     "globalShortcutsHint": "Open the quick-add popup from anywhere on your computer.",
     "globalShortcutsMainWindowHint": "Show the main app window from anywhere on your computer.",

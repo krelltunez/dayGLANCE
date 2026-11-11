@@ -3,8 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  closeAction, DEFAULT_DESKTOP_SETTINGS, hasTray, HIDDEN_ARG, launchedHidden, loadDesktopSettings, loginItemSettings,
-  parseDesktopSettings, quitOnMainWindowClose, saveDesktopSettings, supportsBackgroundSettings,
+  closeAction, DEFAULT_DESKTOP_SETTINGS, hasTray, HIDDEN_ARG, launchedHidden, loadDesktopSettings, loginItemQuery,
+  loginItemSettings, openAtLoginState, parseDesktopSettings, quitOnMainWindowClose, saveDesktopSettings,
+  supportsBackgroundSettings, supportsKeepRunning,
 } from './backgroundMode';
 
 const dirs: string[] = [];
@@ -43,20 +44,41 @@ describe('a real close on Windows', () => {
 });
 
 describe('platforms', () => {
-  it('macOS and Windows get the tray; only Windows shows the background settings', () => {
+  it('macOS and Windows get the tray and open at login; only Windows chooses whether closing keeps running', () => {
     expect(hasTray('darwin')).toBe(true);
     expect(hasTray('win32')).toBe(true);
     expect(hasTray('linux')).toBe(false);
     expect(supportsBackgroundSettings('win32')).toBe(true);
-    expect(supportsBackgroundSettings('darwin')).toBe(false);
+    expect(supportsBackgroundSettings('darwin')).toBe(true);
     expect(supportsBackgroundSettings('linux')).toBe(false);
+    expect(supportsKeepRunning('win32')).toBe(true);
+    expect(supportsKeepRunning('darwin')).toBe(false);
+    expect(supportsKeepRunning('linux')).toBe(false);
   });
 });
 
 describe('open at login', () => {
-  it('registers with --hidden, so a login start stays in the tray', () => {
-    expect(loginItemSettings(true)).toEqual({ openAtLogin: true, args: [HIDDEN_ARG] });
-    expect(loginItemSettings(false)).toEqual({ openAtLogin: false, args: [HIDDEN_ARG] });
+  it('Windows registers with --hidden, so a login start stays in the tray, and reads back with the same args', () => {
+    expect(loginItemSettings('win32', true)).toEqual({ openAtLogin: true, args: [HIDDEN_ARG] });
+    expect(loginItemSettings('win32', false)).toEqual({ openAtLogin: false, args: [HIDDEN_ARG] });
+    expect(loginItemQuery('win32')).toEqual({ args: [HIDDEN_ARG] });
+  });
+  it('macOS registers the app itself, with no arguments (SMAppService passes none)', () => {
+    expect(loginItemSettings('darwin', true)).toEqual({ openAtLogin: true });
+    expect(loginItemSettings('darwin', false)).toEqual({ openAtLogin: false });
+    expect(loginItemQuery('darwin')).toBeUndefined();
+  });
+  it('shows what the OS reports, not the stored setting', () => {
+    // Removed in System Settings > Login Items while the file still says on.
+    expect(openAtLoginState({ openAtLogin: false, status: 'not-registered' }, true)).toEqual({ openAtLogin: false, needsApproval: false });
+    expect(openAtLoginState({ openAtLogin: true, status: 'enabled' }, false)).toEqual({ openAtLogin: true, needsApproval: false });
+    expect(openAtLoginState({ openAtLogin: true }, false)).toEqual({ openAtLogin: true, needsApproval: false });
+  });
+  it('a registration waiting on the user\'s approval (macOS 13+) counts as on, with a note', () => {
+    expect(openAtLoginState({ openAtLogin: false, status: 'requires-approval' }, true)).toEqual({ openAtLogin: true, needsApproval: true });
+  });
+  it('falls back to the stored setting when the OS cannot be asked', () => {
+    expect(openAtLoginState(null, true)).toEqual({ openAtLogin: true, needsApproval: false });
   });
   it('a --hidden launch is a background start on Windows only', () => {
     expect(launchedHidden('win32', ['dayGLANCE.exe', HIDDEN_ARG])).toBe(true);

@@ -482,6 +482,8 @@
     "desktopKeepRunningHint": "Fechar a janela mantém o dayGLANCE na bandeja, para que lembretes e o popup da bandeja continuem funcionando. Desative para sair ao fechar a janela.",
     "desktopOpenAtLogin": "Abrir ao iniciar sessão",
     "desktopOpenAtLoginHint": "Inicia o dayGLANCE na bandeja quando você entra no Windows.",
+    "desktopOpenAtLoginHintMac": "Inicia o dayGLANCE quando você entra no seu Mac.",
+    "desktopOpenAtLoginNeedsApproval": "Aguardando sua aprovação: permita o dayGLANCE em Ajustes do Sistema > Geral > Itens de Início.",
     "globalShortcuts": "Atalhos globais",
     "globalShortcutsHint": "Abre o popup de adição rápida em qualquer lugar do seu computador.",
     "globalShortcutsMainWindowHint": "Mostra a janela principal em qualquer lugar do seu computador.",
