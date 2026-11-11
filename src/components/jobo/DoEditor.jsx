@@ -16,6 +16,7 @@ import { stripWikilinks, stripWikilinksAndTags } from '../../utils/taskUtils.js'
 import useBackClose, { ABOVE_EDITORS } from '../../hooks/useBackClose.js';
 import { keyboardSheet } from '../../utils/keyboardInset.js';
 import { submitModifierLabel, submitShortcutHandler } from '../../utils/submitShortcut.js';
+import { acceptsSuggestion, isComposingKey } from '../../utils/suggestionKeys.js';
 
 // The phone sheet sits on the soft keyboard rather than under it, for a new
 // Do's title (an existing record's title is frozen, so it takes no keyboard).
@@ -105,7 +106,8 @@ export default function DoEditor({ record, taskCompleted = false, onCompleteTask
   const [suggestIndex, setSuggestIndex] = useState(-1);
   const canLink = !record && !link?.fixed;
   // An unlinked new Do takes #tags in its title the way a new task does:
-  // typing # offers the app's existing tags, and Tab or Space completes one.
+  // typing # offers the app's existing tags, and Tab, Space or Enter
+  // completes one (Enter saves once the tag is typed in full, #2379).
   // A linked Do carries its task's title, tags included, so it offers none.
   const titleRef = useRef(null);
   const [cursor, setCursor] = useState(null);
@@ -139,13 +141,17 @@ export default function DoEditor({ record, taskCompleted = false, onCompleteTask
     setSuggestIndex(-1);
   };
   const onTitleKeyDown = (event) => {
+    // An input method's own Enter or Space picks nothing here (#2379).
+    if (isComposingKey(event)) return;
     if (tagMatches.length) {
+      const tag = tagMatches[Math.min(tagIndex, tagMatches.length - 1)];
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         setTagIndex((i) => (event.key === 'ArrowDown' ? Math.min(tagMatches.length - 1, i + 1) : Math.max(0, i - 1)));
-      } else if (event.key === 'Tab' || event.key === ' ') {
+      } else if (acceptsSuggestion(event, { text: draft.title, cursor: cursor ?? draft.title.length, suggestion: { type: 'tag', value: tag } })) {
+        // Tab, Space, or Enter unless the tag is already typed in full.
         event.preventDefault();
-        applyTag(tagMatches[Math.min(tagIndex, tagMatches.length - 1)]);
+        applyTag(tag);
       } else if (event.key === 'Escape') {
         event.stopPropagation();
         setSuggestOpen(false);

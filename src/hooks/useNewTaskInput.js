@@ -9,6 +9,7 @@ import {
 import { formatDuration } from '../utils/formatDuration.js';
 import { parseQuickAdd, spanSignature } from '../utils/quickAddParser.js';
 import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
+import { acceptsSuggestion } from '../utils/suggestionKeys.js';
 
 // Deep-enough equality for NL-applied values (strings, numbers, small
 // recurrence objects). Used to detect whether the user manually changed a
@@ -289,7 +290,9 @@ export default function useNewTaskInput({ allTags, showAddTask, t, language, use
     if (showSuggestions && suggestions.length > 0) {
       const selected = suggestions[selectedSuggestionIndex];
 
-      if (e.key === 'Tab' || e.key === ' ') {
+      // Tab, Space, or Enter unless the suggestion is already typed (#2379,
+      // utils/suggestionKeys.js); never a key an input method is composing.
+      if (acceptsSuggestion(e, { text: newTask.title, cursor: e.target?.selectionStart ?? newTask.title.length, suggestion: selected })) {
         e.preventDefault();
         e.stopPropagation();
         if (selected.type === 'tag') {

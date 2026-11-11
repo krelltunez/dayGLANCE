@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { applyTagCompletion, completeShortcutText, cleanTitle } from '../utils/suggestionParser.js';
 import { extractTags } from '../utils/taskUtils.js';
+import { acceptsSuggestion, isComposingKey } from '../utils/suggestionKeys.js';
 
 export default function useTaskFormHelpers({
   tasks,
@@ -156,10 +157,15 @@ export default function useTaskFormHelpers({
   };
 
   const handleEditKeyDown = (e, isInbox = false) => {
+    // A key an input method is composing (Chinese, Japanese, Korean confirm
+    // with Enter) is its own: it neither accepts a suggestion nor saves (#2379).
+    if (isComposingKey(e)) return;
     if (showSuggestions && suggestions.length > 0) {
       const selected = suggestions[selectedSuggestionIndex];
 
-      if (e.key === 'Tab' || e.key === ' ') {
+      // Tab, Space, or Enter unless the suggestion is already typed (#2379,
+      // utils/suggestionKeys.js).
+      if (acceptsSuggestion(e, { text: editingTaskText, cursor: e.target?.selectionStart ?? editingTaskText.length, suggestion: selected })) {
         e.preventDefault();
         if (selected.type === 'tag') {
           applySuggestionForEdit(selected, e.target, isInbox);

@@ -435,6 +435,23 @@ export const completeShortcutText = (title, suggestion) => {
   return { text: completed + after, cursorPos: completed.length };
 };
 
+/**
+ * Whether `text` already reads as `suggestion` at the cursor, so that
+ * accepting it would change nothing (#2379): all of `#home` typed for the
+ * tag "home", or `@tomorrow` for that date. Enter then saves rather than
+ * accepting. A suggestion with nothing to complete counts as typed.
+ */
+export const suggestionAlreadyTyped = (text, cursorPos, suggestion) => {
+  if (!suggestion) return true;
+  const title = String(text ?? '');
+  if (suggestion.type === 'tag') {
+    const partial = getPartialTag(title, cursorPos ?? title.length);
+    return !!partial && partial.tag === String(suggestion.value).toLowerCase();
+  }
+  const { text: completed } = completeShortcutText(title, suggestion);
+  return completed.toLowerCase() === title.toLowerCase();
+};
+
 // Strip all shorthand sequences from a title before saving.
 export const cleanTitle = (title) => {
   return title
