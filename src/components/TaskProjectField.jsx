@@ -103,7 +103,7 @@ export default function TaskProjectField({ newTask, setNewTask }) {
       if (existing) { choose(existing.id); return; }
       const goal = goals.find(g => String(g.id) === generalGoalId);
       if (!goal) return;
-      const base = creating ? draftWithProjectDefaults(newTask, previous, generalTo(goal.id)) : newTask;
+      const base = creating ? draftWithProjectDefaults(newTask, previous, generalTo(goal.id), { defaultDuration: readDefaultTaskDuration() }) : newTask;
       const pending = withPendingProject(base, { title: t('goals.generalProject'), goalId: goal.id, general: true }, goals);
       // Its colour is the goal's, as an existing project's is its own when picked.
       setNewTask({ ...pending, color: getProjectColor({}, goal) });
