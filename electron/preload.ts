@@ -256,6 +256,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Registers (or clears) a system-wide hotkey that shows the main app window.
   setMainWindowHotkey: (accelerator: string) => ipcRenderer.invoke('hotkey:register-main-window', accelerator),
 
+  // Background settings: keep running in the tray when the window closes
+  // (Windows) and open at login (macOS, Windows). Both resolve to { supported,
+  // keepRunningSupported, keepRunning, openAtLogin, openAtLoginNeedsApproval }
+  // (null from a sender other than the main window); set takes a partial patch
+  // and returns the settings as applied (electron/backgroundMode.ts).
+  getBackgroundSettings: () => ipcRenderer.invoke('shell:get-background-settings'),
+  setBackgroundSettings: (patch: { keepRunning?: boolean; openAtLogin?: boolean }) =>
+    ipcRenderer.invoke('shell:set-background-settings', patch),
+
   // Subscriptions — StoreKit 2 via inAppPurchase + RevenueCat entitlement checks.
   // macOS only; always returns { active: false } on non-macOS platforms.
   subscriptionStatus: (): Promise<{ active: boolean; productId: string | null }> =>

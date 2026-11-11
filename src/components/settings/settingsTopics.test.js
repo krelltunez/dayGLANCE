@@ -25,7 +25,7 @@ const en = JSON.parse(readFileSync(new URL('../../../public/locales/en/translati
 
 describe('the topic map', () => {
   it('places every block of the dialog on exactly one topic', () => {
-    expect(modalSectionKeys.length).toBe(34);
+    expect(modalSectionKeys.length).toBe(35);
     const placed = TOPICS.flatMap((topic) => topic.sections);
     expect([...placed].sort()).toEqual([...modalSectionKeys].sort());
     expect(new Set(placed).size).toBe(placed.length);

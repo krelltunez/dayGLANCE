@@ -1,4 +1,4 @@
-// Is this renderer the macOS tray popup?
+// Is this renderer the tray popup (macOS menu bar, Windows notification area)?
 //
 // The popup loads the SAME entry point as the main window with `?tray=1`
 // appended (electron/main.ts createTrayWindow), so it runs the entire App tree.

@@ -8,10 +8,10 @@ import { mcpSurfaceState } from '../utils/mcpSurfaceState.js';
 // macOS menu-bar glyph). Three hosts mount the same pieces:
 //
 //   - DesktopHeader's settings cluster — the CANONICAL surface: createTray()
-//     is darwin-gated, so on Windows and Linux this is the only ambient
+//     runs on macOS and Windows only, so on Linux this is the only ambient
 //     indication that a listener is bound, and the only reachable kill
 //     switch and bulk undo outside Settings.
-//   - TrayHeader's input row (macOS tray popup) — a convenience mirror.
+//   - TrayHeader's input row (macOS and Windows tray popup) — a convenience mirror.
 //   - MobileLayout's timeline header — the same app renders MobileLayout in
 //     narrow Electron windows (innerWidth < 721), not just on Capacitor, so
 //     the canonical surface needs this narrow-viewport variant.
