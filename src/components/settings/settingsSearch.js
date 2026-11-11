@@ -37,6 +37,7 @@ export const SECTION_SEARCH = {
   glanceLauncher: ['settings.launcherPromo.title'],
   automationIntents: ['settings.automationIntents'],
   backup: ['backup.title', 'backup.exportBackup', 'backup.restoreBackup', 'backup.autoBackup', 'backup.localBackups', 'backup.remoteBackups', 'backup.folderBackup', 'backup.historyTitle'],
+  desktopBackground: ['settings.desktopBackground', 'settings.desktopKeepRunning', 'settings.desktopOpenAtLogin'],
   globalShortcut: ['settings.globalShortcuts'],
   about: ['settings.topics.about', 'app.documentation', 'onboarding.privacyPolicy', 'onboarding.termsOfUse'],
 };

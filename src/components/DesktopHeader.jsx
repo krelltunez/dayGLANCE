@@ -74,9 +74,10 @@ const DesktopHeader = () => {
     ? ` — ${t('common.lastSynced')}: ${formatSyncTime(timestamp)}`
     : '');
 
-  // §6.5 canonical MCP surface: createTray() is darwin-gated, so this cluster
-  // button is the only ambient bound-listener signal (and reachable kill
-  // switch / bulk undo outside Settings) on Windows and Linux.
+  // §6.5 canonical MCP surface: createTray() runs on macOS and Windows only, so
+  // this cluster button is the only ambient bound-listener signal (and
+  // reachable kill switch / bulk undo outside Settings) on Linux, and the
+  // in-app one everywhere.
   const mcp = useMcpStatus();
   const [mcpOpen, setMcpOpen] = useState(false);
 

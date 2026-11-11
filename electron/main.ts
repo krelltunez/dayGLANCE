@@ -77,6 +77,11 @@ import { trayReloadDebounceMs } from './trayReloadPolicy.js';
 import { decideRecovery } from './rendererRecovery.js';
 import { buildApplicationMenuTemplate, isApplicationMenuLabels, supportsCustomApplicationMenu, type ApplicationMenuLabels } from './applicationMenu.js';
 import { MENU_BAR_GLYPH_PT, MENU_BAR_PT, padSquareBitmap } from './trayIcon.js';
+import { isClickAfterBlurHide, popupPosition, trayTooltip } from './trayPopup.js';
+import {
+  closeAction, DEFAULT_DESKTOP_SETTINGS, hasTray, launchedHidden, loadDesktopSettings, loginItemSettings,
+  quitOnMainWindowClose, saveDesktopSettings, supportsBackgroundSettings, type DesktopSettings,
+} from './backgroundMode.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -133,6 +138,11 @@ let trayRecoveryAttempts: number[] = [];
 // the renderer alive for the save pass and tray pushes; showing a window the
 // user closed is not its call to make.
 let suppressNextMainShow = false;
+// Background mode and open at login (backgroundMode.ts). Loaded at app-ready;
+// the defaults until then.
+let desktopSettings: DesktopSettings = { ...DEFAULT_DESKTOP_SETTINGS };
+// When blur last hid the tray popup (Windows click race, trayPopup.ts).
+let lastTrayBlurHideAt: number | null = null;
 let trayNeedsReload = false;
 let trayReloadTimer: ReturnType<typeof setTimeout> | null = null;
 // Clock reading of the last MCP-originated write, for the §3.6 tray reload
@@ -151,7 +161,36 @@ function refreshTrayTitle() {
   // the menu-bar title: the §6.5 ambient signal is the in-app bolt button
   // (settings cluster + tray popup), which exists on every platform, while
   // this title exists only on macOS.
-  tray?.setTitle(composeTrayTitle({ focusTitle: trayFocusTitle, reminderOn: trayIndicatorOn }));
+  if (!tray || tray.isDestroyed()) return;
+  if (process.platform === 'darwin') {
+    tray.setTitle(composeTrayTitle({ focusTitle: trayFocusTitle, reminderOn: trayIndicatorOn }));
+  } else {
+    // Windows has no tray title: the same focus/reminder state goes in the tooltip.
+    tray.setToolTip(trayTooltip({ focusTitle: trayFocusTitle, reminderOn: trayIndicatorOn }));
+  }
+}
+
+// Show the main window, recreating it if it is gone (tray-only after a crash
+// or a close). Used by the tray menu, a second launch and the global shortcut.
+function showMainWindow(): void {
+  const mw = live(mainWindow);
+  if (!mw) { createWindow(); return; }
+  if (mw.isMinimized()) mw.restore();
+  if (!mw.isVisible()) mw.show();
+  mw.focus();
+}
+
+// The first time closing hides the window on Windows, say so: dayGLANCE is
+// still running in the tray (lastGLANCE's noteFirstBackgroundHide).
+function noteFirstBackgroundHide(): void {
+  if (process.platform !== 'win32' || desktopSettings.backgroundNoticeShown) return;
+  desktopSettings = { ...desktopSettings, backgroundNoticeShown: true };
+  saveDesktopSettings(app.getPath('userData'), desktopSettings);
+  if (!Notification.isSupported()) return;
+  new Notification({
+    title: 'dayGLANCE is still running',
+    body: 'Reminders keep coming while the window is closed. Open dayGLANCE from the tray, or turn this off in Settings.',
+  }).show();
 }
 
 // Safe accessor — returns null if the window has been destroyed so callers
@@ -280,10 +319,15 @@ function createWindow(): BrowserWindow {
   mainWindow.on('resize', trackBounds);
   mainWindow.on('move', trackBounds);
   mainWindow.on('close', (event) => {
-    if (process.platform === 'darwin' && !isQuitting) {
+    // Closing hides on macOS, and on Windows while "Keep running in the
+    // background" is on (backgroundMode.ts); otherwise it closes.
+    if (closeAction({ platform: process.platform, isQuitting, keepRunning: desktopSettings.keepRunning }) === 'hide') {
       event.preventDefault();
       const win = live(mainWindow);
       if (!win) return;
+      if (process.platform === 'win32') {
+        saveWindowState({ ...normalBounds, maximized: win.isMaximized() });
+      }
       // Hiding a window that's in native macOS fullscreen strands its fullscreen
       // Space as an empty black screen — leave fullscreen first, then hide once
       // the transition completes.
@@ -293,9 +337,15 @@ function createWindow(): BrowserWindow {
       } else {
         win.hide();
       }
+      noteFirstBackgroundHide();
       return;
     }
     saveWindowState({ ...normalBounds, maximized: live(mainWindow)?.isMaximized() ?? false });
+    // On Windows the hidden tray popup is a second window, so window-all-closed
+    // never fires: a real close (background mode off) quits from here.
+    if (quitOnMainWindowClose({ platform: process.platform, isQuitting, trayPresent: tray != null })) {
+      setImmediate(() => app.quit());
+    }
   });
 
   if (saved.maximized) mainWindow.maximize();
@@ -480,6 +530,7 @@ function createTrayWindow(): BrowserWindow {
   // Hide when the user clicks outside the popup; reload if state changed while it was open
   win.on('blur', () => {
     if (win.isDestroyed()) return;
+    if (win.isVisible()) lastTrayBlurHideAt = Date.now();
     win.hide();
     setTrayVisible(false);
     if (trayNeedsReload) {
@@ -491,34 +542,53 @@ function createTrayWindow(): BrowserWindow {
   return win;
 }
 
-// Position the tray popup under the menu-bar icon. When the icon's bounds are
-// unavailable/zero — which happens if the menu-bar item failed to render, e.g. an
-// icon that didn't load — fall back to the TOP-RIGHT of the primary display's work
-// area (under the menu bar, where the tray lives) instead of the (0,0) top-left
-// corner the raw arithmetic would otherwise produce.
+// Position the tray popup against the tray icon (trayPopup.ts): under the
+// macOS menu-bar icon, above the icon on a bottom Windows taskbar, clamped to
+// the work area of the display the icon is on. When the icon's bounds are
+// unavailable/zero — which happens if the menu-bar item failed to render, e.g.
+// an icon that didn't load — it falls back to the corner of the primary work
+// area where the tray lives instead of the (0,0) top-left corner.
 function positionTrayPopup(tw: BrowserWindow, iconBounds?: Electron.Rectangle): void {
-  const { width: popW } = tw.getBounds();
-  if (iconBounds && iconBounds.width > 0) {
-    tw.setPosition(
-      Math.round(iconBounds.x - popW / 2 + iconBounds.width / 2),
-      Math.round(iconBounds.y + iconBounds.height),
-    );
-    return;
-  }
-  const wa = screen.getPrimaryDisplay().workArea;
-  tw.setPosition(Math.round(wa.x + wa.width - popW - 8), Math.round(wa.y + 8));
+  const { width, height } = tw.getBounds();
+  const usable = iconBounds && iconBounds.width > 0 && iconBounds.height > 0;
+  const display = usable
+    ? screen.getDisplayNearestPoint({ x: iconBounds.x, y: iconBounds.y })
+    : screen.getPrimaryDisplay();
+  const { x, y } = popupPosition(usable ? iconBounds : null, { width, height }, display.workArea, {
+    // macOS: flush under the menu bar, as before; Windows: a small gap off the taskbar.
+    gap: process.platform === 'darwin' ? 0 : 8,
+    platform: process.platform,
+  });
+  tw.setPosition(x, y);
 }
 
-function createTray(): void {
-  // Downsample the high-res app icon to a 19pt mark (38 px), centre it in the
-  // menu bar's 22pt image (44 px), and tell Electron it's a @2x image so macOS
-  // renders it at 22 logical points (trayIcon.ts). setTemplateImage makes it
-  // white on dark bars, dark on light bars.
+// The tray icon image. macOS: the app mark as a 22pt template image, so the
+// menu bar tints it (trayIcon.ts). Windows: the full-colour app icon at the
+// notification area's 16px, with 1.25x/1.5x/2x representations so it stays
+// crisp at the usual display scales.
+function trayImage(): Electron.NativeImage {
   const srcPath = DEV
     ? path.join(process.cwd(), 'public/icon-512.png')
     : path.join(__dirname, '../dist/icon-512.png');
   const rawIcon = nativeImage.createFromPath(srcPath);
-  if (rawIcon.isEmpty()) console.error('[tray] menu-bar icon failed to load from', srcPath);
+  if (rawIcon.isEmpty()) console.error('[tray] tray icon failed to load from', srcPath);
+  if (process.platform !== 'darwin') {
+    try {
+      const image = nativeImage.createEmpty();
+      for (const scaleFactor of [1, 1.25, 1.5, 2]) {
+        const px = Math.round(16 * scaleFactor);
+        image.addRepresentation({ scaleFactor, width: px, height: px, buffer: rawIcon.resize({ width: px, height: px, quality: 'best' }).toPNG() });
+      }
+      if (!image.isEmpty()) return image;
+    } catch (err) {
+      console.error('[tray] tray icon could not be sized; using the app icon as is', err);
+    }
+    return rawIcon;
+  }
+  // Downsample the high-res app icon to a 19pt mark (38 px), centre it in the
+  // menu bar's 22pt image (44 px), and tell Electron it's a @2x image so macOS
+  // renders it at 22 logical points (trayIcon.ts). setTemplateImage makes it
+  // white on dark bars, dark on light bars.
   const glyphPx = MENU_BAR_GLYPH_PT * 2, canvasPx = MENU_BAR_PT * 2;
   let icon = rawIcon;
   try {
@@ -529,7 +599,11 @@ function createTray(): void {
     console.error('[tray] menu-bar icon could not be sized; using the app icon as is', err);
   }
   icon.setTemplateImage(true);
-  tray = new Tray(icon);
+  return icon;
+}
+
+function createTray(): void {
+  tray = new Tray(trayImage());
   tray.setToolTip('dayGLANCE');
   trayWindow = createTrayWindow();
 
@@ -538,7 +612,9 @@ function createTray(): void {
     const tw = live(trayWindow);
     if (!tw) return;
     if (tw.isVisible()) { tw.hide(); setTrayVisible(false); return; }
-    positionTrayPopup(tw, bounds);
+    // Windows: the click that just blurred the popup closed is this click.
+    if (process.platform === 'win32' && isClickAfterBlurHide(Date.now(), lastTrayBlurHideAt)) return;
+    positionTrayPopup(tw, bounds && bounds.width > 0 ? bounds : tray?.getBounds());
     trayIndicatorOn = false;
     refreshTrayTitle();
     tw.show();
@@ -555,7 +631,7 @@ function createTray(): void {
   tray.on('right-click', () => {
     const gates = mcpGates(integrationsConfig);
     const template: Electron.MenuItemConstructorOptions[] = [
-      { label: 'Open dayGLANCE', click: () => { live(mainWindow)?.show(); live(mainWindow)?.focus(); } },
+      { label: 'Open dayGLANCE', click: () => showMainWindow() },
     ];
     if (gates.bound) {
       template.push(
@@ -1066,6 +1142,38 @@ ipcMain.on('tray:push-focus-state', (_event, state: { active: boolean; secondsRe
   live(trayWindow)?.webContents.send('tray:focus-state', state);
 });
 
+// Background mode settings (Windows): keep running in the tray, open at login.
+// Main-window only; the page shows them in Settings → General.
+function backgroundSettingsView() {
+  return {
+    supported: supportsBackgroundSettings(process.platform),
+    keepRunning: desktopSettings.keepRunning,
+    openAtLogin: desktopSettings.openAtLogin,
+  };
+}
+
+ipcMain.handle('shell:get-background-settings', (event) => {
+  if (event.sender !== live(mainWindow)?.webContents) return null;
+  return backgroundSettingsView();
+});
+
+ipcMain.handle('shell:set-background-settings', (event, patch: unknown) => {
+  if (event.sender !== live(mainWindow)?.webContents) return null;
+  if (!supportsBackgroundSettings(process.platform) || !patch || typeof patch !== 'object') return backgroundSettingsView();
+  const p = patch as Record<string, unknown>;
+  if (typeof p.keepRunning === 'boolean') desktopSettings = { ...desktopSettings, keepRunning: p.keepRunning };
+  if (typeof p.openAtLogin === 'boolean' && p.openAtLogin !== desktopSettings.openAtLogin) {
+    try {
+      app.setLoginItemSettings(loginItemSettings(p.openAtLogin));
+      desktopSettings = { ...desktopSettings, openAtLogin: p.openAtLogin };
+    } catch (err) {
+      logStartup(`open at login could not be changed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  saveDesktopSettings(app.getPath('userData'), desktopSettings);
+  return backgroundSettingsView();
+});
+
 // Global hotkey: show tray popup and focus quick-add input.
 ipcMain.handle('hotkey:register', (_event, accelerator: string) => {
   if (registeredHotkey) {
@@ -1098,13 +1206,7 @@ ipcMain.handle('hotkey:register-main-window', (_event, accelerator: string) => {
     registeredMainWindowHotkey = null;
   }
   if (!accelerator) return true;
-  const ok = globalShortcut.register(accelerator, () => {
-    const mw = live(mainWindow);
-    if (!mw) return;
-    if (mw.isMinimized()) mw.restore();
-    mw.show();
-    mw.focus();
-  });
+  const ok = globalShortcut.register(accelerator, () => showMainWindow());
   if (ok) registeredMainWindowHotkey = accelerator;
   return ok;
 });
@@ -1160,17 +1262,9 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    const mw = live(mainWindow);
-    if (mw) {
-      if (mw.isMinimized()) mw.restore();
-      if (!mw.isVisible()) mw.show();
-      mw.focus();
-    } else {
-      // No live main window (tray-only after the window was closed) — recreate it.
-      createWindow();
-    }
-  });
+  // A second launch (including the Start menu while dayGLANCE sits in the
+  // tray) surfaces the window, recreating it if there is no live one.
+  app.on('second-instance', () => showMainWindow());
 }
 
 // One-time origin storage migration (file:// → app://dayglance).
@@ -1762,6 +1856,13 @@ app.whenReady().then(async () => {
   registerSpeechHandlers();
   logStartup('storage migration: done');
 
+  desktopSettings = loadDesktopSettings(app.getPath('userData'));
+  // An open-at-login start on Windows stays in the tray (backgroundMode.ts);
+  // createWindow consumes the flag, so later recreates show as usual.
+  if (hasTray(process.platform) && launchedHidden(process.platform, process.argv)) {
+    logStartup('started at login: main window stays hidden');
+    suppressNextMainShow = true;
+  }
   const win = createWindow();
   // Both local listeners are settings-gated (§6.2, Phase 5a): the Stream Deck
   // toggle is ON for upgraded installs via the migration above, and the MCP
@@ -1803,7 +1904,9 @@ app.whenReady().then(async () => {
   registerICloudHandlers(() => live(mainWindow));
   registerObsidianHandlers();
   registerDirectAccessHandlers(() => live(mainWindow));
-  if (process.platform === 'darwin') createTray();
+  // The tray and its Glance popup: macOS (menu bar) and Windows (notification
+  // area). Linux has none (backgroundMode.ts).
+  if (hasTray(process.platform)) createTray();
 
   app.on('activate', () => {
     const mw = live(mainWindow);

@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { Archive, Bell, Clock, Globe, Key, MapPin, Newspaper, Settings, Thermometer } from 'lucide-react';
 import { getTzLabel, getTzOptions } from '../../../utils/timezones.js';
 import DefaultDurationSetting from '../../DefaultDurationSetting.jsx';
+import DesktopBackgroundSetting, { desktopBackgroundSupported } from '../../DesktopBackgroundSetting.jsx';
 import FollowUpTagSetting from '../../FollowUpTagSetting.jsx';
 import LanguagePicker from '../../LanguagePicker.jsx';
 import { useTranslation } from 'react-i18next';
@@ -30,7 +31,8 @@ export default function useGeneralTopic() {
     const ignored = new Set(['Meta', 'Shift', 'Alt', 'Control']);
     if (ignored.has(e.key)) return;
     const mods = [];
-    if (e.metaKey) mods.push('Cmd');
+    // Electron's "Cmd" is the Command key on macOS only; the Windows key is "Super".
+    if (e.metaKey) mods.push(window.electronAPI?.platform === 'darwin' ? 'Cmd' : 'Super');
     if (e.ctrlKey) mods.push('Ctrl');
     if (e.altKey) mods.push('Alt');
     if (e.shiftKey) mods.push('Shift');
@@ -169,13 +171,18 @@ export default function useGeneralTopic() {
         </>
       ),
     },
+    // Windows desktop: keep running in the tray, open at login (electron/backgroundMode.ts).
+    desktopBackground: {
+      show: desktopBackgroundSupported(),
+      node: <DesktopBackgroundSetting />,
+    },
     globalShortcut: {
-      show: window.electronAPI?.platform === 'darwin',
+      show: ['darwin', 'win32'].includes(window.electronAPI?.platform),
       node: (
         <>
-            {window.electronAPI?.platform === 'darwin' && (<>
+            {['darwin', 'win32'].includes(window.electronAPI?.platform) && (<>
 
-            {/* Global Shortcut — macOS only */}
+            {/* Global Shortcut — the desktop platforms with a tray popup (macOS, Windows) */}
             <div className="space-y-3">
               <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                 <Key size={16} className={textSecondary} />
