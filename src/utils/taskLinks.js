@@ -8,6 +8,7 @@
 // (the calendar owns it, and its id is not ours) or a recurring template.
 import { canFollowUp, doneDateOf, findTaskLinks, plainTitle, resolveTaskRef } from './followUp.js';
 import { parseRecurringId } from './recurringId.js';
+import { extractTags } from './taskUtils.js';
 
 /** Whether `task` can be linked to: the follow-up's rule, a task we own. */
 export const canLinkTask = canFollowUp;
@@ -43,11 +44,19 @@ export function insertTaskLink(text, { start, caret }, task, link) {
 /**
  * The tasks the picker offers for `query`: linkable scheduled and Inbox
  * tasks (not `excludeId`, the task being edited) whose title, as plain
- * words, contains the query. Open before done, then a title that starts
- * with the query, then the most recently dated. At most PICKER_MAX.
+ * words, contains the query, or one of whose #tags does (#2369: the plain
+ * title has no tags, so a task found by its tag was not found at all). A
+ * leading `#` is the tag's own mark: `@@home` and `@@#home` both find
+ * "Call the roofer #home", and `@@#home` only by its tag. Open before done,
+ * then a title or a tag that starts with the query, then the most recently
+ * dated. At most PICKER_MAX.
+ *
+ * Each candidate carries `tags`: the tags it was found by when its title
+ * was not, for the picker to show why it is listed; empty otherwise.
  */
 export function linkCandidates({ tasks = [], unscheduledTasks = [] }, query, { excludeId = null, limit = PICKER_MAX } = {}) {
   const q = String(query ?? '').trim().toLowerCase();
+  const tagQ = q.replace(/^#+/, '');
   const seen = new Set();
   const out = [];
   for (const task of [...tasks, ...unscheduledTasks]) {
@@ -57,15 +66,18 @@ export function linkCandidates({ tasks = [], unscheduledTasks = [] }, query, { e
     const title = plainTitle(task.title);
     if (!title) continue;
     const lower = title.toLowerCase();
-    if (q && !lower.includes(q)) continue;
+    const byTitle = !q || lower.includes(q);
+    const tags = byTitle || !tagQ ? [] : extractTags(task.title).filter((tag) => tag.includes(tagQ));
+    if (!byTitle && !tags.length) continue;
     seen.add(id);
-    out.push({ task, title, starts: q ? lower.startsWith(q) : false });
+    const starts = !!q && (lower.startsWith(q) || tags.some((tag) => tag.startsWith(tagQ)));
+    out.push({ task, title, tags, starts });
   }
   out.sort((a, b) =>
     (!!a.task.completed - !!b.task.completed)
     || (b.starts - a.starts)
     || String(b.task.date || '').localeCompare(String(a.task.date || '')));
-  return out.slice(0, limit).map(({ task, title }) => ({ task, title }));
+  return out.slice(0, limit).map(({ task, title, tags }) => ({ task, title, tags }));
 }
 
 /**

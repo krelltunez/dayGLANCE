@@ -67,6 +67,45 @@ describe('linkCandidates', () => {
     const many = Array.from({ length: 20 }, (_, i) => ({ id: `t${i}`, title: `Task ${i}` }));
     expect(linkCandidates({ tasks: many }, '')).toHaveLength(8);
   });
+
+  // #2369: the plain title has no tags, so a task was not found by its tag.
+  describe('by tag', () => {
+    const tagged = [
+      { id: 'h1', title: 'Call the roofer #home #urgent', date: '2026-10-20' },
+      { id: 'h2', title: 'Fix the gutter #homework', date: '2026-10-22' },
+      { id: 'w1', title: 'Write the report #work', date: '2026-10-21' },
+      { id: 'n1', title: 'Homework club sign-up', date: '2026-10-19' },
+    ];
+
+    it('finds a task by one of its tags, with or without the #', () => {
+      expect(linkCandidates({ tasks: tagged }, 'urgent').map(c => c.task.id)).toEqual(['h1']);
+      expect(linkCandidates({ tasks: tagged }, '#urgent').map(c => c.task.id)).toEqual(['h1']);
+    });
+
+    it('says which tags it was found by, and none when the title matched', () => {
+      const out = linkCandidates({ tasks: tagged }, '#home');
+      expect(out.find(c => c.task.id === 'h1').tags).toEqual(['home']);
+      expect(out.find(c => c.task.id === 'h2').tags).toEqual(['homework']);
+      expect(linkCandidates({ tasks: tagged }, 'report')[0].tags).toEqual([]);
+    });
+
+    it('a title that matches still matches; a title or a tag that starts with the query ranks alike, then the latest date', () => {
+      // "Homework club" by its title, and the two tasks tagged home… by their tags.
+      expect(linkCandidates({ tasks: tagged }, 'home').map(c => c.task.id)).toEqual(['h2', 'h1', 'n1']);
+    });
+
+    it('with a #, only tags count: a title never holds one', () => {
+      expect(linkCandidates({ tasks: tagged }, '#homework').map(c => c.task.id)).toEqual(['h2']);
+    });
+
+    it('the link is still labelled with the title, without its tags', () => {
+      expect(linkCandidates({ tasks: tagged }, 'urgent')[0].title).toBe('Call the roofer');
+    });
+
+    it('a lone # is no query to match tags with: nothing is found by it', () => {
+      expect(linkCandidates({ tasks: tagged }, '#')).toEqual([]);
+    });
+  });
 });
 
 describe('findBacklinks', () => {

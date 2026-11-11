@@ -7,7 +7,8 @@ import { formatShortDate } from '../utils/taskUtils.js';
  * The `@@` picker under a note being typed (#2145): the tasks a link can go
  * to, filtered by what follows the `@@` (utils/taskLinks.js). The note keeps
  * the keyboard: its keydown moves `index` and picks; a click here picks too,
- * without taking the focus from the note.
+ * without taking the focus from the note. A task found by one of its tags
+ * shows those tags, so it is clear why it is listed (#2369).
  */
 export default function TaskLinkPicker({ candidates, index, onPick, darkMode }) {
   const { t } = useTranslation();
@@ -21,7 +22,7 @@ export default function TaskLinkPicker({ candidates, index, onPick, darkMode }) 
     >
       {candidates.length === 0 ? (
         <div className={`px-2 py-1.5 text-xs ${muted}`}>{t('task.linkPickerEmpty')}</div>
-      ) : candidates.map(({ task, title }, i) => (
+      ) : candidates.map(({ task, title, tags = [] }, i) => (
         <div
           key={task.id}
           role="option"
@@ -36,6 +37,9 @@ export default function TaskLinkPicker({ candidates, index, onPick, darkMode }) 
         >
           <Link2 size={12} className={`flex-shrink-0 ${muted}`} />
           <span className={`flex-1 min-w-0 truncate ${task.completed ? 'line-through opacity-60' : ''}`}>{title}</span>
+          {tags.length > 0 && (
+            <span data-task-link-tags className={`text-xs italic flex-shrink-0 truncate max-w-[40%] ${muted}`}>{tags.map((tag) => `#${tag}`).join(' ')}</span>
+          )}
           {task.date && <span className={`text-xs flex-shrink-0 ${muted}`}>{formatShortDate(new Date(`${task.date}T12:00:00`))}</span>}
         </div>
       ))}
