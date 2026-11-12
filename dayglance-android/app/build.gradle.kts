@@ -25,7 +25,7 @@ android {
         // fallback for plain gradle/IDE builds and no longer needs a commit
         // per Play upload.
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 185
-        versionName = "5.13.0"
+        versionName = "5.14.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // GLANCElauncher's permission (AndroidManifest.xml). Release builds must
         // keep exactly this name: the launcher requests it.
