@@ -240,6 +240,10 @@ module.exports = {
     // needed here (MAS is a mac-only target), but no Windows build ever sets it.
     extraResources: [
       { from: 'node_modules/@glance-apps/mcp-bridge', to: 'mcp-bridge' },
+      // The notification-area icon (scripts/gen-tray-icons.mjs), outside the
+      // asar so main.ts reads it from process.resourcesPath/tray. Windows only:
+      // the macOS menu bar icon is built from the app icon at runtime.
+      { from: 'electron/resources/tray', to: 'tray' },
     ],
     target: [{ target: 'nsis' }],
   },
