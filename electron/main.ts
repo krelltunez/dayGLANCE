@@ -76,7 +76,7 @@ import {
 import { trayReloadDebounceMs } from './trayReloadPolicy.js';
 import { decideRecovery } from './rendererRecovery.js';
 import { buildApplicationMenuTemplate, isApplicationMenuLabels, supportsCustomApplicationMenu, type ApplicationMenuLabels } from './applicationMenu.js';
-import { MENU_BAR_GLYPH_PT, MENU_BAR_PT, padSquareBitmap } from './trayIcon.js';
+import { MENU_BAR_GLYPH_DROP_PT, MENU_BAR_GLYPH_PT, MENU_BAR_PT, padSquareBitmap } from './trayIcon.js';
 import { isClickAfterBlurHide, popupPosition, trayTooltip, WINDOWS_TRAY_SCALES } from './trayPopup.js';
 import {
   closeAction, DEFAULT_DESKTOP_SETTINGS, hasTray, launchedHidden, loadDesktopSettings, loginItemQuery, loginItemSettings,
@@ -598,15 +598,15 @@ function trayImage(): Electron.NativeImage {
   const rawIcon = nativeImage.createFromPath(srcPath);
   if (rawIcon.isEmpty()) console.error('[tray] tray icon failed to load from', srcPath);
   if (process.platform !== 'darwin') return rawIcon.resize({ width: 16, height: 16, quality: 'best' });
-  // Downsample the high-res app icon to a 19pt mark (38 px), centre it in the
-  // menu bar's 22pt image (44 px), and tell Electron it's a @2x image so macOS
+  // Downsample the high-res app icon to a 19pt mark (38 px), place it in the
+  // menu bar's 22pt image (44 px), centred across and 1pt below centre, and tell Electron it's a @2x image so macOS
   // renders it at 22 logical points (trayIcon.ts). setTemplateImage makes it
   // white on dark bars, dark on light bars.
   const glyphPx = MENU_BAR_GLYPH_PT * 2, canvasPx = MENU_BAR_PT * 2;
   let icon = rawIcon;
   try {
     const glyph = rawIcon.resize({ width: glyphPx, height: glyphPx, quality: 'best' }).toBitmap();
-    const padded = nativeImage.createFromBitmap(padSquareBitmap(glyph, glyphPx, canvasPx), { width: canvasPx, height: canvasPx, scaleFactor: 2 });
+    const padded = nativeImage.createFromBitmap(padSquareBitmap(glyph, glyphPx, canvasPx, MENU_BAR_GLYPH_DROP_PT * 2), { width: canvasPx, height: canvasPx, scaleFactor: 2 });
     if (!padded.isEmpty()) icon = padded;
   } catch (err) {
     console.error('[tray] menu-bar icon could not be sized; using the app icon as is', err);
