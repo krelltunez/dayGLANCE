@@ -77,7 +77,7 @@ import { trayReloadDebounceMs } from './trayReloadPolicy.js';
 import { decideRecovery } from './rendererRecovery.js';
 import { buildApplicationMenuTemplate, isApplicationMenuLabels, supportsCustomApplicationMenu, type ApplicationMenuLabels } from './applicationMenu.js';
 import { MENU_BAR_GLYPH_PT, MENU_BAR_PT, padSquareBitmap } from './trayIcon.js';
-import { isClickAfterBlurHide, popupPosition, trayTooltip } from './trayPopup.js';
+import { isClickAfterBlurHide, popupPosition, trayTooltip, WINDOWS_TRAY_SCALES } from './trayPopup.js';
 import {
   closeAction, DEFAULT_DESKTOP_SETTINGS, hasTray, launchedHidden, loadDesktopSettings, loginItemQuery, loginItemSettings,
   openAtLoginState, quitOnMainWindowClose, saveDesktopSettings, supportsBackgroundSettings, supportsKeepRunning,
@@ -564,28 +564,40 @@ function positionTrayPopup(tw: BrowserWindow, iconBounds?: Electron.Rectangle): 
 }
 
 // The tray icon image. macOS: the app mark as a 22pt template image, so the
-// menu bar tints it (trayIcon.ts). Windows: the full-colour app icon at the
-// notification area's 16px, with 1.25x/1.5x/2x representations so it stays
-// crisp at the usual display scales.
+// menu bar tints it (trayIcon.ts). Windows: a mark drawn for the notification
+// area (scripts/gen-tray-icons.mjs, electron/resources/tray/), not the app
+// icon shrunk: that is thin strokes which smear into a faint, off-centre
+// outline at 16px. tray.ico holds every size from 100% to 300% display
+// scale, so Windows picks the exact one; the PNGs are the fallback.
+function windowsTrayImage(): Electron.NativeImage | null {
+  const dir = app.isPackaged
+    ? path.join(process.resourcesPath, 'tray')
+    : path.join(process.cwd(), 'electron/resources/tray');
+  const ico = nativeImage.createFromPath(path.join(dir, 'tray.ico'));
+  if (!ico.isEmpty()) return ico;
+  const image = nativeImage.createEmpty();
+  for (const [scaleFactor, px] of WINDOWS_TRAY_SCALES) {
+    const rep = nativeImage.createFromPath(path.join(dir, `tray-${px}.png`));
+    if (!rep.isEmpty()) image.addRepresentation({ scaleFactor, width: px, height: px, buffer: rep.toPNG() });
+  }
+  if (image.isEmpty()) {
+    console.error('[tray] tray icon failed to load from', dir);
+    return null;
+  }
+  return image;
+}
+
 function trayImage(): Electron.NativeImage {
+  if (process.platform !== 'darwin') {
+    const image = windowsTrayImage();
+    if (image) return image;
+  }
   const srcPath = DEV
     ? path.join(process.cwd(), 'public/icon-512.png')
     : path.join(__dirname, '../dist/icon-512.png');
   const rawIcon = nativeImage.createFromPath(srcPath);
   if (rawIcon.isEmpty()) console.error('[tray] tray icon failed to load from', srcPath);
-  if (process.platform !== 'darwin') {
-    try {
-      const image = nativeImage.createEmpty();
-      for (const scaleFactor of [1, 1.25, 1.5, 2]) {
-        const px = Math.round(16 * scaleFactor);
-        image.addRepresentation({ scaleFactor, width: px, height: px, buffer: rawIcon.resize({ width: px, height: px, quality: 'best' }).toPNG() });
-      }
-      if (!image.isEmpty()) return image;
-    } catch (err) {
-      console.error('[tray] tray icon could not be sized; using the app icon as is', err);
-    }
-    return rawIcon;
-  }
+  if (process.platform !== 'darwin') return rawIcon.resize({ width: 16, height: 16, quality: 'best' });
   // Downsample the high-res app icon to a 19pt mark (38 px), centre it in the
   // menu bar's 22pt image (44 px), and tell Electron it's a @2x image so macOS
   // renders it at 22 logical points (trayIcon.ts). setTemplateImage makes it

@@ -64,3 +64,11 @@ export function trayTooltip(parts: { focusTitle: string; reminderOn: boolean; re
   if (parts.reminderOn) return `dayGLANCE · ${parts.reminderLabel ?? 'Reminder'}`;
   return 'dayGLANCE';
 }
+
+/**
+ * The Windows tray icon's sizes, one per display scale from 100% to 300%
+ * (electron/resources/tray/tray-<px>.png, scripts/gen-tray-icons.mjs).
+ */
+export const WINDOWS_TRAY_SCALES: ReadonlyArray<readonly [scaleFactor: number, px: number]> = [
+  [1, 16], [1.25, 20], [1.5, 24], [2, 32], [2.5, 40], [3, 48],
+];
