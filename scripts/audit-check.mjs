@@ -42,7 +42,14 @@ const ACK = {
   //
   // GHSA-rmxm-3fg6-px4f (@hono/node-server serveStatic decodes the path twice,
   // published 2026-10-28) is FIXED the same way: the override's floor is now
-  // >=2.1.3. GHSA-3cmx-xjww-583x and GHSA-9jhj-wvmw-cfx5 (i18next-http-backend
+  // >=2.1.3, and >=2.1.6 for GHSA-qv5m-9pm6-hqp3 and GHSA-jpvv-r467-5p4w
+  // (an unhandled ECONNRESET during a WebSocket upgrade; a backslash read as a
+  // path separator), seen 2026-11-13. The five hono advisories of the same day
+  // (GHSA-4m76-xfj5-7975, GHSA-h7mg-cq63-vhpq, GHSA-46wx-v44x-9hh2,
+  // GHSA-4h7h-rv7c-7m2v, GHSA-3gg2-335m-rxc6: mount(), RegExpRouter, csrf(),
+  // validator('form') and the css helper, none of which the SDK's request
+  // listener loads) are FIXED by the direct dependency's floor, ^4.13.16.
+  // GHSA-3cmx-xjww-583x and GHSA-9jhj-wvmw-cfx5 (i18next-http-backend
   // query injection through lng, and a protocol-relative URL from ns) are gone
   // with the package: it loaded translations over HTTP for one day in June
   // 2026 (189a11f6), until they were bundled at build time (d7f1ebe6), and
