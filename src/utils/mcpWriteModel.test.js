@@ -117,6 +117,37 @@ describe('undo descriptors on write responses', () => {
     expect(replay.undo).toBeUndefined();
   });
 
+  // An unknown project_id (follow-up to #2385): the create stored the id
+  // anyway, leaving a task that pointed at no project, while update_task
+  // refused the same id. Both shapes now answer not_found and write nothing.
+  it('create_task with an unknown project is not_found for either shape, and no setter runs', () => {
+    const state = { tasks: [], unscheduledTasks: [], projects: [{ id: 'p1', title: 'Work' }] };
+    for (const extra of [{}, { schedule: { date: '2026-08-10', startTime: '09:00', durationMinutes: 30 } }]) {
+      const setters = makeSetters();
+      const r = handleMcpWrite(state, setters, {
+        method: 'create_task', params: { taskId: 'n1', title: 'Buy milk', projectId: 'nope', ...extra },
+      });
+      expect(r).toMatchObject({ ok: false, error: { code: 'not_found' } });
+      expect(r.error.message).toContain('"nope"');
+      expect(r.error.message).toContain('dayglance_get_goal_progress');
+      expect(r.undo).toBeUndefined();
+      expect(setters.setTasks).not.toHaveBeenCalled();
+      expect(setters.setUnscheduledTasks).not.toHaveBeenCalled();
+    }
+    // With no projects slice at all, an id still names nothing.
+    expect(handleMcpWrite({ tasks: [], unscheduledTasks: [] }, makeSetters(), {
+      method: 'create_task', params: { taskId: 'n1', title: 'Buy milk', projectId: 'nope' },
+    })).toMatchObject({ ok: false, error: { code: 'not_found' } });
+  });
+
+  it('a replayed create answers with its task after the project was deleted', () => {
+    const landed = { id: 'n1', title: 'Buy milk', projectId: 'gone' };
+    const replay = handleMcpWrite({ tasks: [], unscheduledTasks: [landed], projects: [] }, makeSetters(), {
+      method: 'create_task', params: { taskId: 'n1', title: 'Buy milk', projectId: 'gone' },
+    });
+    expect(replay).toMatchObject({ ok: true, data: { replayed: true } });
+  });
+
   it('schedule_task captures the FULL before-task — priority and deadline survive the round trip', () => {
     const inbox = { id: 'u1', title: 'Report', priority: 2, deadline: '2026-08-20', duration: 45 };
     const state = { tasks: [], unscheduledTasks: [inbox] };
