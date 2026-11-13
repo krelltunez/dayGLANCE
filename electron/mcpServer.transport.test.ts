@@ -487,6 +487,24 @@ describe('project writes carry the project-level target date (2026-10-21)', () =
     }
   });
 
+  // A completed or archived project takes no new work (#2385). The refusal is
+  // the renderer's (taskMutations.closedProjectGuard); what this seam owns is
+  // that each tool that can put a task or a series in a project says so first.
+  it('the three tools that take project_id say a completed or archived project takes no tasks', async () => {
+    const bridge = fakeBridge(projectScript);
+    const h = await start({ writeDeps: writeDeps(bridge.bridge) });
+    try {
+      const client = await h.connect();
+      const { tools } = await client.listTools();
+      for (const name of ['dayglance_create_task', 'dayglance_update_task', 'dayglance_update_recurring_task']) {
+        const tool = tools.find((x) => x.name === name);
+        expect(JSON.stringify(tool.inputSchema.properties.project_id), name).toContain('completed or archived project');
+      }
+    } finally {
+      await h.close();
+    }
+  });
+
   // A create given no duration (#2367): the main process invents none, so the
   // renderer gives the project's New task default, else the user's default
   // task duration. A 30 filled in on this side would hide both.

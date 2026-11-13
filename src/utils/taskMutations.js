@@ -36,6 +36,7 @@ const createdStamp = (nowIso) => createdTimestamp(nowIso ? new Date(nowIso) : ne
 // can close a Focus session. The sync merge compares stamps as instants.
 const offsetStampAt = (nowIso) => completionTimestamp(Number.isFinite(Date.parse(nowIso)) ? new Date(nowIso) : new Date());
 import { getProjectColor } from './colorUtils.js';
+import { isActiveProject } from './inboxProjectGroups.js';
 import { taskDefaultsOf, withTags, defaultSubtasks, defaultEnergy, baseDuration } from './projectTaskDefaults.js';
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { applyRecurringInstanceEdit } from './recurringInstanceEdit.js';
@@ -76,6 +77,35 @@ const readOnlyGuard = (task, id) => {
   if (task?._native) return err(WRITE_ERROR_CODES.NATIVE_READONLY, NATIVE_MSG(id));
   if (isImportedEvent(task)) return err(WRITE_ERROR_CODES.CALENDAR_EVENT_READONLY, IMPORTED_MSG(id));
   return null;
+};
+
+/**
+ * A completed or archived project takes no new work (#2385). The app
+ * completes a project only once every task in it is done (projectCanComplete,
+ * goalProjectMutations.js), and its own project pickers and JOBO's follow-up
+ * offer neither kind (isActiveProject; openProject in jobo/carryForward.js).
+ * A write that checked existence alone put open tasks into a finished
+ * project: its progress fell from done to 0/N, its goal's with it, and the
+ * stray tasks were hard to find afterwards.
+ *
+ * Asked only when a write PUTS a task or a series into the project: an edit
+ * that names the project the task is already in changes nothing about its
+ * home and passes, as does a replay. An on-hold project is open and takes
+ * tasks, as the pickers offer it. Returns null for a project that is absent
+ * (each caller keeps its own rule for an unknown id).
+ */
+const closedProjectGuard = (project) => {
+  if (!project || isActiveProject(project)) return null;
+  const name = JSON.stringify(project.title ?? project.id);
+  if (project.status === 'completed') {
+    return err(WRITE_ERROR_CODES.VALIDATION,
+      `Project ${name} is completed, and a completed project takes no new tasks: dayGLANCE completes a project only ` +
+      'once every task in it is done. Reopen it first (dayglance_update_project with status "active"), or leave the ' +
+      'task out of the project.');
+  }
+  return err(WRITE_ERROR_CODES.VALIDATION,
+    `Project ${name} is archived, and an archived project takes no new tasks. Restoring it is a step the user takes ` +
+    'in dayGLANCE; until then, leave the task out of the project.');
 };
 
 /**
@@ -195,6 +225,7 @@ export function parseRecurringInstanceId(id) {
  * follows (ProjectCard/ProjectPlanner quick-add, the new-task modals). An
  * explicit assigneeSyncId wins over the project's users. An unknown projectId
  * inherits nothing and falls back to the default color.
+ * A completed or archived project is refused (closedProjectGuard, #2385).
  *
  * The project's New task defaults (#2336, utils/projectTaskDefaults.js) fill
  * what the call leaves out: its duration when none is given, its notes when
@@ -261,6 +292,10 @@ export function applyCreateTask(state, {
   }
 
   const project = projectId ? (state.projects ?? []).find((p) => p.id === projectId) : undefined;
+  // After the replay check above: a create that already landed answers with
+  // its task even if the project was completed since.
+  const closedProject = closedProjectGuard(project);
+  if (closedProject) return closedProject;
   const parentGoal = project?.goalId ? (state.goals ?? []).find((g) => g.id === project.goalId) : undefined;
   if (!assignedUserSyncIds && project?.assignedUserSyncIds?.length) {
     assignedUserSyncIds = [...project.assignedUserSyncIds];
@@ -349,6 +384,8 @@ function createRecurringSeries(state, {
     return err(WRITE_ERROR_CODES.VALIDATION, 'A repeating task needs a start date: pass start with repeat.');
   }
   const project = projectId ? (state.projects ?? []).find((p) => p.id === projectId) : undefined;
+  const closedProject = closedProjectGuard(project);
+  if (closedProject) return closedProject;
   const parentGoal = project?.goalId ? (state.goals ?? []).find((g) => g.id === project.goalId) : undefined;
   let users = assignedUserSyncIds;
   if (!users && project?.assignedUserSyncIds?.length) users = [...project.assignedUserSyncIds];
@@ -433,9 +470,16 @@ export function applyUpdateRecurringTask(state, { taskId, scope, set = {}, clear
     assignedUserSyncIds = [member.syncId ?? member.id];
   }
   if (clear.includes('assignee')) assignedUserSyncIds = [];
-  if (set.projectId !== undefined && !(state.projects ?? []).some((p) => p && p.id === set.projectId)) {
-    return err(WRITE_ERROR_CODES.NOT_FOUND,
-      `No project with id ${JSON.stringify(set.projectId)}. Enumerate projects with dayglance_get_goal_progress`);
+  if (set.projectId !== undefined) {
+    const project = (state.projects ?? []).find((p) => p && p.id === set.projectId);
+    if (!project) {
+      return err(WRITE_ERROR_CODES.NOT_FOUND,
+        `No project with id ${JSON.stringify(set.projectId)}. Enumerate projects with dayglance_get_goal_progress`);
+    }
+    if (set.projectId !== template.projectId) {
+      const closedProject = closedProjectGuard(project);
+      if (closedProject) return closedProject;
+    }
   }
 
   const current = recurringTaskInstanceFields(template, parsed.dateStr);
@@ -665,9 +709,18 @@ export function applyUpdateTask(state, { taskId, set = {}, clear = [], transitio
   // id, or cleared. The record changes as the UI's project picker changes it,
   // projectId alone; the Obsidian placement pass reacts to the new home on
   // its own, exactly as it does to a UI reassignment.
-  if (set.projectId !== undefined && !(state.projects ?? []).some((p) => p && p.id === set.projectId)) {
-    return err(WRITE_ERROR_CODES.NOT_FOUND,
-      `No project with id ${JSON.stringify(set.projectId)}. Enumerate projects with dayglance_get_goal_progress`);
+  if (set.projectId !== undefined) {
+    const project = (state.projects ?? []).find((p) => p && p.id === set.projectId);
+    if (!project) {
+      return err(WRITE_ERROR_CODES.NOT_FOUND,
+        `No project with id ${JSON.stringify(set.projectId)}. Enumerate projects with dayglance_get_goal_progress`);
+    }
+    // A move INTO a finished project is refused; naming the project the task
+    // is already in is not a move.
+    if (set.projectId !== task.projectId) {
+      const closedProject = closedProjectGuard(project);
+      if (closedProject) return closedProject;
+    }
   }
 
   if (task.transitionId && transitionId && task.transitionId === transitionId) {
