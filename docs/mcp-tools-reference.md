@@ -351,7 +351,7 @@ With `start` **and** `repeat`, a repeating series starting on `start`'s date (se
 |---|---|---|---|
 | `title` | string | yes | Non-empty. Stored literally (no sigil parsing). |
 | `notes` | string | no | |
-| `project_id` | string | no | Attach to a project (ids from `dayglance_get_goal_progress`). The task takes the project's colour and assignees, and its **New task defaults** where the call leaves them out (below). |
+| `project_id` | string | no | Attach to a project (ids from `dayglance_get_goal_progress`). The task takes the project's colour and assignees, and its **New task defaults** where the call leaves them out (below). A completed or archived project → `validation`: it takes no new tasks (reopen a completed one with `dayglance_update_project`, `status: 'active'`). |
 | `assignee_id` | string | no | **Multi-user only** (absent from the schema otherwise). Ids from `dayglance_list_users`. |
 | `priority` | integer | no | **Unscheduled only** (inbox or project). 0 none (default), 1 low, 2 medium, 3 high. |
 | `deadline` | string | no | **Unscheduled only** (inbox or project). Local `YYYY-MM-DD`. |
@@ -406,7 +406,7 @@ explicit list — `null` or empty values never clear.
 | `priority` | integer | no | 0–3. **Unscheduled tasks only** (inbox or project). |
 | `deadline` | string | no | Local `YYYY-MM-DD`. **Unscheduled tasks only** (inbox or project). |
 | `assignee_id` | string | no | **Multi-user only.** Ids from `dayglance_list_users`. |
-| `project_id` | string | no | Move the task into a project (ids from `dayglance_get_goal_progress`). Unknown id → `not_found`. |
+| `project_id` | string | no | Move the task into a project (ids from `dayglance_get_goal_progress`). Unknown id → `not_found`. A completed or archived project → `validation`, unless the task is already in it. |
 | `clear_fields` | string[] | no | Accepts only `"notes"`, `"deadline"`, `"project"`, `"assignee"` (assignee: multi-user only). Naming `title` or anything else → `validation`. |
 | `idempotency_key` | string | no | |
 
@@ -437,7 +437,7 @@ same question the app asks when an occurrence is edited:
 | `duration_minutes` | integer | no | 1–1440. Either scope. |
 | `all_day` | boolean | no | Either scope. Contradicts `start_time` / `duration_minutes` when true; `false` on an all-day occurrence needs `start_time`. |
 | `notes` | string | no | **Series only.** |
-| `project_id` | string | no | **Series only.** Unknown id → `not_found`. |
+| `project_id` | string | no | **Series only.** Unknown id → `not_found`. A completed or archived project → `validation`, unless the series is already in it. |
 | `repeat` | object | no | **Series only.** Replaces the whole pattern, its end included, in the `dayglance_create_task` shape. The series start never moves earlier. |
 | `assignee_id` | string | no | **Multi-user only.** Either scope. |
 | `clear_fields` | string[] | no | `"notes"`, `"project"` (series only), `"assignee"` (multi-user; means everyone). |

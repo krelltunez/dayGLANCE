@@ -244,7 +244,8 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
     notes: z.string().optional(),
     project_id: z.string().optional().describe(
       'Attach to a project (see dayglance_get_goal_progress). An unscheduled project task may carry priority and deadline like any inbox task. ' +
-      'The task takes the project\'s colour and assignees, and its New task defaults where this call leaves them out: duration, notes, #tags appended to the title, a checklist, an energy (effort or restore).'),
+      'The task takes the project\'s colour and assignees, and its New task defaults where this call leaves them out: duration, notes, #tags appended to the title, a checklist, an energy (effort or restore). ' +
+      'A completed or archived project takes no new tasks: reopen a completed one first (dayglance_update_project, status "active").'),
     ...(multiUser ? {
       assignee_id: z.string().optional().describe(
         'Assign to one household member by their user id. Ids come from dayglance_list_users. Never guess from a name.'),
@@ -318,7 +319,8 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
         'Reassign to one household member by their user id. Ids come from dayglance_list_users. Never guess from a name.'),
     } : {}),
     project_id: z.string().optional().describe(
-      'Move the task into a project by its id (see dayglance_get_goal_progress). To detach it from its project, name "project" in clear_fields.'),
+      'Move the task into a project by its id (see dayglance_get_goal_progress). To detach it from its project, name "project" in clear_fields. ' +
+      'A completed or archived project takes no new tasks.'),
     clear_fields: z.array(z.string()).optional().describe(
       'Field names to REMOVE from the task. Accepts only fields that can meaningfully be empty: ' +
       `"notes", "deadline", "project"${multiUser ? ', "assignee"' : ''}. ` +
@@ -363,7 +365,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
     duration_minutes: z.number().int().optional().describe('1-1440.'),
     all_day: z.boolean().optional().describe('true makes it all-day; false (with start_time) makes it timed.'),
     notes: z.string().optional().describe('Series only: one set of notes for every occurrence.'),
-    project_id: z.string().optional().describe('Series only: move the series into a project.'),
+    project_id: z.string().optional().describe('Series only: move the series into a project. A completed or archived project takes none.'),
     repeat: z.unknown().optional().describe(
       'Series only: replace the whole pattern, its end included, in the dayglance_create_task repeat shape. ' +
       'The series start never moves earlier.'),
