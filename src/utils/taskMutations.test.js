@@ -52,7 +52,9 @@ describe('applyCreateTask', () => {
   });
 
   it('carries notes and projectId when given', () => {
-    const r = applyCreateTask(state, { taskId: 'n2', title: 'T', notes: 'context', projectId: 'p1', nowIso: NOW });
+    const r = applyCreateTask({ ...state, projects: [{ id: 'p1', title: 'Work' }] }, {
+      taskId: 'n2', title: 'T', notes: 'context', projectId: 'p1', nowIso: NOW,
+    });
     expect(r.task.notes).toBe('context');
     expect(r.task.projectId).toBe('p1');
   });

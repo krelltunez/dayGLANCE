@@ -119,6 +119,19 @@ describe('create_task with a repeat', () => {
     expect(r.data.series.project_id).toBe('p1');
   });
 
+  it('an unknown project is not_found and no series is written; a replay after the project is deleted still answers', () => {
+    const store = makeStore({ projects: [{ id: 'p1', title: 'Work' }] });
+    const r = createSeries(store, { projectId: 'nope' });
+    expect(r).toMatchObject({ ok: false, error: { code: 'not_found' } });
+    expect(r.error.message).toContain('"nope"');
+    expect(store.state.recurringTasks).toEqual([]);
+    expect(store.day(MON)).toEqual([]);
+
+    expect(createSeries(store, { projectId: 'p1' }).ok).toBe(true);
+    store.setters.setProjects([]);
+    expect(createSeries(store, { projectId: 'p1' })).toMatchObject({ ok: true, data: { replayed: true } });
+  });
+
   it('rejects a pattern with no occurrence, and a first occurrence on a routine', () => {
     const empty = applyCreateTask({}, {
       taskId: 's', title: 'x', schedule: { date: MON, startTime: '09:00', durationMinutes: 15 },

@@ -351,7 +351,7 @@ With `start` **and** `repeat`, a repeating series starting on `start`'s date (se
 |---|---|---|---|
 | `title` | string | yes | Non-empty. Stored literally (no sigil parsing). |
 | `notes` | string | no | |
-| `project_id` | string | no | Attach to a project (ids from `dayglance_get_goal_progress`). The task takes the project's colour and assignees, and its **New task defaults** where the call leaves them out (below). A completed or archived project → `validation`: it takes no new tasks (reopen a completed one with `dayglance_update_project`, `status: 'active'`). |
+| `project_id` | string | no | Attach to a project (ids from `dayglance_get_goal_progress`). The task takes the project's colour and assignees, and its **New task defaults** where the call leaves them out (below). Unknown id → `not_found`. A completed or archived project → `validation`: it takes no new tasks (reopen a completed one with `dayglance_update_project`, `status: 'active'`). |
 | `assignee_id` | string | no | **Multi-user only** (absent from the schema otherwise). Ids from `dayglance_list_users`. |
 | `priority` | integer | no | **Unscheduled only** (inbox or project). 0 none (default), 1 low, 2 medium, 3 high. |
 | `deadline` | string | no | **Unscheduled only** (inbox or project). Local `YYYY-MM-DD`. |
