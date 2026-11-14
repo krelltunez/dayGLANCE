@@ -1,6 +1,7 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { act, create } from 'react-test-renderer';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { loaders } from '../locales.js';
@@ -13,12 +14,17 @@ vi.mock('react-dom', async (importOriginal) => ({ ...(await importOriginal()), c
 
 let selected = [];
 let features = {};
+let sort = 'priority';
+let hideCompleted = false;
+const setInboxSort = vi.fn();
+const setHideCompletedInbox = vi.fn();
 vi.mock('../context/DayPlannerContext.jsx', () => ({
   useDayPlannerCtx: () => ({
     darkMode: false, textPrimary: 'text-stone-900', textSecondary: 'text-stone-500', cardBg: 'bg-white',
     borderClass: 'border-stone-200', hoverBg: 'hover:bg-stone-100',
     unscheduledTasks: [{ id: 't', title: 'Call #phone' }],
-    hideCompletedInbox: false, setHideCompletedInbox: () => {},
+    hideCompletedInbox: hideCompleted, setHideCompletedInbox,
+    inboxSort: sort, setInboxSort,
     hideProjectTasksInbox: true, setHideProjectTasksInbox: () => {},
     hideStandaloneTasksInbox: false, setHideStandaloneTasksInbox: () => {},
     inboxTagFilter: [], setInboxTagFilter: () => {},
@@ -42,6 +48,10 @@ let i18n;
 beforeEach(async () => {
   store.clear();
   selected = [];
+  sort = 'priority';
+  hideCompleted = false;
+  setInboxSort.mockClear();
+  setHideCompletedInbox.mockClear();
   features = {
     goalsProjectsEnabled: true,
     areas: [{ id: 'a-work', name: 'Work' }],
@@ -109,5 +119,51 @@ describe('InboxFilterPopover: projects by area and goal (#2232)', () => {
     features.areas = [];
     const order = [...render().matchAll(/data-inbox-filter-group="([^"]+)"/g)].map(m => m[1]);
     expect(order).toEqual(['goal-g-ship', 'goal-g-read', 'standalone']);
+  });
+});
+
+// #2394: the Inbox list by priority or by deadline, chosen in the popover so
+// the Inbox header gains no button.
+describe('InboxFilterPopover: the sort', () => {
+  const mount = () => {
+    let root;
+    act(() => { root = create(<I18nextProvider i18n={i18n}><InboxFilterPopover open onClose={() => {}} buttonRef={{ current: null }} /></I18nextProvider>); });
+    return root.root;
+  };
+  const chip = (root, value) => root.find((n) => typeof n.type === 'string' && n.props['data-inbox-sort'] === value);
+
+  it('is the first section, with Priority chosen by default and each chip saying what it does', () => {
+    const html = render();
+    expect([...html.matchAll(/data-inbox-filter-section="([^"]+)"/g)].map((m) => m[1])[0]).toBe('sort');
+    const root = mount();
+    expect(chip(root, 'priority').props['aria-checked']).toBe(true);
+    expect(chip(root, 'deadline').props['aria-checked']).toBe(false);
+    expect(chip(root, 'priority').children).toEqual(['Priority']);
+    expect(chip(root, 'deadline').children).toEqual(['Deadline']);
+    expect(chip(root, 'deadline').props.title).toBe('Soonest deadline first; tasks without a deadline after, by priority');
+  });
+
+  it('choosing a chip sets the sort, and the chosen one is shown', () => {
+    const first = mount();
+    act(() => { chip(first, 'deadline').props.onClick(); });
+    expect(setInboxSort).toHaveBeenCalledWith('deadline');
+    sort = 'deadline';
+    const root = mount();
+    expect(chip(root, 'deadline').props['aria-checked']).toBe(true);
+    expect(chip(root, 'priority').props['aria-checked']).toBe(false);
+    act(() => { chip(root, 'priority').props.onClick(); });
+    expect(setInboxSort).toHaveBeenLastCalledWith('priority');
+  });
+
+  it('is not a filter: on its own it offers no Clear all, and Clear all leaves it as chosen', () => {
+    sort = 'deadline';
+    expect(render()).not.toContain('Clear all');
+    hideCompleted = true;
+    const root = mount();
+    const clear = root.findAll((n) => n.type === 'button' && n.children.includes('Clear all'));
+    expect(clear).toHaveLength(1);
+    act(() => { clear[0].props.onClick(); });
+    expect(setHideCompletedInbox).toHaveBeenCalledWith(false);
+    expect(setInboxSort).not.toHaveBeenCalled();
   });
 });

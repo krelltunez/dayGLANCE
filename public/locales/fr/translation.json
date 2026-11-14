@@ -2125,7 +2125,12 @@
     "showingAllPrioritiesClick": "Toutes les priorités sont affichées (cliquez pour filtrer)",
     "showingPriorityClick": "Priorité {{priority}}+ affichée (cliquez pour changer)",
     "zero": "Boîte de réception vide",
-    "priorityAll": "Toutes"
+    "priorityAll": "Toutes",
+    "sort": {
+      "title": "Trier par",
+      "priorityHint": "Priorité la plus élevée d’abord",
+      "deadlineHint": "Échéance la plus proche d’abord ; les tâches sans échéance ensuite, par priorité"
+    }
   },
   "glance": {
     "allDoneMessage": "{{time}}, tout est fait !",

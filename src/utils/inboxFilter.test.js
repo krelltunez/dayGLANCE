@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   readInboxFilterPrefs, filterInboxTasks, inboxCountOf, inboxFromStorage,
   liveInboxProjectFilter, liveInboxTagFilter,
+  INBOX_SORT_KEY, inboxSortOf,
 } from './inboxFilter.js';
 
 // The one Inbox filter (utils/inboxFilter.js). The last block holds the
@@ -22,7 +23,7 @@ describe('readInboxFilterPrefs', () => {
   it('defaults: no priority floor, completed shown, project tasks hidden, no tag or project filter', () => {
     expect(readInboxFilterPrefs(memStorage())).toEqual({
       inboxPriorityFilter: 0, hideCompletedInbox: false, hideProjectTasksInbox: true,
-      hideStandaloneTasksInbox: false, inboxTagFilter: [], inboxProjectFilter: [],
+      hideStandaloneTasksInbox: false, inboxTagFilter: [], inboxProjectFilter: [], inboxSort: 'priority',
     });
   });
 
@@ -30,9 +31,10 @@ describe('readInboxFilterPrefs', () => {
     expect(readInboxFilterPrefs(memStorage({
       inboxPriorityFilter: '2', hideCompletedInbox: 'true', hideProjectTasksInbox: 'false',
       hideStandaloneTasksInbox: 'true', inboxTagFilter: '["work"]', inboxProjectFilter: '["p1"]',
+      [INBOX_SORT_KEY]: 'deadline',
     }))).toEqual({
       inboxPriorityFilter: 2, hideCompletedInbox: true, hideProjectTasksInbox: false,
-      hideStandaloneTasksInbox: true, inboxTagFilter: ['work'], inboxProjectFilter: ['p1'],
+      hideStandaloneTasksInbox: true, inboxTagFilter: ['work'], inboxProjectFilter: ['p1'], inboxSort: 'deadline',
     });
   });
 
@@ -68,6 +70,71 @@ describe('filterInboxTasks', () => {
   });
 });
 
+// #2394: the Inbox list by priority (as it always was) or by deadline.
+describe('the Inbox sort', () => {
+  // Stored order is deliberately neither order.
+  const inbox = () => [
+    task('low', { priority: 1 }),
+    task('later', { priority: 0, deadline: '2027-01-10' }),
+    task('high', { priority: 3 }),
+    task('soon-low', { priority: 0, deadline: '2026-11-15' }),
+    task('done', { completed: true, priority: 3 }),
+    task('soon-high', { priority: 2, deadline: '2026-11-15' }),
+    task('none', {}),
+    task('high-2', { priority: 3 }),
+  ];
+
+  it('inboxSortOf: "deadline" or the priority order, whatever else is stored or passed', () => {
+    expect(inboxSortOf('deadline')).toBe('deadline');
+    for (const other of ['priority', 'title', '', null, undefined, 7, 'Deadline']) expect(inboxSortOf(other), String(other)).toBe('priority');
+    expect(readInboxFilterPrefs(memStorage({ [INBOX_SORT_KEY]: 'title' })).inboxSort).toBe('priority');
+  });
+
+  it('by priority, the default: highest first, equal priorities in stored order, completed last', () => {
+    const expected = ['high', 'high-2', 'soon-high', 'low', 'later', 'soon-low', 'none', 'done'];
+    expect(ids(filterInboxTasks(inbox()))).toEqual(expected);
+    expect(ids(filterInboxTasks(inbox(), { inboxSort: 'priority' }))).toEqual(expected);
+    expect(ids(filterInboxTasks(inbox(), { inboxSort: 'title' }))).toEqual(expected);
+  });
+
+  it('by deadline: soonest first, one date by priority; then the undated by priority; completed last', () => {
+    expect(ids(filterInboxTasks(inbox(), { inboxSort: 'deadline' })))
+      .toEqual(['soon-high', 'soon-low', 'later', 'high', 'high-2', 'low', 'none', 'done']);
+  });
+
+  it('an empty or missing deadline is no deadline', () => {
+    const list = [task('blank', { deadline: '' }), task('null', { deadline: null }), task('dated', { deadline: '2026-12-01' })];
+    expect(ids(filterInboxTasks(list, { inboxSort: 'deadline' }))).toEqual(['dated', 'blank', 'null']);
+    // And the three ways of having none are one: priority orders them, whichever way each is stored.
+    for (const [low, high] of [[undefined, null], [null, undefined], ['', null], [null, ''], [undefined, '']]) {
+      const pair = [task('low', { priority: 0, deadline: low }), task('high', { priority: 3, deadline: high })];
+      expect(ids(filterInboxTasks(pair, { inboxSort: 'deadline' })), `${JSON.stringify(low)} / ${JSON.stringify(high)}`).toEqual(['high', 'low']);
+    }
+  });
+
+  it('decides the order only: the same tasks under both, with every filter still applied', () => {
+    const opts = { inboxPriorityFilter: 1, hideCompletedInbox: true };
+    const a = filterInboxTasks(inbox(), { ...opts, inboxSort: 'priority' });
+    const b = filterInboxTasks(inbox(), { ...opts, inboxSort: 'deadline' });
+    expect(ids(a)).toEqual(['high', 'high-2', 'soon-high', 'low']);
+    expect(ids(b)).toEqual(['soon-high', 'high', 'high-2', 'low']);
+    expect(inboxCountOf(a)).toBe(inboxCountOf(b));
+  });
+
+  it('does not mutate the list it is given', () => {
+    const list = inbox();
+    const before = ids(list);
+    filterInboxTasks(list, { inboxSort: 'deadline' });
+    expect(ids(list)).toEqual(before);
+  });
+
+  it('stored on the device, it reaches the list the stored-state chain builds', () => {
+    const storage = memStorage({ [INBOX_SORT_KEY]: 'deadline' });
+    expect(ids(inboxFromStorage({ unscheduledTasks: inbox(), storage })).slice(0, 3)).toEqual(['soon-high', 'soon-low', 'later']);
+    expect(ids(inboxFromStorage({ unscheduledTasks: inbox(), storage: memStorage() })).slice(0, 3)).toEqual(['high', 'high-2', 'soon-high']);
+  });
+});
+
 describe('the live filters ignore stale selections', () => {
   it('a deleted project or a vanished tag is dropped; nothing stale keeps the same array', () => {
     const saved = ['p1', 'gone'];
@@ -86,7 +153,7 @@ describe('inboxCountOf', () => {
 
 describe("the launcher's count is the app's Inbox", () => {
   const unscheduledTasks = [
-    task('open #work', { priority: 2 }), task('open #home', { priority: 0 }),
+    task('open #work', { priority: 2 }), task('open #home', { priority: 0, deadline: '2026-11-15' }),
     task('done', { completed: true }), task('done with deadline', { completed: true, deadline: '2026-10-01' }),
     task('project #work', { projectId: 'p1', priority: 3 }), task('bucket', { bucketId: 'b1' }),
     task('archived', { archived: true }), task('theirs', { assignedTo: 'them' }), task('example', { isExample: true }),
@@ -105,6 +172,8 @@ describe("the launcher's count is the app's Inbox", () => {
     // Only stale selections: no filter at all, not an empty Inbox (#2137 review).
     'only a stale tag': { inboxTagFilter: '["gone"]' },
     'only a deleted project': { inboxProjectFilter: '["deleted"]' },
+    // The sort (#2394) changes the order of both, and the count of neither.
+    'sorted by deadline': { [INBOX_SORT_KEY]: 'deadline', hideProjectTasksInbox: 'false' },
   };
 
   for (const [name, stored] of Object.entries(cases)) {
@@ -119,6 +188,8 @@ describe("the launcher's count is the app's Inbox", () => {
       expect(ids(headless)).toEqual(ids(app));
       if (name.startsWith('a tag')) expect(ids(headless)).toEqual(['open #work']);
       if (name.startsWith('only')) expect(inboxCountOf(headless)).toBe(3);
+      // The one dated task leads, though its priority is the lowest.
+      if (name.startsWith('sorted')) expect(ids(app)).toEqual(['open #home', 'project #work', 'open #work', 'example', 'done']);
       expect(inboxCountOf(headless)).toBe(app.filter((t) => !t.isExample).length);
     });
   }

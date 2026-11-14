@@ -2127,7 +2127,12 @@
     "showingAllPrioritiesClick": "Sono mostrate tutte le priorità (clicca per filtrare)",
     "showingPriorityClick": "Priorità {{priority}}+ mostrata (clicca per cambiare)",
     "zero": "Posta in arrivo vuota",
-    "priorityAll": "Tutte"
+    "priorityAll": "Tutte",
+    "sort": {
+      "title": "Ordina per",
+      "priorityHint": "Prima la priorità più alta",
+      "deadlineHint": "Prima la scadenza più vicina; le attività senza scadenza dopo, per priorità"
+    }
   },
   "glance": {
     "allDoneMessage": "{{time}}, tutto fatto!",

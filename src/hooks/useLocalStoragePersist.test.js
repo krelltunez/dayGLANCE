@@ -29,6 +29,7 @@ function baseProps(overrides = {}) {
     hideStandaloneTasksInbox: false,
     inboxTagFilter: [],
     inboxProjectFilter: null,
+    inboxSort: 'priority',
     priorityPromptDismissed: false,
     sectionInfoDismissed: {},
     skipOnboardingPersist: { current: true },
@@ -50,6 +51,31 @@ const notifyDataChanged = vi.fn();
 const mount = () => effects.forEach(e => e.fn());
 // Re-run only the effects that depend on `value` — one dependency changed.
 const change = (value) => effects.filter(e => e.deps?.includes(value)).forEach(e => e.fn());
+
+// #2394: the Inbox sort is kept on the device, under the key readInboxFilterPrefs reads.
+describe('useLocalStoragePersist: the Inbox sort', () => {
+  beforeEach(() => {
+    effects.length = 0;
+    notifyDataChanged.mockClear();
+    globalThis.localStorage = { setItem: vi.fn(), getItem: vi.fn(() => null), removeItem: vi.fn() };
+    globalThis.window = { electronAPI: { notifyDataChanged } };
+  });
+  afterEach(() => {
+    delete globalThis.window;
+    delete globalThis.localStorage;
+  });
+
+  it('writes the sort as chosen, and again when it changes, without nudging the tray', () => {
+    useLocalStoragePersist(baseProps({ inboxSort: 'deadline' }));
+    mount();
+    expect(globalThis.localStorage.setItem).toHaveBeenCalledWith('day-planner-inbox-sort', 'deadline');
+    notifyDataChanged.mockClear();
+    globalThis.localStorage.setItem.mockClear();
+    change('deadline');
+    expect(globalThis.localStorage.setItem.mock.calls).toEqual([['day-planner-inbox-sort', 'deadline']]);
+    expect(notifyDataChanged).not.toHaveBeenCalled();
+  });
+});
 
 describe('useLocalStoragePersist tray invalidation', () => {
   beforeEach(() => {

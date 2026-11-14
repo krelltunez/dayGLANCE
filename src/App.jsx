@@ -833,6 +833,8 @@ const DayPlanner = () => {
   const [hideProjectTasksInbox, setHideProjectTasksInbox] = useState(() => readInboxFilterPrefs().hideProjectTasksInbox);
   const [hideStandaloneTasksInbox, setHideStandaloneTasksInbox] = useState(() => readInboxFilterPrefs().hideStandaloneTasksInbox);
   const [inboxTagFilter, setInboxTagFilter] = useState(() => readInboxFilterPrefs().inboxTagFilter);
+  // The Inbox's order (#2394): by priority or by deadline, on this device.
+  const [inboxSort, setInboxSort] = useState(() => readInboxFilterPrefs().inboxSort);
   // The tag "Schedule follow-up task" adds (utils/followUp.js), on this
   // device, as the Inbox filter it pairs with is.
   const [followUpTag, setFollowUpTagState] = useState(() => {
@@ -1994,6 +1996,7 @@ const DayPlanner = () => {
     hideStandaloneTasksInbox,
     inboxTagFilter,
     inboxProjectFilter,
+    inboxSort,
     projects,
     goalsProjectsEnabled,
     isVisibleForUser,
@@ -2123,6 +2126,7 @@ const DayPlanner = () => {
     hideStandaloneTasksInbox,
     inboxTagFilter,
     inboxProjectFilter,
+    inboxSort,
     priorityPromptDismissed,
     sectionInfoDismissed, skipOnboardingPersist,
     dailyNotes, suppressCloudUploadRef, cloudSyncConfig, cloudSyncInitialDoneRef,
@@ -2184,7 +2188,7 @@ const DayPlanner = () => {
     folderBackupWriteRef.current?.();
   }, [
     dataLoaded, gettingStartedDismissed, onboardingProgress,
-    inboxPriorityFilter, inboxTagFilter, inboxProjectFilter,
+    inboxPriorityFilter, inboxTagFilter, inboxProjectFilter, inboxSort,
     hideCompletedInbox, hideProjectTasksInbox, hideStandaloneTasksInbox,
     priorityPromptDismissed, sectionInfoDismissed, storageWarnDismissed,
   ]);
@@ -7104,6 +7108,7 @@ const DayPlanner = () => {
     hideCompletedInbox, setHideCompletedInbox,
     hideProjectTasksInbox, setHideProjectTasksInbox,
     hideStandaloneTasksInbox, setHideStandaloneTasksInbox,
+    inboxSort, setInboxSort,
     // The FILTER UIs get the selections that still resolve
     // (useComputedViews.liveInbox*): a chip whose project/tag is gone matches
     // nothing, so it must not light the "filter is active" dot or narrow a

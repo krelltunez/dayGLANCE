@@ -2125,7 +2125,12 @@
     "showingAllPrioritiesClick": "Alle Prioritäten werden angezeigt (zum Filtern klicken)",
     "showingPriorityClick": "Priorität {{priority}}+ wird angezeigt (zum Ändern klicken)",
     "zero": "Posteingang leer",
-    "priorityAll": "Alle"
+    "priorityAll": "Alle",
+    "sort": {
+      "title": "Sortieren nach",
+      "priorityHint": "Höchste Priorität zuerst",
+      "deadlineHint": "Nächste Frist zuerst; Aufgaben ohne Frist danach, nach Priorität"
+    }
   },
   "glance": {
     "allDoneMessage": "{{time}}, alles erledigt!",

@@ -2228,7 +2228,12 @@
     "showingAllPrioritiesClick": "Показано всі пріоритети (клацніть, щоб відфільтрувати)",
     "showingPriorityClick": "Показано пріоритет {{priority}}+ (клацніть, щоб змінити)",
     "zero": "Порожні вхідні",
-    "priorityAll": "Усі"
+    "priorityAll": "Усі",
+    "sort": {
+      "title": "Сортувати за",
+      "priorityHint": "Спершу найвищий пріоритет",
+      "deadlineHint": "Спершу найближчий дедлайн; завдання без дедлайну потім, за пріоритетом"
+    }
   },
   "glance": {
     "allDoneMessage": "{{time}}, усе зроблено!",
