@@ -7,7 +7,7 @@ import {
 import { renderTitle } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags } from '../utils/taskUtils.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
-import { formatDuration } from '../utils/formatDuration.js';
+import { formatDuration, formatTaskDuration } from '../utils/formatDuration.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -120,11 +120,11 @@ const MobileBottomSheets = () => {
                   <div className="font-medium text-sm truncate">{renderTitle(task.title)}</div>
                   <div className="text-xs opacity-75 mt-1">
                     {task._deletedFrom === 'inbox' ? (
-                      <>{t('app.recycleBinInbox')} • {t('common.minutesShort', { count: task.duration })}</>
+                      <>{t('app.recycleBinInbox')} • {formatTaskDuration(task.duration, t)}</>
                     ) : task.startTime ? (
-                      <>{formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration })}</>
+                      <>{formatTime(task.startTime)} • {formatTaskDuration(task.duration, t)}</>
                     ) : (
-                      <>{t('common.minutesShort', { count: task.duration })}</>
+                      <>{formatTaskDuration(task.duration, t)}</>
                     )}
                   </div>
                 </div>

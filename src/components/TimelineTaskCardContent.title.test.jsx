@@ -160,3 +160,32 @@ describe('the week popover', () => {
     expect(postpone(card)).toHaveLength(1);
   });
 });
+
+// #2388: the card's duration read "308 min" however long the task was.
+describe('the duration beside the start time', () => {
+  const textOf = (args) => JSON.stringify(renderCard(args).toJSON());
+  const event = (over = {}) => task({ imported: true, title: 'Offsite', ...over });
+
+  it('a task under an hour keeps its minute count', () => {
+    expect(textOf({ task: task({ duration: 45 }), height: 80, isNarrowWidth: false })).toContain('45 min');
+  });
+
+  it('a task of an hour or more reads in hours and minutes', () => {
+    const text = textOf({ task: task({ duration: 308 }), height: 400, isNarrowWidth: false });
+    expect(text).toContain('5h 8m');
+    expect(text).not.toContain('308');
+  });
+
+  it('an imported calendar event too', () => {
+    expect(textOf({ task: event({ duration: 45 }), height: 80, isNarrowWidth: false })).toContain('45 min');
+    const text = textOf({ task: event({ duration: 308 }), height: 400, isNarrowWidth: false });
+    expect(text).toContain('5h 8m');
+    expect(text).not.toContain('308');
+  });
+
+  it('an exact hour has no "0m"', () => {
+    const text = textOf({ task: task({ duration: 120 }), height: 160, isNarrowWidth: false });
+    expect(text).toContain('2h');
+    expect(text).not.toContain('0m');
+  });
+});

@@ -15,6 +15,7 @@ import { DurationField, EndTimeField } from './TaskTimeFields.jsx';
 import TaskMetadataLine from './TaskMetadataLine.jsx';
 import TaskDeadlineField from './TaskDeadlineField.jsx';
 import { extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
+import { formatTaskDuration } from '../utils/formatDuration.js';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
 import useBackClose, { ABOVE_EDITORS } from '../hooks/useBackClose.js';
 import { aiFeatureOn } from '../ai.js';
@@ -152,7 +153,7 @@ const MobileNewTaskModal = () => {
                   ) : taskAISuggestion ? (
                     <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
                       <Sparkles size={11} className="text-purple-400 flex-shrink-0" />
-                      <span className="font-medium">{t('common.minutesShort', { count: taskAISuggestion.duration })}</span>
+                      <span className="font-medium">{formatTaskDuration(taskAISuggestion.duration, t)}</span>
                       {taskAISuggestion.tags?.length > 0 && (
                         <>
                           <span className={textSecondary}>·</span>

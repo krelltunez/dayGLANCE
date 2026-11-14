@@ -6,6 +6,7 @@ import {
 import { isNativeAndroid, SOURCE_APPS } from '../native.js';
 import { renderTitleWithoutTags, renderTitleWithoutWikilinks, hasNotesOrSubtasks, isLinkOnlyTask, openNoteAction, NoteIcon, noteActionTarget, isTaskLinkOnlyTask } from '../utils/textFormatting.jsx';
 import { extractTags, extractWikilinks, stripWikilinks } from '../utils/taskUtils.js';
+import { formatTaskDuration } from '../utils/formatDuration.js';
 import TaskTitleRenameField from './TaskTitleRenameField.jsx';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import TaskPlanHistory from './TaskPlanHistory.jsx';
@@ -223,7 +224,7 @@ const CardContent = ({ task, height, width, isNarrowWidth, flipNotesPanel, popov
                 )}
                 <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
                   <Clock size={10} />
-                  {formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration, defaultValue: '{{count}} min' })}
+                  {formatTime(task.startTime)} • {formatTaskDuration(task.duration, t)}
                 </div>
               </div>
             </div>
@@ -400,7 +401,7 @@ const CardContent = ({ task, height, width, isNarrowWidth, flipNotesPanel, popov
             {!isImported && height >= 55 && (
               <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1 mt-0.5">
                 <Clock size={10} />
-                {formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration, defaultValue: '{{count}} min' })}
+                {formatTime(task.startTime)} • {formatTaskDuration(task.duration, t)}
               </div>
             )}
             {/* The week popover's actions, on their own row so the title has
