@@ -2078,7 +2078,9 @@
     "allCompletedHidden_one": "The only goal here is completed.",
     "allCompletedHidden_other": "All {{count}} goals here are completed.",
     "onHold": "On hold",
-    "noOnHoldProjects": "No projects on hold"
+    "noOnHoldProjects": "No projects on hold",
+    "orderByDeadlineLabel": "Order tasks by deadline",
+    "orderByDeadlineHint": "Unscheduled tasks with a deadline come first, soonest first. The rest stay in the order you drag them into."
   },
   "colors": {
     "gray": "Gray",
@@ -2256,7 +2258,10 @@
     "selectForNotes": "Select a task to see its notes here.",
     "resizeNotes": "Resize notes",
     "resizeNotesHint": "Drag to resize · double-click to reset",
-    "notesKeysHint": "↑ ↓ move between tasks · ← → switch lists · Enter or double-click to edit the task · E to edit the note"
+    "notesKeysHint": "↑ ↓ move between tasks · ← → switch lists · Enter or double-click to edit the task · E to edit the note",
+    "byDeadline": "By deadline",
+    "byDeadlineOn": "Unscheduled tasks: deadlines first. Click for your own order.",
+    "byDeadlineOff": "Unscheduled tasks: your own order. Click to put deadlines first."
   },
   "bucket": {
     "title": "Bucket List",

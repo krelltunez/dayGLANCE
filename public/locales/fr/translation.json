@@ -2078,7 +2078,9 @@
     "allCompletedHidden_one": "Le seul objectif ici est terminé.",
     "allCompletedHidden_other": "Les {{count}} objectifs ici sont terminés.",
     "onHold": "En pause",
-    "noOnHoldProjects": "Aucun projet en pause"
+    "noOnHoldProjects": "Aucun projet en pause",
+    "orderByDeadlineLabel": "Trier les tâches par échéance",
+    "orderByDeadlineHint": "Les tâches non planifiées avec une échéance passent en premier, la plus proche en tête. Les autres restent dans l’ordre où vous les faites glisser."
   },
   "colors": {
     "gray": "Gris",
@@ -2256,7 +2258,10 @@
     "selectForNotes": "Sélectionnez une tâche pour voir ses notes ici.",
     "resizeNotes": "Redimensionner les notes",
     "resizeNotesHint": "Faites glisser pour redimensionner · double-cliquez pour réinitialiser",
-    "notesKeysHint": "↑ ↓ passer d’une tâche à l’autre · ← → changer de liste · Entrée ou double-clic pour modifier la tâche · E pour modifier la note"
+    "notesKeysHint": "↑ ↓ passer d’une tâche à l’autre · ← → changer de liste · Entrée ou double-clic pour modifier la tâche · E pour modifier la note",
+    "byDeadline": "Par échéance",
+    "byDeadlineOn": "Tâches non planifiées : échéances d’abord. Cliquez pour revenir à votre ordre.",
+    "byDeadlineOff": "Tâches non planifiées : votre ordre. Cliquez pour placer les échéances d’abord."
   },
   "bucket": {
     "title": "Bucket List",

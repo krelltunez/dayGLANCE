@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sortByProjectOrder, applyProjectReorder, orderProjectTasks, sortProjectsByOrder, projectReorderIds, topProjectOrder, sendToBottomIds } from './projectOrder.js';
+import { sortByProjectOrder, applyProjectReorder, orderProjectTasks, sortProjectsByOrder, projectReorderIds, topProjectOrder, sendToBottomIds, sortProjectInbox, draggableProjectTasks, dragReorderIds, TASK_SORT_DEADLINE } from './projectOrder.js';
 import { mergeTaskArrays } from '../mergeSync.js';
 
 const t = (id, extra = {}) => ({ id, title: id, projectId: 'p1', lastModified: '2026-09-01T00:00:00.000Z', ...extra });
@@ -147,5 +147,88 @@ describe('sendToBottomIds', () => {
     expect(sendToBottomIds(inbox, 'uuid-1', retired)).toEqual(['a', 'b', 'obsidian-dg-x']);
     // An id the record does not name resolves to itself.
     expect(sendToBottomIds(inbox, 'a', retired)).toEqual(['obsidian-dg-x', 'b', 'a']);
+  });
+});
+
+// #2394: a project can list its unscheduled tasks deadlines first. It is a
+// view over projectOrder: the undated tasks keep the manual order and are
+// still dragged, and turning it off shows the manual order as it was left.
+describe('a project ordered by deadline', () => {
+  const ids = (list) => list.map((x) => x.id);
+  // Manual order: a, b, c, d, e, f. b, d and e have deadlines; f is done.
+  const inbox = () => [
+    t('c', { projectOrder: 20 }),
+    t('a', { projectOrder: 0 }),
+    t('e', { projectOrder: 40, deadline: '2026-11-15' }),
+    t('b', { projectOrder: 10, deadline: '2027-01-10' }),
+    t('d', { projectOrder: 30, deadline: '2026-11-15' }),
+    t('f', { projectOrder: 50, completed: true }),
+  ];
+
+  describe('sortProjectInbox', () => {
+    it('without the setting, and with any other value, is the manual order', () => {
+      expect(ids(sortProjectInbox(inbox()))).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
+      expect(ids(sortProjectInbox(inbox(), 'title'))).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
+    });
+
+    it('puts dated tasks first, soonest first, two on one date in manual order; then the undated in manual order', () => {
+      expect(ids(sortProjectInbox(inbox(), TASK_SORT_DEADLINE))).toEqual(['d', 'e', 'b', 'a', 'c', 'f']);
+    });
+
+    it('an empty deadline is no deadline, and the input is not mutated', () => {
+      const list = [t('x', { projectOrder: 0, deadline: '' }), t('y', { projectOrder: 10, deadline: '2026-12-01' }), t('z', { projectOrder: 20, deadline: null })];
+      const before = ids(list);
+      expect(ids(sortProjectInbox(list, TASK_SORT_DEADLINE))).toEqual(['y', 'x', 'z']);
+      expect(ids(list)).toEqual(before);
+      expect(sortProjectInbox(null, TASK_SORT_DEADLINE)).toEqual([]);
+    });
+  });
+
+  describe('orderProjectTasks', () => {
+    it('applies the project order to the unscheduled group only: scheduled still lead by date, completed still trail', () => {
+      const scheduled = [{ id: 's2', date: '2026-12-02' }, { id: 's1', date: '2026-12-01' }];
+      expect(ids(orderProjectTasks(scheduled, inbox(), TASK_SORT_DEADLINE))).toEqual(['s1', 's2', 'd', 'e', 'b', 'a', 'c', 'f']);
+      expect(ids(orderProjectTasks(scheduled, inbox()))).toEqual(['s1', 's2', 'a', 'b', 'c', 'd', 'e', 'f']);
+    });
+  });
+
+  describe('draggableProjectTasks', () => {
+    it('manual: every open task; by deadline: the undated open ones, in manual order', () => {
+      expect(ids(draggableProjectTasks(inbox()))).toEqual(['a', 'b', 'c', 'd', 'e']);
+      expect(ids(draggableProjectTasks(inbox(), TASK_SORT_DEADLINE))).toEqual(['a', 'c']);
+      expect(draggableProjectTasks(null, TASK_SORT_DEADLINE)).toEqual([]);
+    });
+  });
+
+  describe('dragReorderIds', () => {
+    it('manual: the dragged order, completed after, as before', () => {
+      expect(dragReorderIds(inbox(), undefined, 0, 2)).toEqual(['b', 'c', 'a', 'd', 'e', 'f']);
+    });
+
+    it('by deadline: the undated tasks swap among the manual places they hold; the dated ones do not move', () => {
+      // Draggable: a, c. Dragging c above a.
+      expect(dragReorderIds(inbox(), TASK_SORT_DEADLINE, 1, 0)).toEqual(['c', 'b', 'a', 'd', 'e', 'f']);
+    });
+
+    it('an index that is not a draggable task is no reorder', () => {
+      expect(dragReorderIds(inbox(), TASK_SORT_DEADLINE, 0, 2)).toBeNull();
+      expect(dragReorderIds(inbox(), TASK_SORT_DEADLINE, 5, 0)).toBeNull();
+      expect(dragReorderIds([], undefined, 0, 1)).toBeNull();
+    });
+
+    it('a drag under the deadline order shows at once, and the manual order underneath keeps the dated tasks where they were', () => {
+      const NOW = '2026-11-14T10:00:00.000Z';
+      const after = applyProjectReorder(inbox(), dragReorderIds(inbox(), TASK_SORT_DEADLINE, 1, 0), NOW);
+      expect(ids(sortProjectInbox(after, TASK_SORT_DEADLINE))).toEqual(['d', 'e', 'b', 'c', 'a', 'f']);
+      // Turned off again: b, d and e sit exactly where the manual order had them.
+      expect(ids(sortProjectInbox(after))).toEqual(['c', 'b', 'a', 'd', 'e', 'f']);
+    });
+
+    it('a deadline given and then cleared returns the task to its manual place', () => {
+      const withDeadline = inbox().map((x) => (x.id === 'a' ? { ...x, deadline: '2026-11-01' } : x));
+      expect(ids(sortProjectInbox(withDeadline, TASK_SORT_DEADLINE))).toEqual(['a', 'd', 'e', 'b', 'c', 'f']);
+      const cleared = withDeadline.map((x) => (x.id === 'a' ? { ...x, deadline: undefined } : x));
+      expect(ids(sortProjectInbox(cleared, TASK_SORT_DEADLINE))).toEqual(['d', 'e', 'b', 'a', 'c', 'f']);
+    });
   });
 });

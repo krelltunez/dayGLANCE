@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownToLine, ArrowLeft, Eye, EyeOff, PanelRightClose, PanelRightOpen, Plus, X, Zap } from 'lucide-react';
+import { ArrowDownNarrowWide, ArrowDownToLine, ArrowLeft, Eye, EyeOff, PanelRightClose, PanelRightOpen, Plus, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
@@ -43,7 +43,7 @@ import HyperGlanceEditor from './HyperGlanceEditor.jsx';
 import RecurringSeriesRow from './RecurringSeriesRow.jsx';
 import PaneResizeHandle from '../PaneResizeHandle.jsx';
 import { readPaneWidth, writePaneWidth } from '../../utils/paneWidth.js';
-import { sortByProjectOrder, applyProjectReorder, projectReorderIds, topProjectOrder, sendToBottomIds } from '../../utils/projectOrder.js';
+import { sortByProjectOrder, sortProjectInbox, draggableProjectTasks, dragReorderIds, applyProjectReorder, topProjectOrder, sendToBottomIds, TASK_SORT_DEADLINE } from '../../utils/projectOrder.js';
 import { readRetiredTaskIds } from '../../utils/retiredTaskIds.js';
 import { keyboardSheet } from '../../utils/keyboardInset.js';
 import { projectTaskFields } from '../../utils/projectTaskDefaults.js';
@@ -205,11 +205,12 @@ const ProjectPlanner = ({ project, onClose, initialHyperglanceOpen = false }) =>
     }
     const completedScheduled = scheduled.filter(task => task.completed);
     if (showCompleted && completedScheduled.length) byDay.push({ dateStr: null, tasks: completedScheduled });
-    // projectOrder first (utils/projectOrder.js), then completed last; both sorts are stable.
-    let inbox = sortByProjectOrder(mine(unscheduledTasks)).sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0));
+    // The project's task order first (utils/projectOrder.js: manual, or
+    // deadlines first, #2394), then completed last; both sorts are stable.
+    let inbox = sortProjectInbox(mine(unscheduledTasks), project.taskSort).sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0));
     if (!showCompleted) inbox = inbox.filter(task => !task.completed);
     return { scheduledDays: byDay, unscheduled: inbox };
-  }, [tasks, unscheduledTasks, project.id, isVisibleForUser, showCompleted]);
+  }, [tasks, unscheduledTasks, project.id, project.taskSort, isVisibleForUser, showCompleted]);
 
   const hasAnyCompleted = useMemo(() =>
     [...tasks, ...unscheduledTasks].some(task => task.projectId === project.id && !task.archived && task.completed),
@@ -235,6 +236,10 @@ const ProjectPlanner = ({ project, onClose, initialHyperglanceOpen = false }) =>
 
   // ── Drag-to-reorder (unscheduled column) — mirrors ProjectCard ────────────
   const incompleteUnscheduled = unscheduled.filter(task => !task.completed);
+  // The rows that can be dragged, which the drag indexes count through: every
+  // open task, or under the deadline order only the undated ones.
+  const byDeadline = project.taskSort === TASK_SORT_DEADLINE;
+  const draggableTasks = draggableProjectTasks(unscheduled, project.taskSort);
 
   // The selection, as the lists stand: an edit or a completion keeps it on
   // the same task, and a task that leaves the planner drops it.
@@ -279,13 +284,10 @@ const ProjectPlanner = ({ project, onClose, initialHyperglanceOpen = false }) =>
     : { onEdit: editTask, selected: selectedTask?.id === task.id });
 
   const applyReorder = (fromIdx, toIdx) => {
-    const ordered = incompleteUnscheduled.map(task => task.id);
-    if (!ordered[fromIdx] || !ordered[toIdx]) return;
-    const [moved] = ordered.splice(fromIdx, 1);
-    ordered.splice(toIdx, 0, moved);
     // A field on each task (utils/projectOrder.js): syncs on both tiers and
     // survives the Obsidian cycle. Array positions move too, as before.
-    reorderUnscheduledTasks(applyProjectReorder(unscheduledTasks, projectReorderIds(ordered, unscheduled)));
+    const ids = dragReorderIds(unscheduled, project.taskSort, fromIdx, toIdx);
+    if (ids) reorderUnscheduledTasks(applyProjectReorder(unscheduledTasks, ids));
   };
 
   const handleDragStart = (e, idx) => {
@@ -507,8 +509,19 @@ const ProjectPlanner = ({ project, onClose, initialHyperglanceOpen = false }) =>
                 {t('common.completed', 'Completed')}
               </button>
             )}
-            {/* hyperGLANCE: its settings in the panel (wide) or as the
-                sheet's other page; ON says whether the project has one. */}
+            {/* The project's task order (#2394), also in its edit dialog:
+                deadlines first, or the order the tasks were dragged into. */}
+            <button
+              type="button"
+              onClick={() => updateProject(project.id, { taskSort: byDeadline ? undefined : TASK_SORT_DEADLINE })}
+              aria-pressed={byDeadline}
+              data-planner-deadline-order-toggle
+              className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-lg ${hoverBg} ${byDeadline ? 'text-blue-500' : textSecondary} transition-colors`}
+              title={byDeadline ? t('planner.byDeadlineOn') : t('planner.byDeadlineOff')}
+            >
+              <ArrowDownNarrowWide size={13} />
+              {t('planner.byDeadline')}
+            </button>
             <button
               type="button"
               onClick={() => setHyperOpen(open => !open)}
@@ -672,14 +685,15 @@ const ProjectPlanner = ({ project, onClose, initialHyperglanceOpen = false }) =>
               )}
               {unscheduled.length > 0 ? (
                 unscheduled.map(task => {
-                  const idx = incompleteUnscheduled.findIndex(u => u.id === task.id);
-                  const draggable = idx !== -1 && incompleteUnscheduled.length > 1;
+                  const idx = draggableTasks.findIndex(u => u.id === task.id);
+                  const draggable = idx !== -1 && draggableTasks.length > 1;
                   return (
                     <SchedTaskCard
                       key={task.id}
                       task={task}
                       isInbox
                       {...cardProps(task)}
+                      gripSpace={byDeadline && !task.completed && !draggable && draggableTasks.length > 1}
                       onSchedule={task.completed ? null : (t) => scheduleTaskAtNextSlot(t.id, true)}
                       dnd={draggable ? {
                         idx,

@@ -2072,7 +2072,9 @@
     "hideCompletedGoals": "隐藏已完成的目标",
     "allCompletedHidden_other": "这里的 {{count}} 个目标都已完成。",
     "onHold": "已暂停",
-    "noOnHoldProjects": "没有已暂停的项目"
+    "noOnHoldProjects": "没有已暂停的项目",
+    "orderByDeadlineLabel": "按截止日期排列任务",
+    "orderByDeadlineHint": "有截止日期的未排程任务排在前面，最近的在最上；其余任务保持你拖动的顺序。"
   },
   "colors": {
     "gray": "灰色",
@@ -2250,7 +2252,10 @@
     "selectForNotes": "选择一个任务，即可在此查看它的笔记。",
     "resizeNotes": "调整笔记宽度",
     "resizeNotesHint": "拖动调整宽度 · 双击恢复",
-    "notesKeysHint": "↑ ↓ 切换任务 · ← → 切换列表 · 按 Enter 或双击编辑任务 · 按 E 编辑笔记"
+    "notesKeysHint": "↑ ↓ 切换任务 · ← → 切换列表 · 按 Enter 或双击编辑任务 · 按 E 编辑笔记",
+    "byDeadline": "按截止日期",
+    "byDeadlineOn": "未排程任务：截止日期优先。点击改回你自己的顺序。",
+    "byDeadlineOff": "未排程任务：你自己的顺序。点击让截止日期优先。"
   },
   "bucket": {
     "title": "心愿清单",
