@@ -204,6 +204,18 @@ describe('the registered surface, read over the wire', () => {
     for (const t of (await client.listTools()).tools) expect(t.description, t.name).toMatch(/\S/);
     for (const r of (await client.listResources()).resources) expect(r.description, r.uri).toMatch(/\S/);
   });
+  // A task another GLANCE app created reports its completion back there
+  // (readModel.js, wireLink): every tool that lists or completes tasks says
+  // so, so a model does not complete a lastGLANCE chore in both apps.
+  it('the tools that list or complete tasks say what link means', async () => {
+    const client = await h.connect();
+    const tools = (await client.listTools()).tools;
+    for (const name of ['dayglance_get_today', 'dayglance_get_day', 'dayglance_list_unscheduled_tasks', 'dayglance_set_task_completion']) {
+      const d = tools.find((t) => t.name === name)!.description ?? '';
+      expect(d, name).toContain('link');
+      expect(d, name).toMatch(/reported back/);
+    }
+  });
 });
 
 describe('a read call travels client → listener → bridge → client', () => {

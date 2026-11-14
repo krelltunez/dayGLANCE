@@ -481,7 +481,9 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       description:
         'Set a dayGLANCE task\'s completion state (a setter, not a toggle: safe to retry, and ' +
         'setting completed:false is the agent\'s own undo). Works for scheduled blocks, inbox ' +
-        'tasks, and recurring-task instances.' + CANNOT_MODIFY_NATIVE,
+        'tasks, and recurring-task instances. A task with "link" came from another GLANCE app (link.app, e.g. ' +
+        '"lastglance"; link.id is the chore or person there): completing or reopening it is reported back to that app, ' +
+        'so a lastGLANCE chore\'s task completed here is the chore done there; do not complete it in both.' + CANNOT_MODIFY_NATIVE,
       inputSchema: z.object({
         task_id: z.string(),
         completed: z.boolean(),

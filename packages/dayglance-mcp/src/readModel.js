@@ -58,6 +58,19 @@ function wireNote(entity) {
 }
 
 /**
+ * Where a task came from, when another GLANCE app created it (a lastGLANCE
+ * chore sent here, a reach-out to a person): { app, id }, the app's short name
+ * ("lastglance") and the id there. Such a task reports its completion,
+ * reopening, rescheduling and deletion back to that app (useNotifyEmitter's
+ * shouldEmit: source_app and source_entity_id), so a reader can see that
+ * completing it here is completing it there too. Undefined otherwise.
+ */
+export function wireLink(t) {
+  if (!t?.source_app || !t?.source_entity_id) return undefined;
+  return { app: String(t.source_app).replace(/^app\./, ''), id: String(t.source_entity_id) };
+}
+
+/**
  * Inbox-item wire shape, shared by the inbox read and the write responses.
  * `timeZone` (an IANA name) is the zone created_at and completed_at are
  * reported in; omitted, they are on this machine's clock, as the app reports
@@ -86,6 +99,8 @@ export function inboxItem(t, { timeZone } = {}) {
   // can plan a slot before it schedules.
   if (typeof t.duration === 'number') item.duration_minutes = t.duration;
   if (t.assignedUserSyncIds?.length) item.assignee_id = t.assignedUserSyncIds[0];
+  const link = wireLink(t);
+  if (link) item.link = link;
   const subtasks = wireSubtasks(t);
   if (subtasks) item.subtasks = subtasks;
   return item;
@@ -189,6 +204,10 @@ export function toBlock(task, { timeZone } = {}) {
   // always said; the reads now say too.
   if (task.assignedUserSyncIds?.length) block.assignee_id = task.assignedUserSyncIds[0];
   if (task.isTaskCalendar) block.source = 'caldav_tasks';
+  // A task another GLANCE app created (a lastGLANCE chore): completing it here
+  // is reported back there (wireLink).
+  const link = wireLink(task);
+  if (link) block.link = link;
   // A recurring occurrence says which series it belongs to and how it repeats
   // (#2066), in the shape dayglance_update_recurring_task accepts back.
   if (type === 'recurring_task' && task.recurrence) {
