@@ -29,6 +29,8 @@ import {
   noteLinkOf,
   continuationsFromPreviousDay,
   shiftDateStr,
+  sortProjectInbox,
+  TASK_SORT_DEADLINE,
 } from '@glance-apps/agenda-core';
 import { buildFrames } from './frames.js';
 import { expandRecurringForDate, rowsForDate } from './dayRows.js';
@@ -370,6 +372,14 @@ function progressRows(state) {
 const inProject = (projectId) => (t) => t.projectId === projectId && !t.archived;
 
 /**
+ * How a project orders its unscheduled tasks, on the wire (#2394): 'deadline'
+ * (dated tasks first, soonest first, the rest as the user dragged them) or
+ * 'manual' (the dragged order alone). Always present: it is a mode, and a
+ * reader that never sees the key cannot know there is one to set.
+ */
+export const projectTaskOrder = (project) => (project?.taskSort === TASK_SORT_DEADLINE ? 'deadline' : 'manual');
+
+/**
  * A project as the goal tree reports it (2026-10-04: the record's own fields
  * beside the progress). `description` is the record's notes box; for a
  * project linked to an Obsidian note the box lives in that note's opening
@@ -389,6 +399,7 @@ export function projectItem(p, progressTasks = []) {
     progress_percent: progress === null ? null : Math.round(progress * 100),
     tasks_done: projectTasks.filter((t) => t.completed).length,
     tasks_total: projectTasks.length,
+    task_order: projectTaskOrder(p),
   };
   if (p.goalId) item.goal_id = p.goalId;
   if (p.assignedUserSyncIds?.length) item.assignee_ids = [...p.assignedUserSyncIds];
@@ -496,10 +507,13 @@ export function buildGoalProgress(state, params) {
  * where it sits in `placement`: 'scheduled' (a day block, with its date),
  * 'inbox' (an inbox item) or 'bucket_list' (a Bucket List item, with
  * bucket_id). Scheduled tasks come first, by date, all-day before timed, then
- * by start; then the inbox and the Bucket List in their stored order, which is
- * the order dayglance_list_unscheduled_tasks and dayglance_list_bucket_list
- * return. A recurring series is not listed, as it is not counted: it has no
- * end to enumerate, and its occurrences are in the day reads.
+ * by start. The inbox group follows in the order the project's Planner lists
+ * it (agenda-core's sortProjectInbox under the project's task_order: the
+ * order the user dragged the tasks into, or deadlines first), completed ones
+ * last. The Bucket List comes last, in its stored order, which is the order
+ * dayglance_list_bucket_list returns. A recurring series is not listed, as it
+ * is not counted: it has no end to enumerate, and its occurrences are in the
+ * day reads.
  *
  * Unpaginated: the tool layer owns paging, as for the inbox (§5.1).
  */
@@ -523,7 +537,10 @@ export function buildProjectTasks(state, params) {
       || a.i - b.i)
     .map(({ t }) => ({ ...toBlock(t, stamp), placement: 'scheduled' }));
   const unscheduled = unscheduledTasks.filter(mine);
-  const inbox = unscheduled.filter(notBucketed).map((t) => ({ ...inboxItem(t, stamp), placement: 'inbox' }));
+  // The Planner's own two stable sorts: the project's order, then completed last.
+  const inbox = sortProjectInbox(unscheduled.filter(notBucketed), project.taskSort)
+    .sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0))
+    .map((t) => ({ ...inboxItem(t, stamp), placement: 'inbox' }));
   const bucket = unscheduled.filter((t) => !notBucketed(t)).map((t) => {
     // Bucket List items carry no priority or deadline (buildBucketList).
     const { priority: _p, deadline: _d, ...item } = inboxItem(t, stamp);
@@ -532,7 +549,7 @@ export function buildProjectTasks(state, params) {
 
   return {
     notFound: false,
-    project: { id: project.id, title: project.title, status: project.status },
+    project: { id: project.id, title: project.title, status: project.status, task_order: projectTaskOrder(project) },
     items: [...scheduled, ...inbox, ...bucket],
   };
 }

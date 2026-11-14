@@ -134,12 +134,14 @@ describe('describeUndoOp: field changes, as the read tools would show the values
       title: goal.title, description: goal.description, start_date: goal.start_date, target_date: goal.target_date,
       area_id: goal.area_id, status: goal.status, assignee_ids: goal.assignee_ids,
     });
-    const projectBefore = { title: 'Roof', description: '', goalId: 'g1', targetDate: '2026-11-01', status: 'active', assignedUserSyncIds: ['u2'] };
+    const projectBefore = { title: 'Roof', description: '', goalId: 'g1', targetDate: '2026-11-01', status: 'active', taskSort: 'deadline', assignedUserSyncIds: ['u2'] };
     const project = projectItem({ id: 'p1', ...projectBefore }) as Record<string, unknown>;
     expect(changesOf({ kind: 'restore_project_fields', projectId: 'p1', before: projectBefore })).toEqual({
       title: project.title, description: project.description, goal_id: project.goal_id, target_date: project.target_date,
-      status: project.status, assignee_ids: project.assignee_ids,
+      status: project.status, task_order: project.task_order, assignee_ids: project.assignee_ids,
     });
+    // A project that had no order stored was in the manual order (#2394).
+    expect(changesOf({ kind: 'restore_project_fields', projectId: 'p1', before: {}, absentBefore: ['taskSort'] })).toEqual({ task_order: 'manual' });
     expect(changesOf({ kind: 'restore_goal_fields', goalId: 'g1', before: {}, absentBefore: ['targetDate', 'areaId', 'assignedUserSyncIds'] }))
       .toEqual({ target_date: null, area_id: null, assignee_ids: null });
   });

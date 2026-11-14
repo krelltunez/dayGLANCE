@@ -533,7 +533,7 @@ function beforeFields(entity, touched) {
 
 /** Storage keys → wire names for goal and project summaries. */
 export function entityFieldNames(touched) {
-  const names = { assignedUserSyncIds: 'assignees', areaId: 'area', goalId: 'goal', startDate: 'start_date', targetDate: 'target_date' };
+  const names = { assignedUserSyncIds: 'assignees', areaId: 'area', goalId: 'goal', startDate: 'start_date', targetDate: 'target_date', taskSort: 'task_order' };
   return (touched ?? []).map((key) => names[key] ?? key);
 }
 

@@ -233,7 +233,7 @@ describe('the read surface, answered from the host\'s copy for one user in their
     const p1 = tree.goals[0].projects[0];
     // Sam's t2 is in the project and not the user's: not counted, not listed.
     const all = await call('dayglance_list_project_tasks', { project_id: 'p1' });
-    expect(all.project).toEqual({ id: 'p1', title: 'Website', status: 'active' });
+    expect(all.project).toEqual({ id: 'p1', title: 'Website', status: 'active', task_order: 'manual' });
     expect(all.items.map((t) => [t.id, t.placement])).toEqual([['t1', 'scheduled'], ['t3', 'scheduled'], ['u2', 'inbox']]);
     expect(all.total).toBe(p1.tasks_total);
     expect(all.items.filter((t) => t.completed).length).toBe(p1.tasks_done);

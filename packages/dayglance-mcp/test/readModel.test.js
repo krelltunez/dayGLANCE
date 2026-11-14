@@ -12,6 +12,7 @@ import {
   buildUsers,
   inboxItem,
   projectItem,
+  projectTaskOrder,
   buildProjectTasks,
   handleMcpRequest,
 } from '../src/readModel.js';
@@ -419,7 +420,7 @@ describe('handleMcpRequest — the dispatcher', () => {
   it('routes list_project_tasks, and an unknown project is not_found', () => {
     const withProject = { ...state, projects: [{ id: 'p1', title: 'Website', status: 'active' }] };
     expect(handleMcpRequest(withProject, { method: 'list_project_tasks', params: { project_id: 'p1' } }))
-      .toEqual({ ok: true, data: { project: { id: 'p1', title: 'Website', status: 'active' }, items: [] } });
+      .toEqual({ ok: true, data: { project: { id: 'p1', title: 'Website', status: 'active', task_order: 'manual' }, items: [] } });
     const nf = handleMcpRequest(withProject, { method: 'list_project_tasks', params: { project_id: 'nope' } });
     expect(nf).toEqual({ ok: false, error: { code: 'not_found', message: 'No project with id "nope"' } });
     expect(handleMcpRequest(withProject, { method: 'list_project_tasks' })).toMatchObject({ ok: false, error: { code: 'not_found' } });
@@ -631,7 +632,7 @@ describe('buildProjectTasks: the tasks a project\'s counters count', () => {
 
   it('lists scheduled tasks by date, all-day first, then by start; then the inbox; then the Bucket List', () => {
     const r = list({ project_id: 'p1' });
-    expect(r.project).toEqual({ id: 'p1', title: 'Degree', status: 'active' });
+    expect(r.project).toEqual({ id: 'p1', title: 'Degree', status: 'active', task_order: 'manual' });
     expect(r.items.map((i) => [i.id, i.placement])).toEqual([
       ['allday', 'scheduled'], ['early', 'scheduled'], ['noon', 'scheduled'], ['late', 'scheduled'],
       ['thesis', 'inbox'], ['forms', 'inbox'],
@@ -693,5 +694,53 @@ describe('buildProjectTasks: the tasks a project\'s counters count', () => {
   it('stamps are reported in the state\'s zone, as in the day and inbox reads', () => {
     const r = buildProjectTasks({ ...state, timeZone: 'America/Los_Angeles' }, { project_id: 'p1' });
     expect(r.items.find((i) => i.id === 'noon').completed_at).toEqual({ date: '2026-09-01', time: '06:00' });
+  });
+});
+
+// #2394: a project can list its unscheduled tasks deadlines first. An agent is
+// told which order a project is in, and is shown the tasks in that order.
+describe('a project\'s task order on the read surface', () => {
+  const project = (over = {}) => ({ id: 'p1', title: 'Degree', status: 'active', ...over });
+  // Stored (inbox array) order: c, a, e, b, d, done. Manual order by projectOrder: a, b, c, d, e.
+  const unscheduledTasks = [
+    { id: 'c', projectId: 'p1', projectOrder: 20 },
+    { id: 'a', projectId: 'p1', projectOrder: 0 },
+    { id: 'e', projectId: 'p1', projectOrder: 40, deadline: '2026-11-15' },
+    { id: 'done', projectId: 'p1', projectOrder: 5, completed: true, deadline: '2026-01-01' },
+    { id: 'b', projectId: 'p1', projectOrder: 10, deadline: '2027-01-10' },
+    { id: 'd', projectId: 'p1', projectOrder: 30, deadline: '2026-11-15' },
+    { id: 'bucket', projectId: 'p1', projectOrder: 1, bucketId: 'someday' },
+  ];
+  const tasks = [T({ id: 's1', date: '2026-12-01', projectId: 'p1' })];
+  const list = (p) => buildProjectTasks({ projects: [p], tasks, unscheduledTasks }, { project_id: 'p1' });
+  const ids = (r) => r.items.map((i) => i.id);
+
+  it('projectTaskOrder: the stored field as the wire names it, manual when absent or unknown', () => {
+    expect(projectTaskOrder(project({ taskSort: 'deadline' }))).toBe('deadline');
+    expect(projectTaskOrder(project())).toBe('manual');
+    expect(projectTaskOrder(project({ taskSort: 'title' }))).toBe('manual');
+    expect(projectTaskOrder(null)).toBe('manual');
+  });
+
+  it('the goal tree reports each project\'s order, always', () => {
+    const tree = buildGoalProgress({ goals: [], projects: [project({ taskSort: 'deadline' }), project({ id: 'p2' })], tasks: [], unscheduledTasks: [] }, {});
+    expect(tree.standalone_projects.map((p) => [p.id, p.task_order])).toEqual([['p1', 'deadline'], ['p2', 'manual']]);
+    expect(projectItem(project()).task_order).toBe('manual');
+  });
+
+  it('manual: the inbox group is in the order the user dragged it into, not the stored order; completed last', () => {
+    const r = list(project());
+    expect(r.project.task_order).toBe('manual');
+    expect(ids(r)).toEqual(['s1', 'a', 'b', 'c', 'd', 'e', 'done', 'bucket']);
+  });
+
+  it('deadline: dated tasks first, soonest first, two on one date in manual order; then the rest in manual order', () => {
+    const r = list(project({ taskSort: 'deadline' }));
+    expect(r.project.task_order).toBe('deadline');
+    expect(ids(r)).toEqual(['s1', 'd', 'e', 'b', 'a', 'c', 'done', 'bucket']);
+  });
+
+  it('the order never changes which tasks are listed', () => {
+    expect([...ids(list(project()))].sort()).toEqual([...ids(list(project({ taskSort: 'deadline' })))].sort());
   });
 });

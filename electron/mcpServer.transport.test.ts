@@ -505,6 +505,58 @@ describe('project writes carry the project-level target date (2026-10-21)', () =
     }
   });
 
+  // How a project lists its unscheduled tasks (#2394): set on create and
+  // update, a wrong value answered with the two there are, before the bridge.
+  it('create_project and update_project take task_order, and say what it does', async () => {
+    const bridge = fakeBridge(projectScript);
+    const h = await start({ writeDeps: writeDeps(bridge.bridge) });
+    try {
+      const client = await h.connect();
+      const { tools } = await client.listTools();
+      for (const name of ['dayglance_create_project', 'dayglance_update_project']) {
+        const tool = tools.find((x) => x.name === name)!;
+        expect(tool.description, name).toContain('task_order');
+        expect(JSON.stringify((tool.inputSchema.properties as Record<string, unknown>).task_order), name).toContain('deadline');
+      }
+      const c = await client.callTool({ name: 'dayglance_create_project', arguments: { title: 'Degree', task_order: 'deadline' } });
+      expect(c.isError).toBeFalsy();
+      expect(bridge.calls[0]).toMatchObject({ method: 'create_project', params: { title: 'Degree', taskOrder: 'deadline' } });
+      const u = await client.callTool({ name: 'dayglance_update_project', arguments: { project_id: 'p1', task_order: 'manual' } });
+      expect(u.isError).toBeFalsy();
+      expect(bridge.calls[1]).toMatchObject({ method: 'update_project', params: { projectId: 'p1', set: { taskOrder: 'manual' }, clear: [] } });
+
+      // The schema lets the value through, so the client reads OUR message.
+      const bad = await client.callTool({ name: 'dayglance_update_project', arguments: { project_id: 'p1', task_order: 'priority' } });
+      expect(bad.isError).toBe(true);
+      const error = (body(bad) as { error: { code: string; message: string } }).error;
+      expect(error.code).toBe('validation');
+      expect(error.message).toContain('"manual"');
+      expect(error.message).toContain('"deadline"');
+      expect(error.message).toContain('"priority"');
+      expect(bridge.calls).toHaveLength(2);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it('the reads that carry a project say what task_order means, and the reference documents it', async () => {
+    const bridge = fakeBridge(okScript);
+    const h = await start({ readDeps: readDeps(bridge.bridge) });
+    try {
+      const client = await h.connect();
+      const { tools } = await client.listTools();
+      for (const name of ['dayglance_get_goal_progress', 'dayglance_list_project_tasks']) {
+        const d = tools.find((x) => x.name === name)!.description!;
+        expect(d, name).toContain('task_order');
+        expect(d, name).toContain('"manual"');
+        expect(d, name).toContain('"deadline"');
+      }
+      expect(reference).toContain('`task_order`');
+    } finally {
+      await h.close();
+    }
+  });
+
   // A goal's or an area's defaults for new projects (#2336): the create tool
   // says a project under a goal starts with them.
   it('create_project says a project under a goal takes the defaults its goal or area holds for new projects', async () => {

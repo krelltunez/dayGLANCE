@@ -148,6 +148,8 @@ export function buildUnscheduledItems(
   state: Partial<McpReadState>,
   filter?: { scope?: 'all' | 'standalone' | 'project'; includeCompleted?: boolean },
 ): { items: Record<string, unknown>[] };
+/** How a project orders its unscheduled tasks, on the wire: deadlines first, or the dragged order alone. */
+export function projectTaskOrder(project: unknown): 'manual' | 'deadline';
 export function projectItem(project: unknown, progressTasks?: unknown[]): Record<string, unknown>;
 export function goalItem(goal: unknown, state: Partial<McpReadState>, progressTasks?: unknown[]): Record<string, unknown>;
 export function buildAreas(state: Partial<McpReadState>): { areas: Array<{ id: unknown; name: string }> };
@@ -168,7 +170,7 @@ export function buildProjectTasks(
   params?: { project_id?: unknown; include_completed?: boolean },
 ):
   | { notFound: true }
-  | { notFound: false; project: { id: unknown; title: unknown; status: unknown }; items: Record<string, unknown>[] };
+  | { notFound: false; project: { id: unknown; title: unknown; status: unknown; task_order: 'manual' | 'deadline' }; items: Record<string, unknown>[] };
 export function buildUsers(state: Partial<McpReadState>): { users: Array<{ id: unknown; name: string }> };
 export function handleMcpRequest(
   state: Partial<McpReadState>,

@@ -263,9 +263,16 @@ Each goal: `id`, `title`, `status`, `description`, `start_date`, `target_date` (
 `progress_percent`, `projects`, plus when present `area_id` and `area_name`, `assignee_ids`
 (multi-user), and `obsidian_note` (`{ path, name, missing }`). Each project: `id`, `title`,
 `status`, `description`, `progress_percent` (null when nothing is measurable), `tasks_done`,
-`tasks_total`, plus when present `goal_id`, `target_date` (the project's own due date,
+`tasks_total`, `task_order`, plus when present `goal_id`, `target_date` (the project's own due date,
 `YYYY-MM-DD`), `assignee_ids`, `obsidian_note`. Standalone projects are listed under
 `standalone_projects`.
+
+**`task_order`** is how the project lists its unscheduled tasks, always present: `"manual"` (the
+order the user dragged them into) or `"deadline"` (tasks with a deadline first, soonest first, two
+on one date in manual order; the rest after, in manual order). `"deadline"` is a view: the manual
+order stays intact underneath and returns when the project is set back. It is set with
+`dayglance_create_project` and `dayglance_update_project`, or in dayGLANCE from the project's edit
+dialog or its Planner.
 
 **What a project's counters count.** All three read the same set: every task attached to the
 project that is not archived.
@@ -309,7 +316,7 @@ Paginated. Use it instead of reading day after day to find a project's scheduled
 | `cursor` | string | no | Opaque cursor from a previous response's `next_cursor`. Bound to the project and filter it was issued under. |
 
 Returns `{ project, items, truncated, next_cursor, total, timezone }`, with `project` as
-`{ id, title, status }`.
+`{ id, title, status, task_order }`.
 
 **The list is the set the counters count**: every non-archived task attached to the project. With
 `include_completed` left on, `total` equals the project's `tasks_total`, and the completed items
@@ -323,7 +330,7 @@ lists it:
 | `placement` | Shape | Order |
 |---|---|---|
 | `scheduled` | A block as `dayglance_get_day` returns it (`date`, `start_time`, `duration_minutes`, `all_day`, …; see Block types). | First: by date, all-day before timed, then by start time. |
-| `inbox` | An item as `dayglance_list_unscheduled_tasks` returns it. | Next, in that tool's order. |
+| `inbox` | An item as `dayglance_list_unscheduled_tasks` returns it. | Next, in the order the project shows them: by `project.task_order` (see `dayglance_get_goal_progress`), completed ones last. This is not `dayglance_list_unscheduled_tasks`'s order, which is the inbox's stored one. |
 | `bucket_list` | An item as `dayglance_list_bucket_list` returns it, with `bucket_id`. | Last, in that tool's order. |
 
 Filtering happens before pagination, and cursors follow the inbox's rules: `total`, `truncated` and
@@ -636,6 +643,7 @@ area (#2336), copied once, as the project form copies them.
 | `goal_id` | string | no | Omit for standalone. Unknown → `not_found`. |
 | `description` | string | no | The project's notes box. |
 | `target_date` | string | no | Local `YYYY-MM-DD` — the project's own due date, matching a goal's target date. Independent of its tasks' deadlines. |
+| `task_order` | `'manual'` \| `'deadline'` | no | How the project lists its unscheduled tasks (see `dayglance_get_goal_progress`). Default `'manual'`. Anything else → `validation` naming the two. |
 | `assignee_ids` | string[] | no | **Multi-user only.** Overrides the inheritance. |
 | `idempotency_key` | string | no | |
 
@@ -651,6 +659,7 @@ Field editor for projects, same contract.
 | `goal_id` | string | no | Move under another goal. `"goal"` in `clear_fields` makes it standalone. |
 | `target_date` | string | no | Local `YYYY-MM-DD` — the project's own target date. `"target_date"` in `clear_fields` removes it. |
 | `status` | `'active'` \| `'on-hold'` \| `'completed'` | no | `'archived'` → `validation`. `'on-hold'` pauses the project: it stays listed and intact but is not flagged stalled, warned about its target date or given hyperGLANCE sessions; `'active'` resumes it. Completing requires every task in the project to be completed. |
+| `task_order` | `'manual'` \| `'deadline'` | no | How the project lists its unscheduled tasks. `'deadline'` puts tasks with a deadline first, soonest first; `'manual'` returns to the order the user dragged them into, which `'deadline'` never rewrites. Set, never cleared. Anything else → `validation` naming the two. |
 | `assignee_ids` | string[] | no | **Multi-user only.** |
 | `clear_fields` | string[] | no | `"description"`, `"goal"`, `"assignees"` (multi-user), `"target_date"`. |
 | `idempotency_key` | string | no | |
