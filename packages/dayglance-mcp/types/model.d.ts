@@ -94,6 +94,7 @@ export type McpReadMethod =
   | 'list_users'
   | 'list_areas'
   | 'list_bucket_list'
+  | 'list_project_tasks'
   | 'goal_progress';
 
 export interface WireStamp { date: string; time: string | null }
@@ -157,6 +158,17 @@ export function buildGoalProgress(
   | { notFound: false; invalid: string }
   | { notFound: true; invalid: null }
   | { notFound: false; invalid: null; goals: Record<string, unknown>[]; standalone_projects: Record<string, unknown>[] };
+/**
+ * One project's tasks, the set its tasks_done and tasks_total count: scheduled
+ * ones as day blocks, then inbox items, then Bucket List items, each with
+ * `placement`. `notFound` for an id that is not a project the user can see.
+ */
+export function buildProjectTasks(
+  state: Partial<McpReadState>,
+  params?: { project_id?: unknown; include_completed?: boolean },
+):
+  | { notFound: true }
+  | { notFound: false; project: { id: unknown; title: unknown; status: unknown }; items: Record<string, unknown>[] };
 export function buildUsers(state: Partial<McpReadState>): { users: Array<{ id: unknown; name: string }> };
 export function handleMcpRequest(
   state: Partial<McpReadState>,
