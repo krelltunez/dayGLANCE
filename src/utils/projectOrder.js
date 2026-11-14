@@ -33,6 +33,60 @@ export function sortByProjectOrder(tasks) {
   return [...ordered, ...list.filter((t) => !hasOrder(t))];
 }
 
+// A project can order its unscheduled tasks by deadline instead (#2394):
+// `taskSort: 'deadline'` on the project, absent for the manual order. It is a
+// view over projectOrder, never a rewrite of it: the tasks with a deadline
+// lead, soonest first, and the rest follow in the manual order, which the
+// user still arranges by dragging. Turning it off shows the manual order
+// exactly as it was left.
+export const TASK_SORT_DEADLINE = 'deadline';
+
+const hasDeadline = (t) => typeof t?.deadline === 'string' && t.deadline !== '';
+
+/**
+ * One project's unscheduled tasks in the order its lists show them. Manual:
+ * sortByProjectOrder. By deadline: the dated tasks first, by deadline (a
+ * YYYY-MM-DD string, so it compares as text), two on one date keeping their
+ * manual order; then the undated ones in manual order.
+ */
+export function sortProjectInbox(tasks, taskSort) {
+  const manual = sortByProjectOrder(tasks);
+  if (taskSort !== TASK_SORT_DEADLINE) return manual;
+  const dated = manual.filter(hasDeadline).map((t, i) => ({ t, i }))
+    .sort((a, b) => a.t.deadline.localeCompare(b.t.deadline) || (a.i - b.i))
+    .map(({ t }) => t);
+  return [...dated, ...manual.filter((t) => !hasDeadline(t))];
+}
+
+/**
+ * The open tasks of a project's inbox the user can drag, in the order shown.
+ * Manual: all of them. By deadline: the undated ones, since a date decides
+ * where a dated task sits.
+ */
+export function draggableProjectTasks(projectInbox, taskSort) {
+  const open = sortByProjectOrder((projectInbox || []).filter((t) => t && !t.completed));
+  return taskSort === TASK_SORT_DEADLINE ? open.filter((t) => !hasDeadline(t)) : open;
+}
+
+/**
+ * The applyProjectReorder ids for a drag among the draggable tasks, from one
+ * index of draggableProjectTasks to another. Under the deadline order the
+ * dated tasks keep the manual places they hold and the dragged group is
+ * rewritten around them, so the manual order stays whole underneath. Null
+ * when either index is not a draggable task.
+ */
+export function dragReorderIds(projectInbox, taskSort, fromIdx, toIdx) {
+  const dragged = draggableProjectTasks(projectInbox, taskSort).map((t) => t.id);
+  if (dragged[fromIdx] === undefined || dragged[toIdx] === undefined) return null;
+  const [moved] = dragged.splice(fromIdx, 1);
+  dragged.splice(toIdx, 0, moved);
+  const inGroup = new Set(dragged.map(String));
+  let next = 0;
+  const open = sortByProjectOrder((projectInbox || []).filter((t) => t && !t.completed))
+    .map((t) => (inGroup.has(String(t.id)) ? dragged[next++] : t.id));
+  return projectReorderIds(open, projectInbox);
+}
+
 /**
  * Apply a reorder of one project's tasks to the inbox array. `orderedIds` is
  * the project's WHOLE inbox group in its new order: the open tasks as dragged,
@@ -72,15 +126,6 @@ export function applyProjectReorder(unscheduledTasks, orderedIds, now = new Date
 }
 
 /**
- * A project's tasks in the order the project card lists them: open scheduled
- * (by date), open unscheduled (sortByProjectOrder), then the completed ones
- * in the same two groups. The card and the Project widget's payload both use
- * this, so the widget lists the tasks exactly as the app does.
- *
- * @param {object[]} scheduled    The project's scheduled tasks (already filtered).
- * @param {object[]} unscheduled  The project's unscheduled tasks (already filtered).
- */
-/**
  * The ids applyProjectReorder takes for one project: the open inbox tasks in
  * their new order, then the completed ones in their current order.
  */
@@ -119,10 +164,21 @@ export function sendToBottomIds(projectInbox, id, retired = null) {
   return projectReorderIds([...rest, current], projectInbox);
 }
 
-export function orderProjectTasks(scheduled, unscheduled) {
+/**
+ * A project's tasks in the order the project card lists them: open scheduled
+ * (by date), open unscheduled (sortProjectInbox, under the project's
+ * taskSort), then the completed ones in the same two groups. The card and the
+ * Project widget's payload both use this, so the widget lists the tasks
+ * exactly as the app does.
+ *
+ * @param {object[]} scheduled    The project's scheduled tasks (already filtered).
+ * @param {object[]} unscheduled  The project's unscheduled tasks (already filtered).
+ * @param {string}  [taskSort]    The project's taskSort; absent for the manual order.
+ */
+export function orderProjectTasks(scheduled, unscheduled, taskSort) {
   const sched = [...(Array.isArray(scheduled) ? scheduled : [])]
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  const inbox = sortByProjectOrder(unscheduled);
+  const inbox = sortProjectInbox(unscheduled, taskSort);
   return [
     ...sched.filter((t) => !t.completed),
     ...inbox.filter((t) => !t.completed),

@@ -28,7 +28,8 @@ import DeadlinePickerPopover from '../DeadlinePickerPopover.jsx';
  *
  * Optional `dnd` prop wires the card into a drag-to-reorder list (the
  * planner's unscheduled column) using the same pattern as ProjectCard:
- * whole-card HTML5 drag off-iOS, grip-only touch drag on iOS.
+ * whole-card HTML5 drag off-iOS, grip-only touch drag on iOS. `gripSpace`
+ * keeps the grip's width on a card of such a list that cannot be dragged.
  *
  * `selected` and `onOpen` serve a list where a click selects (the planner
  * with its notes sidebar open): the card shows the selection, and a
@@ -49,7 +50,7 @@ const META_ICON = 14;
 const META_HIT = 'p-1.5 -m-1.5';
 const ACTION_ICON = 18;
 
-const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = null, dnd = null, showOverdueDate = false, onSchedule = null, selected = false, onOpen = null, continuation = null }) => {
+const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = null, dnd = null, gripSpace = false, showOverdueDate = false, onSchedule = null, selected = false, onOpen = null, continuation = null }) => {
   const {
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
     formatTime, toggleComplete, openMobileEditTask, currentTime,
@@ -209,6 +210,10 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
           <GripVertical size={16} />
         </div>
       )}
+      {/* A card that cannot be dragged, in a list whose other cards can (a
+          dated task under a project's deadline order, #2394): the grip's
+          width without a grip, so the checkboxes stay in one column. */}
+      {!dnd && gripSpace && <div className="flex-shrink-0 p-1.5 -m-1" data-no-grip aria-hidden="true"><div className="w-4 h-4" /></div>}
       {/* An imported event has nothing to tick off: a calendar glyph holds the
           checkbox's slot so the card says so and the titles line up. */}
       {isEvent && (

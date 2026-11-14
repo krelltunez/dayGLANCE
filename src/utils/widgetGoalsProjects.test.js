@@ -33,6 +33,19 @@ describe('buildWidgetGoalsProjects: the Project widget', () => {
     expect(p).toMatchObject({ totalTasks: 5, completedTasks: 1, progressPct: 20, goalTitle: 'Launch', goalColorHex: '#10b981', colorHex: '#10b981' });
   });
 
+  // #2394: the widget shares the card's ordering, so it follows the project's own task order.
+  it('a project ordered by deadline lists its unscheduled tasks deadlines first, as its card does', () => {
+    const unscheduled = [
+      { id: 'u-loose', projectId: 'p1', title: 'Tidy up', projectOrder: 0 },
+      { id: 'u-later', projectId: 'p1', title: 'Thesis', projectOrder: 10, deadline: '2027-03-01' },
+      { id: 'u-soon', projectId: 'p1', title: 'Forms', projectOrder: 20, deadline: '2026-11-15' },
+    ];
+    const scheduled = [{ id: 's1', projectId: 'p1', title: 'Kickoff', date: '2026-10-02' }];
+    const listed = (project) => build({ projects: [project], scheduled, unscheduled }).allProjects[0].tasks.map((t) => t.id);
+    expect(listed({ id: 'p1', title: 'Degree', status: 'active', taskSort: 'deadline' })).toEqual(['s1', 'u-soon', 'u-later', 'u-loose']);
+    expect(listed({ id: 'p1', title: 'Degree', status: 'active' })).toEqual(['s1', 'u-loose', 'u-later', 'u-soon']);
+  });
+
   it('carries up to the limit, while the totals count every task', () => {
     const unscheduled = Array.from({ length: 20 }, (_, i) => ({ id: `t${i}`, projectId: 'p1', title: `T${i}`, projectOrder: i }));
     const [p] = build({ projects: [{ id: 'p1', title: 'Big', status: 'active' }], unscheduled }).allProjects;

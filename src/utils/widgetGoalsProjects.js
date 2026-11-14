@@ -93,7 +93,7 @@ export function buildWidgetGoalsProjects({ goals = [], allGoals = goals, project
     .filter((p) => p.status !== 'archived' && (!p.goalId || shownGoalIds.has(p.goalId))))
     .map((p) => {
       const isMine = (t) => t.projectId === p.id && live(t);
-      const ordered = orderProjectTasks(scheduled.filter(isMine), unscheduled.filter(isMine));
+      const ordered = orderProjectTasks(scheduled.filter(isMine), unscheduled.filter(isMine), p.taskSort);
       const done = ordered.filter((t) => t.completed).length;
       const parentGoal = allGoals.find((g) => g.id === p.goalId);
       return {

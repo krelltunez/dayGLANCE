@@ -2078,7 +2078,9 @@
     "allCompletedHidden_one": "Das einzige Ziel hier ist abgeschlossen.",
     "allCompletedHidden_other": "Alle {{count}} Ziele hier sind abgeschlossen.",
     "onHold": "Pausiert",
-    "noOnHoldProjects": "Keine pausierten Projekte"
+    "noOnHoldProjects": "Keine pausierten Projekte",
+    "orderByDeadlineLabel": "Aufgaben nach Frist ordnen",
+    "orderByDeadlineHint": "Ungeplante Aufgaben mit Frist stehen zuerst, die nächste Frist oben. Die übrigen bleiben in der Reihenfolge, in die du sie ziehst."
   },
   "colors": {
     "gray": "Grau",
@@ -2256,7 +2258,10 @@
     "selectForNotes": "Wähle eine Aufgabe, um hier ihre Notizen zu sehen.",
     "resizeNotes": "Notizbreite ändern",
     "resizeNotesHint": "Ziehen zum Ändern der Breite · Doppelklick zum Zurücksetzen",
-    "notesKeysHint": "↑ ↓ zwischen Aufgaben wechseln · ← → Liste wechseln · Enter oder Doppelklick zum Bearbeiten der Aufgabe · E zum Bearbeiten der Notiz"
+    "notesKeysHint": "↑ ↓ zwischen Aufgaben wechseln · ← → Liste wechseln · Enter oder Doppelklick zum Bearbeiten der Aufgabe · E zum Bearbeiten der Notiz",
+    "byDeadline": "Nach Frist",
+    "byDeadlineOn": "Ungeplante Aufgaben: Fristen zuerst. Klicken für deine eigene Reihenfolge.",
+    "byDeadlineOff": "Ungeplante Aufgaben: deine eigene Reihenfolge. Klicken, um Fristen zuerst anzuzeigen."
   },
   "bucket": {
     "title": "Bucket List",
