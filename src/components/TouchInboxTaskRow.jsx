@@ -3,6 +3,7 @@ import { AlertCircle, Archive, Calendar, Check, Settings, Telescope } from 'luci
 import { useTranslation } from 'react-i18next';
 import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, openNoteAction, NoteIcon } from '../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
+import { formatTaskDuration } from '../utils/formatDuration.js';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 
@@ -85,7 +86,7 @@ function TouchInboxTaskRow({
                   {renderTitle(task.title)}
                 </div>
                 <div className="text-xs opacity-90 mt-1 flex items-center gap-2 flex-wrap">
-                  <span>{t('common.minutesShort', { count: task.duration })}</span>
+                  <span>{formatTaskDuration(task.duration, t)}</span>
                   {task.deadline && (
                     <span className="flex items-center gap-1">
                       <AlertCircle size={10} />

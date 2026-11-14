@@ -64,6 +64,13 @@ describe('TouchInboxTaskRow', () => {
     expect(JSON.stringify(root.toJSON())).toContain('30 min');
   });
 
+  it('a task of an hour or more reads in hours and minutes (#2388)', () => {
+    const { root } = mount(base({ current: {} }, { task: { ...TASK, duration: 308 } }));
+    const json = JSON.stringify(root.toJSON());
+    expect(json).toContain('5h 8m');
+    expect(json).not.toContain('308');
+  });
+
   it('has no double-click rename, since it draws no rename field (#2263)', () => {
     const startEditingTask = vi.fn();
     const { root } = mount(base({ current: { startEditingTask } }));

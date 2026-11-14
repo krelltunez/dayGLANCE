@@ -6,6 +6,7 @@ import {
 import { isNativeAndroid } from '../native.js';
 import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, openNoteAction, NoteIcon, isTaskLinkOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks } from '../utils/taskUtils.js';
+import { formatTaskDuration } from '../utils/formatDuration.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import DayWindowMarkers from './DayWindowMarkers.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
@@ -561,7 +562,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                         {!isNarrowWidth && (
                           <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1 ml-1">
                             <Clock size={10} />
-                            {formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration })}
+                            {formatTime(task.startTime)} • {formatTaskDuration(task.duration, t)}
                           </div>
                         )}
                       </div>
@@ -587,7 +588,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                     {!isNarrowWidth && (
                       <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
                         <Clock size={10} />
-                        {formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration })}
+                        {formatTime(task.startTime)} • {formatTaskDuration(task.duration, t)}
                       </div>
                     )}
                   </div>
@@ -621,7 +622,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                     </div>
                     {goalsProjectsEnabled && task.projectId ? (() => {
                       const proj = projects.find(p => p.id === task.projectId);
-                      if (!proj) return height >= 55 ? <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</div> : null;
+                      if (!proj) return height >= 55 ? <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {formatTaskDuration(task.duration, t)}</div> : null;
                       return (
                         <div className="flex items-center gap-1 flex-wrap mt-0.5">
                           <button
@@ -633,11 +634,11 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                           >
                             {proj.title}
                           </button>
-                          {height >= 55 && <span className="text-xs text-white/70">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</span>}
+                          {height >= 55 && <span className="text-xs text-white/70">{formatTime(task.startTime)} · {formatTaskDuration(task.duration, t)}</span>}
                         </div>
                       );
                     })() : height >= 55 ? (
-                      <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</div>
+                      <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {formatTaskDuration(task.duration, t)}</div>
                     ) : null}
                   </div>
                 ) : (
@@ -663,7 +664,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                     </div>
                     {goalsProjectsEnabled && task.projectId ? (() => {
                       const proj = projects.find(p => p.id === task.projectId);
-                      if (!proj) return height >= 55 ? <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</div> : null;
+                      if (!proj) return height >= 55 ? <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {formatTaskDuration(task.duration, t)}</div> : null;
                       return (
                         <div className="flex items-center gap-1 flex-wrap mt-0.5">
                           <button
@@ -675,11 +676,11 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                           >
                             {proj.title}
                           </button>
-                          {height >= 55 && <span className="text-xs text-white/70">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</span>}
+                          {height >= 55 && <span className="text-xs text-white/70">{formatTime(task.startTime)} · {formatTaskDuration(task.duration, t)}</span>}
                         </div>
                       );
                     })() : height >= 55 ? (
-                      <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</div>
+                      <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {formatTaskDuration(task.duration, t)}</div>
                     ) : null}
                     {/* Subtasks, as many as the card has room for (wide cards
                         only; a repeating task's are ticked per occurrence). */}
