@@ -106,6 +106,14 @@ editing and completing it need a CalDAV write MCP does not perform, so those are
 Blocks and inbox items carry `assignee_id` when the task is assigned (multi-user), and inbox
 items carry `duration_minutes`, the duration scheduling will default to.
 
+**`link`** marks a task another GLANCE app created: `{ app, id }`, the app's short name
+(`"lastglance"`) and the item's id there. From lastGLANCE that is a chore sent to dayGLANCE (`id`
+is the chore's, for `lastglance_get_chore`), a reach-out to a person (the person's id) or a
+birthday or date (`<date id>:<year>`). Completing, reopening, rescheduling or deleting a linked
+task is reported back to that app through the GLANCE integration, as when the user does it in
+dayGLANCE: completing a chore's task here completes the chore there, so do not complete it in both
+apps. Absent on everything else.
+
 **`created_at` and `completed_at`** ride every inbox item and every `task` and `recurring_task`
 block (not events or routines). Each is `{ date, time }` on the machine's local clock (`date`
 strict `YYYY-MM-DD`, `time` `HH:MM`, or `null` for an old completion recorded as a date only), or
@@ -498,6 +506,10 @@ Works for scheduled blocks, inbox tasks, and recurring-task instances
 
 CalDAV task-calendar tasks are rejected (`validation`): completing one requires a CalDAV
 write MCP does not perform.
+
+A task with `link` (see Blocks) came from another GLANCE app: completing or reopening it is
+reported back to that app, so a lastGLANCE chore's task completed here is the chore done in
+lastGLANCE. The response's block or item carries the same `link`.
 
 ### `dayglance_add_subtask`
 Add a subtask to a task (inbox, project, or scheduled). Subtasks are the task's own checklist,

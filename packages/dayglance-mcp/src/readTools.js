@@ -57,12 +57,19 @@ const toolError = (code, message) => ({
 /** Map a renderer bridge failure onto the §5.2 typed error, verbatim codes. */
 const bridgeError = (r) => toolError(r.error.code, r.error.message);
 
+// A task another GLANCE app created reports back to it (readModel.js,
+// wireLink): said in every description that lists tasks, so a reader knows
+// before it completes one in both apps.
+const LINK_NOTE =
+  'A task with link came from another GLANCE app (link.app, e.g. "lastglance"; link.id is the chore or person ' +
+  'there): completing, reopening or rescheduling it here is reported back to that app, so do not also do it there.';
+
 const NATIVE_NOTE =
   ' Items with type "device_calendar_event" are read-only device calendar events: ' +
   'dayGLANCE cannot modify, move, resize, or complete them. Items with type "calendar_event" ' +
   'are events imported from a calendar feed (ICS or CalDAV), read-only the same way; a task with ' +
   'source "caldav_tasks" comes from a CalDAV task calendar and cannot be edited or completed here. ' +
-  'Blocks carry assignee_id when assigned (multi-user). The response also carries daily_note, the ' +
+  'Blocks carry assignee_id when assigned (multi-user). ' + LINK_NOTE + ' The response also carries daily_note, the ' +
   "user's note for that day as dayGLANCE shows it (text and last_modified), or null; it is read-only over MCP.";
 
 // Same reasoning as NATIVE_NOTE: state the limit in the description so the
@@ -170,7 +177,7 @@ export function registerReadTools(server, deps) {
         'assignee_id. A cursor is bound to the filters it was issued under: changing scope or ' +
         'include_completed mid-pagination is a validation error, so to change filters, restart ' +
         'with a fresh call and no cursor.' + PLAN_HISTORY_NOTE + ' An inbox task keeps the history ' +
-        'it gathered while it was scheduled.',
+        'it gathered while it was scheduled. ' + LINK_NOTE,
       inputSchema: z.object({
         limit: z.number().int().optional().describe(`Page size, 1-${MAX_LIST_LIMIT}. Default ${DEFAULT_LIST_LIMIT}.`),
         cursor: z.string().optional().describe('Opaque cursor from a previous response\'s next_cursor.'),

@@ -26,6 +26,29 @@ const T = (over = {}) => ({
   duration: 60, completed: false, isAllDay: false, ...over,
 });
 
+describe('link: a task another GLANCE app created', () => {
+  const chore = { source_app: 'app.lastglance', source_entity_id: 'chore-sync-1' };
+
+  it('says which app and which item, on blocks and inbox items alike', () => {
+    expect(toBlock(T(chore)).link).toEqual({ app: 'lastglance', id: 'chore-sync-1' });
+    expect(inboxItem({ id: 'u1', title: 'Mop kitchen', ...chore }).link).toEqual({ app: 'lastglance', id: 'chore-sync-1' });
+    // A lastGLANCE date's task carries its own id form through untouched.
+    expect(toBlock(T({ source_app: 'app.lastglance', source_entity_id: 'date-1:2026' })).link).toEqual({ app: 'lastglance', id: 'date-1:2026' });
+  });
+
+  it('is absent unless both halves are there, exactly when completions are reported back', () => {
+    expect(toBlock(T())).not.toHaveProperty('link');
+    expect(toBlock(T({ source_app: 'app.lastglance' }))).not.toHaveProperty('link');
+    expect(inboxItem({ id: 'u1', title: 'x', source_entity_id: 'e' })).not.toHaveProperty('link');
+  });
+
+  it('leaves the CalDAV source alone: link is its own field', () => {
+    const b = toBlock(T({ isTaskCalendar: true, imported: true, ...chore }));
+    expect(b.source).toBe('caldav_tasks');
+    expect(b.link).toEqual({ app: 'lastglance', id: 'chore-sync-1' });
+  });
+});
+
 describe('blockType / toBlock — the §5.1 distinct type flag', () => {
   it('flags _native as device_calendar_event with read_only, everywhere', () => {
     const b = toBlock(T({ _native: true, id: 'native-cal-abc' }));
