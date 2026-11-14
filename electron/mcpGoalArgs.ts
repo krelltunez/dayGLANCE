@@ -63,6 +63,14 @@ function optionalProjectStatus(value: unknown): 'active' | 'on-hold' | 'complete
   return reject(`status must be "active", "on-hold" or "completed", got ${JSON.stringify(value)}`);
 }
 
+// How a project orders its unscheduled tasks (#2394), as the read tools
+// report it. Checked here, not by the schema, so the client reads which
+// values there are instead of the SDK's generic enum text.
+function optionalTaskOrder(value: unknown): 'manual' | 'deadline' | Reject | undefined {
+  if (value === undefined || value === 'manual' || value === 'deadline') return value;
+  return reject(`task_order must be "manual" (the order the user drags the tasks into) or "deadline" (tasks with a deadline first, soonest first), got ${JSON.stringify(value)}`);
+}
+
 function clearList(value: unknown, allowed: readonly string[], multiUser: boolean): string[] | Reject {
   if (value === undefined) return [];
   if (!Array.isArray(value)) return reject(`clear_fields must be an array of field names, got ${JSON.stringify(value)}`);
@@ -167,6 +175,7 @@ export interface CreateProjectPlan {
   goalId?: string;
   description?: string;
   targetDate?: string;
+  taskOrder?: 'manual' | 'deadline';
   assigneeSyncIds?: string[];
 }
 
@@ -176,6 +185,7 @@ export function planCreateProject(args: Record<string, unknown>, multiUser: bool
   let goalId: string | undefined;
   if (args['goal_id'] !== undefined) { const g = nonEmpty(args['goal_id'], 'goal_id'); if (isReject(g)) return g; goalId = g; }
   const targetDate = optionalDate(args['target_date'], 'target_date'); if (isReject(targetDate)) return targetDate;
+  const taskOrder = optionalTaskOrder(args['task_order']); if (isReject(taskOrder)) return taskOrder;
   const assigneeSyncIds = optionalIds(args['assignee_ids'], 'assignee_ids', multiUser); if (isReject(assigneeSyncIds)) return assigneeSyncIds;
   return {
     ok: true,
@@ -184,6 +194,7 @@ export function planCreateProject(args: Record<string, unknown>, multiUser: bool
       ...(goalId ? { goalId } : {}),
       ...(description !== undefined ? { description } : {}),
       ...(targetDate ? { targetDate } : {}),
+      ...(taskOrder ? { taskOrder } : {}),
       ...(assigneeSyncIds ? { assigneeSyncIds } : {}),
     },
   };
@@ -193,7 +204,7 @@ export const PROJECT_CLEARABLE = ['description', 'goal', 'assignees', 'target_da
 
 export interface UpdateProjectPlan {
   projectId: string;
-  set: { title?: string; description?: string; descriptionBase?: string; goalId?: string; status?: 'active' | 'on-hold' | 'completed'; targetDate?: string; assigneeSyncIds?: string[] };
+  set: { title?: string; description?: string; descriptionBase?: string; goalId?: string; status?: 'active' | 'on-hold' | 'completed'; targetDate?: string; taskOrder?: 'manual' | 'deadline'; assigneeSyncIds?: string[] };
   clear: string[];
 }
 
@@ -211,6 +222,8 @@ export function planUpdateProject(args: Record<string, unknown>, multiUser: bool
   if (targetDate) set.targetDate = targetDate;
   const status = optionalProjectStatus(args['status']); if (isReject(status)) return status;
   if (status) set.status = status;
+  const taskOrder = optionalTaskOrder(args['task_order']); if (isReject(taskOrder)) return taskOrder;
+  if (taskOrder) set.taskOrder = taskOrder;
   const assigneeSyncIds = optionalIds(args['assignee_ids'], 'assignee_ids', multiUser); if (isReject(assigneeSyncIds)) return assigneeSyncIds;
   if (assigneeSyncIds) set.assigneeSyncIds = assigneeSyncIds;
 
@@ -220,7 +233,7 @@ export function planUpdateProject(args: Record<string, unknown>, multiUser: bool
   ].find(([name, isSet]) => isSet && clear.includes(name as string));
   if (both) return reject(`${both[0]} is both set and named in clear_fields. Set it or clear it, not both.`);
   if (Object.keys(set).length === 0 && clear.length === 0) {
-    return reject('Nothing to change: pass at least one field to set (title, description, goal_id, status, target_date, assignee_ids) or name one in clear_fields.');
+    return reject('Nothing to change: pass at least one field to set (title, description, goal_id, status, target_date, task_order, assignee_ids) or name one in clear_fields.');
   }
   return { ok: true, plan: { projectId, set, clear } };
 }

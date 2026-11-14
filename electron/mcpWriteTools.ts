@@ -577,6 +577,15 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
   // longer asking for attention (no stalled flag, target-date warnings or
   // hyperGLANCE sessions). Goals have no such status.
   const PROJECT_STATUS_ARG = '"active", "on-hold" (paused: still listed and intact, but not flagged stalled, not warned about its target date, no hyperGLANCE sessions) or "completed". Archiving is not available over MCP by design and is refused with a validation error naming that.';
+  // A project's order for its unscheduled tasks (#2394). A string, not an
+  // enum, so a wrong value gets the planner's message naming the two.
+  const TASK_ORDER_ARG =
+    'How the project lists its unscheduled tasks: "manual" (the order the user drags them into) or "deadline" ' +
+    '(tasks with a deadline first, soonest first; the rest stay in the manual order).';
+  const TASK_ORDER_NOTE =
+    'task_order sets how the project lists its unscheduled tasks in dayGLANCE, and in dayglance_list_project_tasks: ' +
+    '"deadline" puts tasks with a deadline first, soonest first, so dated tasks need no arranging; "manual" is the ' +
+    'order the user dragged them into, which "deadline" leaves intact underneath. ';
   const NO_ARCHIVE =
     ' Status may be "active" or "completed"; archiving is not available over MCP by design and returns a ' +
     'validation error, as deleting does not exist.';
@@ -669,12 +678,13 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       description:
         'Create a dayGLANCE project, standalone or under a goal (goal_id). A project under a goal takes the goal\'s ' +
         'colour and assignees at creation, and the New task defaults the goal (else its area) holds for new projects. ' +
-        'Returns the project as dayglance_get_goal_progress reports it.' + NO_ARCHIVE,
+        TASK_ORDER_NOTE + 'Returns the project as dayglance_get_goal_progress reports it.' + NO_ARCHIVE,
       inputSchema: z.object({
         title: z.string().describe('Project title. Required, non-empty.'),
         goal_id: z.string().optional().describe('The parent goal. Omit for a standalone project.'),
         description: z.string().optional().describe('The notes box of the project.'),
         target_date: z.string().optional().describe('Local calendar date, strict YYYY-MM-DD — the project\'s own due date (a target date, like a goal\'s). Independent of its tasks\' deadlines.'),
+        task_order: z.string().optional().describe(TASK_ORDER_ARG + ' Default "manual".'),
         ...assigneeIdsArg,
         idempotency_key: IDEMPOTENCY_ARG,
       }),
@@ -699,7 +709,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       description:
         'Edit a dayGLANCE project. Absent leaves a field alone, present sets it, a name in clear_fields removes it ' +
         '("goal" detaches the project from its goal, making it standalone). Completing a project is allowed only once ' +
-        'every one of its tasks is completed (the app\'s own rule). ' + LINKED_DESCRIPTION +
+        'every one of its tasks is completed (the app\'s own rule). ' + TASK_ORDER_NOTE + LINKED_DESCRIPTION +
         'Returns the resulting project.' + PROJECT_NO_ARCHIVE,
       inputSchema: z.object({
         project_id: z.string(),
@@ -709,6 +719,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
         goal_id: z.string().optional().describe('Move the project under this goal.'),
         target_date: z.string().optional().describe('Local calendar date, strict YYYY-MM-DD — the project\'s own target date. Name "target_date" in clear_fields to remove it.'),
         status: z.string().optional().describe(PROJECT_STATUS_ARG),
+        task_order: z.string().optional().describe(TASK_ORDER_ARG),
         ...assigneeIdsArg,
         clear_fields: z.array(z.string()).optional().describe(
           `Field names to REMOVE: ${PROJECT_CLEARABLE.filter((f) => multiUser || f !== 'assignees').map((f) => `"${f}"`).join(', ')}.`),

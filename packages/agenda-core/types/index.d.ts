@@ -254,3 +254,12 @@ export function hiddenStops(task: unknown): number;
 export interface NoteLink { path: string; name: string; missing: boolean; pending: boolean }
 export function noteDisplayName(path: unknown): string;
 export function noteLinkOf(entity: unknown): NoteLink | null;
+
+// ── projectTaskOrder.js ──────────────────────────────────────────────────────
+
+/** A project's `taskSort` when it lists its unscheduled tasks deadlines first; absent for the manual order. */
+export const TASK_SORT_DEADLINE: 'deadline';
+/** Tasks carrying a numeric projectOrder first, ascending; the rest after, in their given order. */
+export function sortByProjectOrder<T>(tasks: T[] | null | undefined): T[];
+/** One project's unscheduled tasks as its lists show them: manual, or (taskSort 'deadline') dated first, soonest first. */
+export function sortProjectInbox<T>(tasks: T[] | null | undefined, taskSort?: string | null): T[];

@@ -81,6 +81,28 @@ describe('planCreateProject / planUpdateProject', () => {
     expect(planUpdateProject({ project_id: 'p1', target_date: 'soon' }, false)).toMatchObject({ ok: false });
     expect(planUpdateProject({ project_id: 'p1', target_date: '2026-12-01', clear_fields: ['target_date'] }, false)).toMatchObject({ ok: false });
   });
+
+  // #2394: how a project lists its unscheduled tasks.
+  it('task_order: "manual" or "deadline" on create and update, and anything else is refused by name', () => {
+    expect(planCreateProject({ title: 'Degree', task_order: 'deadline' }, false))
+      .toEqual({ ok: true, plan: { title: 'Degree', taskOrder: 'deadline' } });
+    expect(planCreateProject({ title: 'Degree', task_order: 'manual' }, false))
+      .toEqual({ ok: true, plan: { title: 'Degree', taskOrder: 'manual' } });
+    expect(planCreateProject({ title: 'Degree' }, false)).toEqual({ ok: true, plan: { title: 'Degree' } });
+    expect(planUpdateProject({ project_id: 'p1', task_order: 'deadline' }, false))
+      .toEqual({ ok: true, plan: { projectId: 'p1', set: { taskOrder: 'deadline' }, clear: [] } });
+    // Alone, it is a change: not "Nothing to change".
+    expect(planUpdateProject({ project_id: 'p1', task_order: 'manual' }, false))
+      .toEqual({ ok: true, plan: { projectId: 'p1', set: { taskOrder: 'manual' }, clear: [] } });
+    for (const bad of ['priority', 'Deadline', '', 7, null, true]) {
+      for (const r of [planCreateProject({ title: 'X', task_order: bad }, false), planUpdateProject({ project_id: 'p1', task_order: bad }, false)]) {
+        expect(r).toMatchObject({ ok: false, code: 'validation' });
+        expect((r as { message: string }).message).toContain('"manual"');
+        expect((r as { message: string }).message).toContain('"deadline"');
+      }
+    }
+    expect((planUpdateProject({ project_id: 'p1' }, false) as { message: string }).message).toContain('task_order');
+  });
 });
 
 describe('planAddSubtask / planUpdateSubtask', () => {

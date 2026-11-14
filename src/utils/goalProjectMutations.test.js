@@ -172,6 +172,34 @@ describe('applyUpdateProject', () => {
   });
 });
 
+// #2394: how a project lists its unscheduled tasks, stored as the form
+// stores it: `taskSort: 'deadline'`, or no field for the manual order.
+describe('a project\'s task order', () => {
+  it('create: "deadline" stores the field; "manual" and nothing store none', () => {
+    expect(applyCreateProject(state(), { projectId: 'p-d', title: 'Degree', taskOrder: 'deadline', nowIso: NOW }).project.taskSort).toBe('deadline');
+    expect('taskSort' in applyCreateProject(state(), { projectId: 'p-m', title: 'Degree', taskOrder: 'manual', nowIso: NOW }).project).toBe(false);
+    expect('taskSort' in applyCreateProject(state(), { projectId: 'p-n', title: 'Degree', nowIso: NOW }).project).toBe(false);
+  });
+
+  it('update: "deadline" sets it, "manual" removes it, and both report the stored key for undo', () => {
+    const on = applyUpdateProject(state(), { projectId: 'p1', set: { taskOrder: 'deadline' }, nowIso: NOW });
+    expect(on.project.taskSort).toBe('deadline');
+    expect(on.project.updatedAt).toBe(NOW);
+    expect(on.touched).toEqual(['taskSort']);
+    const sorted = state({ projects: [{ id: 'p1', title: 'Backend', status: 'active', taskSort: 'deadline' }] });
+    const off = applyUpdateProject(sorted, { projectId: 'p1', set: { taskOrder: 'manual' }, nowIso: NOW });
+    expect('taskSort' in off.project).toBe(false);
+    expect(off.touched).toEqual(['taskSort']);
+  });
+
+  it('an update that names no order leaves the stored one alone', () => {
+    const sorted = state({ projects: [{ id: 'p1', title: 'Backend', status: 'active', taskSort: 'deadline' }] });
+    const r = applyUpdateProject(sorted, { projectId: 'p1', set: { title: 'Back end' }, nowIso: NOW });
+    expect(r.project.taskSort).toBe('deadline');
+    expect(r.touched).toEqual(['title']);
+  });
+});
+
 describe('the form rules on their own', () => {
   it('goalCanComplete ignores archived children; projectCanComplete ignores archived tasks and counts both lists', () => {
     expect(goalCanComplete('g1', [{ goalId: 'g1', status: 'archived' }])).toBe(true);

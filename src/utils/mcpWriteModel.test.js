@@ -770,6 +770,29 @@ describe('goals, projects and subtasks over MCP (2026-10-04)', () => {
     expect('target_date' in cleared.data.project).toBe(false);
     expect(cleared.undo.op).toMatchObject({ before: { targetDate: '2026-12-01' } });
   });
+  // #2394: the order a project lists its unscheduled tasks in.
+  it('create_project and update_project set the task order, answer with it, and undo puts the earlier one back', () => {
+    const c = handleMcpWrite(state(), makeSetters(), { method: 'create_project', params: { projectId: 'p-d', title: 'Degree', taskOrder: 'deadline' } });
+    expect(c.data.project).toMatchObject({ id: 'p-d', task_order: 'deadline' });
+    const setters = makeSetters();
+    const u = handleMcpWrite(state(), setters, { method: 'update_project', params: { projectId: 'p1', set: { taskOrder: 'deadline' } } });
+    expect(u.data.project.task_order).toBe('deadline');
+    expect(u.undo).toEqual({
+      summary: 'Edited project “Backend” (task_order)',
+      op: { kind: 'restore_project_fields', projectId: 'p1', before: {}, absentBefore: ['taskSort'] },
+    });
+    // What the setter stored, then the undo applied to it: the field is gone again.
+    const stored = setters.setProjects.mock.calls[0][0](state().projects);
+    expect(stored.find((p) => p.id === 'p1').taskSort).toBe('deadline');
+    const undoSetters = makeSetters();
+    handleMcpWrite({ ...state(), projects: stored }, undoSetters, { method: 'undo_mcp_writes', params: { ops: [u.undo.op] } });
+    const restored = undoSetters.setProjects.mock.calls[0][0](stored);
+    expect('taskSort' in restored.find((p) => p.id === 'p1')).toBe(false);
+
+    const off = handleMcpWrite({ ...state(), projects: stored }, makeSetters(), { method: 'update_project', params: { projectId: 'p1', set: { taskOrder: 'manual' } } });
+    expect(off.data.project.task_order).toBe('manual');
+    expect(off.undo.op).toMatchObject({ before: { taskSort: 'deadline' } });
+  });
   it('add_subtask and update_subtask answer with the host entity plus the subtask, and reverse per subtask', () => {
     const setters = makeSetters();
     const a = handleMcpWrite(state(), setters, { method: 'add_subtask', params: { taskId: 'b1', subtaskId: 's2', title: 'Hang door' } });

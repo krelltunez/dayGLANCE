@@ -225,7 +225,10 @@ export function registerReadTools(server, deps) {
         'says where it is in placement: "scheduled" items are day blocks as dayglance_get_day returns them ' +
         '(date, start_time, duration_minutes, all_day), "inbox" items are as dayglance_list_unscheduled_tasks ' +
         'returns them, and "bucket_list" items are as dayglance_list_bucket_list returns them, with bucket_id. ' +
-        'Order: scheduled first, by date then start time, then the inbox, then the Bucket List. Not listed: ' +
+        'Order: scheduled first, by date then start time; then the inbox group in the order the project shows it ' +
+        '(project.task_order: "manual" is the order the user dragged the tasks into, "deadline" is tasks with a ' +
+        'deadline first, soonest first, then the rest in the manual order), completed ones last; then the Bucket ' +
+        'List. task_order is set with dayglance_update_project. Not listed: ' +
         'subtasks as items (they ride their task), recurring series (their occurrences are in the day reads, ' +
         'and the counters do not count them), and tasks in the recycle bin. project_id comes from ' +
         `dayglance_get_goal_progress; an unknown id is not_found. Paginated, default page ${DEFAULT_LIST_LIMIT}, ` +
@@ -334,7 +337,8 @@ export function registerReadTools(server, deps) {
         "for one goal's tree; window is 'active' (default) or 'all' (includes archived/completed goals and " +
         'projects). tasks_done and tasks_total count the non-archived tasks attached to the project, scheduled ' +
         'or not; progress weighs their minutes, so it is not tasks_done / tasks_total. ' +
-        "dayglance_list_project_tasks lists those tasks.",
+        'dayglance_list_project_tasks lists those tasks. Each project also carries task_order, how it lists its ' +
+        'unscheduled tasks: "manual" or "deadline" (set with dayglance_update_project).',
       inputSchema: z.object({
         goal_id: z.string().optional().describe('Narrow to one goal by id.'),
         window: z.enum(['active', 'all']).optional().describe("Status scope. Default 'active'."),

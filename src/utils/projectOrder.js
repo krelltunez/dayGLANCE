@@ -15,48 +15,18 @@
 // 2.5 records the deferred design for making the note follow it).
 
 import { resolveRetirement } from './retiredTaskIds.js';
+import { sortByProjectOrder, sortProjectInbox, TASK_SORT_DEADLINE } from '@glance-apps/agenda-core';
+
+// The order itself (sortByProjectOrder; and a project's deadline order,
+// sortProjectInbox under `taskSort`, #2394) lives in @glance-apps/agenda-core
+// (packages/agenda-core/src/projectTaskOrder.js), shared with the MCP read
+// surface. Re-exported here for the app's importers; the writes stay below.
+export { sortByProjectOrder, sortProjectInbox, TASK_SORT_DEADLINE };
 
 export const PROJECT_ORDER_STEP = 10;
 
 const hasOrder = (t) => typeof t?.projectOrder === 'number' && Number.isFinite(t.projectOrder);
-
-/**
- * Stable sort: tasks carrying projectOrder first, ascending; tasks without
- * one after, in their given order (a task newly added to the project lands
- * at the end, as before).
- */
-export function sortByProjectOrder(tasks) {
-  const list = Array.isArray(tasks) ? tasks : [];
-  const ordered = list.filter(hasOrder).map((t, i) => ({ t, i }))
-    .sort((a, b) => (a.t.projectOrder - b.t.projectOrder) || (a.i - b.i))
-    .map(({ t }) => t);
-  return [...ordered, ...list.filter((t) => !hasOrder(t))];
-}
-
-// A project can order its unscheduled tasks by deadline instead (#2394):
-// `taskSort: 'deadline'` on the project, absent for the manual order. It is a
-// view over projectOrder, never a rewrite of it: the tasks with a deadline
-// lead, soonest first, and the rest follow in the manual order, which the
-// user still arranges by dragging. Turning it off shows the manual order
-// exactly as it was left.
-export const TASK_SORT_DEADLINE = 'deadline';
-
 const hasDeadline = (t) => typeof t?.deadline === 'string' && t.deadline !== '';
-
-/**
- * One project's unscheduled tasks in the order its lists show them. Manual:
- * sortByProjectOrder. By deadline: the dated tasks first, by deadline (a
- * YYYY-MM-DD string, so it compares as text), two on one date keeping their
- * manual order; then the undated ones in manual order.
- */
-export function sortProjectInbox(tasks, taskSort) {
-  const manual = sortByProjectOrder(tasks);
-  if (taskSort !== TASK_SORT_DEADLINE) return manual;
-  const dated = manual.filter(hasDeadline).map((t, i) => ({ t, i }))
-    .sort((a, b) => a.t.deadline.localeCompare(b.t.deadline) || (a.i - b.i))
-    .map(({ t }) => t);
-  return [...dated, ...manual.filter((t) => !hasDeadline(t))];
-}
 
 /**
  * The open tasks of a project's inbox the user can drag, in the order shown.

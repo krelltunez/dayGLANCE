@@ -26,6 +26,7 @@ import { TASK_COLORS, PROJECT_FALLBACK_COLOR } from './colorUtils.js';
 import { noteLinkOf } from './obsidianProjectNotes.js';
 import { WRITE_ERROR_CODES } from './taskMutations.js';
 import { seedTaskDefaults } from './projectTaskDefaults.js';
+import { TASK_SORT_DEADLINE } from './projectOrder.js';
 
 const err = (code, message) => ({ ok: false, error: { code, message } });
 
@@ -186,7 +187,7 @@ export function applyUpdateGoal(state, { goalId, set = {}, clear = [], nowIso })
  * the goal's colour and assignees at creation (ProjectForm's inheritance),
  * and never follows them afterwards.
  */
-export function applyCreateProject(state, { projectId, title, goalId, description, targetDate, assigneeSyncIds, nowIso }) {
+export function applyCreateProject(state, { projectId, title, goalId, description, targetDate, taskOrder, assigneeSyncIds, nowIso }) {
   const trimmed = typeof title === 'string' ? title.trim() : '';
   if (!trimmed) return err(WRITE_ERROR_CODES.VALIDATION, 'title must be a non-empty string');
   const existing = (state.projects ?? []).find((p) => p && p.id === projectId);
@@ -216,6 +217,9 @@ export function applyCreateProject(state, { projectId, title, goalId, descriptio
     // The project's own target date, validated in the main process (dates
     // strict YYYY-MM-DD) exactly like the goal tools' target_date.
     ...(targetDate ? { targetDate } : {}),
+    // The order of its unscheduled tasks (#2394): the field for deadlines
+    // first, no field for the manual order, as the project form saves it.
+    ...(taskOrder === 'deadline' ? { taskSort: TASK_SORT_DEADLINE } : {}),
     ...(inherited?.length ? { assignedUserSyncIds: inherited } : {}),
     ...(taskDefaults ? { taskDefaults } : {}),
     createdAt: nowIso,
@@ -264,6 +268,9 @@ export function applyUpdateProject(state, { projectId, set = {}, clear = [], now
   if (goal) { next.goalId = goal.id; touch('goalId'); }
   if (set.targetDate !== undefined) { next.targetDate = set.targetDate; touch('targetDate'); }
   if (set.status !== undefined) { next.status = set.status; touch('status'); }
+  // 'manual' removes the field, as the form and the Planner's toggle do.
+  if (set.taskOrder === 'deadline') { next.taskSort = TASK_SORT_DEADLINE; touch('taskSort'); }
+  else if (set.taskOrder === 'manual') { delete next.taskSort; touch('taskSort'); }
   if (assignees.ids !== undefined) { next.assignedUserSyncIds = assignees.ids; touch('assignedUserSyncIds'); }
   for (const field of clear) {
     if (field === 'description') { next.description = ''; touch('description'); }

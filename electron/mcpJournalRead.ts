@@ -43,6 +43,8 @@ const firstId: Render = (v) => (Array.isArray(v) && v.length ? String(v[0]) : nu
 const idList: Render = (v) => (Array.isArray(v) && v.length ? v.map(String) : null);
 const priority: Render = (v) => (typeof v === 'number' ? v : 0);
 const bool: Render = (v) => !!v;
+// A project's stored taskSort as the read tools report it (projectTaskOrder): absent is the manual order.
+const taskOrder: Render = (v) => (v === 'deadline' ? 'deadline' : 'manual');
 
 /** update_task's storage keys (applyUpdateTask's `touched`), as inboxItem and toBlock name them. */
 const TASK_FIELDS: FieldTable = [
@@ -78,6 +80,7 @@ const PROJECT_FIELDS: FieldTable = [
   ['goalId', 'goal_id', idOrNull],
   ['targetDate', 'target_date', textOrNull],
   ['status', 'status', textOrNull],
+  ['taskSort', 'task_order', taskOrder],
   ['assignedUserSyncIds', 'assignee_ids', idList],
 ];
 
