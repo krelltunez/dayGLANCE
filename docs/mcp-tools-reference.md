@@ -267,6 +267,23 @@ Each goal: `id`, `title`, `status`, `description`, `start_date`, `target_date` (
 `YYYY-MM-DD`), `assignee_ids`, `obsidian_note`. Standalone projects are listed under
 `standalone_projects`.
 
+**What a project's counters count.** All three read the same set: every task attached to the
+project that is not archived.
+
+| | |
+|---|---|
+| Counted | Scheduled tasks (timed or all-day, on any date, past or future) and unscheduled ones, Bucket List items included. In multi-user mode, only the tasks the current user can see. |
+| Not counted | Subtasks. Recurring series: a series attached to the project adds nothing here, though each of its occurrences carries the `project_id` in a day read. Tasks in the recycle bin. Device calendar events. |
+| `tasks_total` | The number of tasks in that set. |
+| `tasks_done` | The number of them that are completed. |
+| `progress_percent` | The completed share of the set's **minutes**, not of its tasks, so it is not `tasks_done / tasks_total`: one finished two-hour task beside three open 30-minute ones is 57%, not 25%. A task with no duration weighs 30 minutes. `null` when the set is empty. |
+
+So `tasks_total` is usually larger than what `dayglance_list_unscheduled_tasks` returns for the
+project: the difference is the project's scheduled tasks and its Bucket List items. A goal's
+`progress_percent` is the average of its projects' (archived ones left out), each weighted by its
+set's total minutes; a project with an empty set does not take part, and a goal none of whose
+projects measures anything reports 0.
+
 **A goal or project with `obsidian_note` keeps its description in that note's opening section**
 (companion spec §4.3). This tool reads it from the note: such an entity carries
 `description_source: "obsidian_note"` and `description_base`, the hash of the section as read, to
