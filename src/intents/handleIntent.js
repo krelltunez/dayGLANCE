@@ -16,6 +16,7 @@ import {
   normalizeDue,
   normalizeRecurring,
   createKey,
+  deterministicTaskId,
 } from '@glance-apps/intents';
 import { hasTaskEnded, overnightSpillMinutes, shiftDateStr } from '@glance-apps/agenda-core';
 
@@ -49,17 +50,12 @@ function clearGoalTombstone(goalId) {
   } catch (_) { /* malformed/absent storage — nothing to clear */ }
 }
 
-// Derive a deterministic UUID from a seed string so that two devices
-// processing the same intent create tasks with the same ID, letting the sync
-// engine deduplicate them naturally rather than keeping both copies.
-export async function deterministicTaskId(seed) {
-  const data = new TextEncoder().encode(seed);
-  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
-  hash[6] = (hash[6] & 0x0f) | 0x40; // version 4
-  hash[8] = (hash[8] & 0x3f) | 0x80; // variant
-  const h = [...hash.slice(0, 16)].map(b => b.toString(16).padStart(2, '0')).join('');
-  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
-}
+// The deterministic task id: two devices processing the same intent create
+// tasks with the same id, so the sync engine merges them as one rather than
+// keeping both copies. It lives in @glance-apps/intents beside createKey
+// (1.5.0), so lastGLANCE, which names the task before dayGLANCE has seen the
+// intent, derives the same id from the same copy. Re-exported for the tests.
+export { deterministicTaskId };
 
 function ok(extra = {}) {
   return { success: true, task_id: '', error: '', warning: '', ...extra };
