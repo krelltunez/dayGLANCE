@@ -2175,7 +2175,9 @@
     "allCompletedHidden_many": "Wszystkie {{count}} celów tutaj jest ukończonych.",
     "allCompletedHidden_other": "Wszystkie {{count}} celu tutaj są ukończone.",
     "onHold": "Wstrzymane",
-    "noOnHoldProjects": "Brak wstrzymanych projektów"
+    "noOnHoldProjects": "Brak wstrzymanych projektów",
+    "orderByDeadlineLabel": "Sortuj zadania według terminu",
+    "orderByDeadlineHint": "Niezaplanowane zadania z terminem są na początku, od najbliższego. Pozostałe zachowują kolejność, w jakiej je przeciągniesz."
   },
   "colors": {
     "gray": "Szary",
@@ -2365,7 +2367,10 @@
     "selectForNotes": "Wybierz zadanie, aby zobaczyć tu jego notatki.",
     "resizeNotes": "Zmień szerokość notatek",
     "resizeNotesHint": "Przeciągnij, aby zmienić szerokość · kliknij dwukrotnie, aby przywrócić",
-    "notesKeysHint": "↑ ↓ przechodzenie między zadaniami · ← → zmiana listy · Enter lub dwuklik, aby edytować zadanie · E, aby edytować notatkę"
+    "notesKeysHint": "↑ ↓ przechodzenie między zadaniami · ← → zmiana listy · Enter lub dwuklik, aby edytować zadanie · E, aby edytować notatkę",
+    "byDeadline": "Według terminu",
+    "byDeadlineOn": "Niezaplanowane zadania: najpierw terminy. Kliknij, aby wrócić do własnej kolejności.",
+    "byDeadlineOff": "Niezaplanowane zadania: własna kolejność. Kliknij, aby najpierw pokazać terminy."
   },
   "bucket": {
     "title": "Lista marzeń",

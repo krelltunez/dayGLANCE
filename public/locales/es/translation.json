@@ -2078,7 +2078,9 @@
     "allCompletedHidden_one": "El único objetivo de aquí está completado.",
     "allCompletedHidden_other": "Los {{count}} objetivos de aquí están completados.",
     "onHold": "En pausa",
-    "noOnHoldProjects": "No hay proyectos en pausa"
+    "noOnHoldProjects": "No hay proyectos en pausa",
+    "orderByDeadlineLabel": "Ordenar tareas por fecha límite",
+    "orderByDeadlineHint": "Las tareas sin programar con fecha límite van primero, la más próxima arriba. El resto conserva el orden en que las arrastras."
   },
   "colors": {
     "gray": "Gris",
@@ -2256,7 +2258,10 @@
     "selectForNotes": "Selecciona una tarea para ver aquí sus notas.",
     "resizeNotes": "Cambiar el ancho de las notas",
     "resizeNotesHint": "Arrastra para cambiar el ancho · doble clic para restablecer",
-    "notesKeysHint": "↑ ↓ moverse entre tareas · ← → cambiar de lista · Intro o doble clic para editar la tarea · E para editar la nota"
+    "notesKeysHint": "↑ ↓ moverse entre tareas · ← → cambiar de lista · Intro o doble clic para editar la tarea · E para editar la nota",
+    "byDeadline": "Por fecha límite",
+    "byDeadlineOn": "Tareas sin programar: primero las fechas límite. Haz clic para usar tu propio orden.",
+    "byDeadlineOff": "Tareas sin programar: tu propio orden. Haz clic para poner primero las fechas límite."
   },
   "bucket": {
     "title": "Bucket List",

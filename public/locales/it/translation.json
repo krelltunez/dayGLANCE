@@ -2080,7 +2080,9 @@
     "allCompletedHidden_one": "L'unico obiettivo qui è completato.",
     "allCompletedHidden_other": "Tutti i {{count}} obiettivi qui sono completati.",
     "onHold": "In pausa",
-    "noOnHoldProjects": "Nessun progetto in pausa"
+    "noOnHoldProjects": "Nessun progetto in pausa",
+    "orderByDeadlineLabel": "Ordina le attività per scadenza",
+    "orderByDeadlineHint": "Le attività non pianificate con una scadenza vengono prima, la più vicina in cima. Le altre restano nell’ordine in cui le trascini."
   },
   "colors": {
     "gray": "Grigio",
@@ -2258,7 +2260,10 @@
     "selectForNotes": "Seleziona un’attività per vederne qui le note.",
     "resizeNotes": "Ridimensiona le note",
     "resizeNotesHint": "Trascina per ridimensionare · doppio clic per ripristinare",
-    "notesKeysHint": "↑ ↓ spostarsi tra le attività · ← → cambiare elenco · Invio o doppio clic per modificare l’attività · E per modificare la nota"
+    "notesKeysHint": "↑ ↓ spostarsi tra le attività · ← → cambiare elenco · Invio o doppio clic per modificare l’attività · E per modificare la nota",
+    "byDeadline": "Per scadenza",
+    "byDeadlineOn": "Attività non pianificate: prima le scadenze. Fai clic per usare il tuo ordine.",
+    "byDeadlineOff": "Attività non pianificate: il tuo ordine. Fai clic per mettere prima le scadenze."
   },
   "bucket": {
     "title": "Bucket List",

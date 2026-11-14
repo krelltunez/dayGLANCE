@@ -24,7 +24,7 @@ import { dateToString, extractWikilinks, completionTimestamp, formatDeadlineDate
 import { getNextOccurrence } from '../../utils/recurrenceEngine.js';
 import { getActiveHGInstance } from '../../hooks/useHyperGlance.js';
 import { noteLinkOf } from '../../utils/obsidianProjectNotes.js';
-import { sortByProjectOrder, applyProjectReorder, orderProjectTasks, projectReorderIds, topProjectOrder } from '../../utils/projectOrder.js';
+import { sortByProjectOrder, applyProjectReorder, orderProjectTasks, draggableProjectTasks, dragReorderIds, topProjectOrder } from '../../utils/projectOrder.js';
 import { beginLongPressReorder, isLongPressRowDevice } from '../../utils/longPressReorder.js';
 import { formatLocalizedDate } from '../../utils/localeFormatting.js';
 import { projectTaskFields } from '../../utils/projectTaskDefaults.js';
@@ -216,8 +216,16 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   // empty project, but reads as wrong above a list of recurring series, so it
   // goes only in that case.
   const countIsMisleading = totalCount === 0 && projectRecurring.length > 0;
-  // The same order the Project widget lists (utils/projectOrder.js).
-  const allProjectDisplayTasks = orderProjectTasks(projectScheduled, projectUnscheduled);
+  // The same order the Project widget lists (utils/projectOrder.js), under
+  // the project's own task order (#2394): manual, or deadlines first.
+  const allProjectDisplayTasks = orderProjectTasks(projectScheduled, projectUnscheduled, project.taskSort);
+  // The rows that can be dragged, which the drag indexes count through: every
+  // open unscheduled task, or under the deadline order only the undated ones.
+  const draggableTasks = draggableProjectTasks(projectUnscheduled, project.taskSort);
+  const applyDragReorder = (fromIdx, toIdx) => {
+    const ids = dragReorderIds(projectUnscheduled, project.taskSort, fromIdx, toIdx);
+    if (ids) reorderUnscheduledTasks(applyProjectReorder(unscheduledTasks, ids));
+  };
   const VISIBLE_COUNT = visibleCount;
   const displayableTasks = detailsHidden
     ? allProjectDisplayTasks.filter(t => !t.completed)
@@ -248,10 +256,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     // The new order as a field on each task (utils/projectOrder.js): syncs
     // on both tiers and survives the Obsidian cycle, which rebuilds the
     // array. The array positions move too, as before.
-    const ordered = projectUnscheduled.filter(t => !t.completed).map(t => t.id);
-    const [moved] = ordered.splice(dragIdx, 1);
-    ordered.splice(idx, 0, moved);
-    reorderUnscheduledTasks(applyProjectReorder(unscheduledTasks, projectReorderIds(ordered, projectUnscheduled)));
+    applyDragReorder(dragIdx, idx);
     setDragIdx(null);
     setDragOverIdx(null);
   };
@@ -273,14 +278,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     if (!touchDragRef.current.active) return;
     const { fromIdx, overIdx } = touchDragRef.current;
     touchDragRef.current = { active: false, fromIdx: null, overIdx: null };
-    if (fromIdx !== null && overIdx !== null && fromIdx !== overIdx) {
-      const ordered = projectUnscheduled.filter(t => !t.completed).map(t => t.id);
-      if (ordered[fromIdx] && ordered[overIdx]) {
-        const [moved] = ordered.splice(fromIdx, 1);
-        ordered.splice(overIdx, 0, moved);
-        reorderUnscheduledTasks(applyProjectReorder(unscheduledTasks, projectReorderIds(ordered, projectUnscheduled)));
-      }
-    }
+    if (fromIdx !== null && overIdx !== null && fromIdx !== overIdx) applyDragReorder(fromIdx, overIdx);
     setDragIdx(null);
     setDragOverIdx(null);
   };
@@ -644,9 +642,13 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
             {visibleTasks.map((task) => {
               const scheduled = isScheduled(task);
               const incompleteUnscheduledIdx = !scheduled && !task.completed
-                ? projectUnscheduled.filter(u => !u.completed).findIndex(u => u.id === task.id)
+                ? draggableTasks.findIndex(u => u.id === task.id)
                 : -1;
               const draggable = incompleteUnscheduledIdx !== -1;
+              // Under the deadline order an open dated task has no grip (its
+              // date places it); it keeps the grip's width, so the deadline
+              // buttons stay in one column down the list.
+              const heldByDeadline = !scheduled && !task.completed && !draggable;
               // Whole-row HTML5 drag off-iOS (Android/desktop — grab anywhere on
               // the row); grip-only touch drag on iOS (see IS_IOS note above).
               const rowDraggable = draggable && !IS_IOS && !IS_LONG_PRESS_ROW;
@@ -787,6 +789,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                       <GripVertical size={12} />
                     </div>
                   )}
+                  {heldByDeadline && <div className="flex-shrink-0 p-2 -my-1" data-no-grip aria-hidden="true"><div className="w-3 h-3" /></div>}
                 </div>
               );
             })}

@@ -69,7 +69,7 @@ import UserAssignmentPicker from '../UserAssignmentPicker.jsx';
 import { emitGoalCreate } from '../../intents/emitGoalCreate.js';
 import { INTENT_CONFIG_KEY } from '../../intents/useIntentPoller.js';
 import { enabledIntentTargets } from '../../intents/emitTargets.js';
-import { sortProjectsByOrder } from '../../utils/projectOrder.js';
+import { sortProjectsByOrder, TASK_SORT_DEADLINE } from '../../utils/projectOrder.js';
 import { projectFocusTarget } from '../../utils/goalsLink.js';
 import { CARD_SIZES, cardColumns, cardScale, clampCardSize } from '../../utils/cardSize.js';
 import { keyboardSheet } from '../../utils/keyboardInset.js';
@@ -610,6 +610,8 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
   const [taskDefaults, setTaskDefaults] = useState(() => (initial ? taskDefaultsForm(initial) : seedForm(defaultGoalId)));
   const [goalId, setGoalId] = useState(initial?.goalId || defaultGoalId || '');
   const [status, setStatus] = useState(initial?.status || 'active');
+  // The order of the project's unscheduled tasks (#2394, utils/projectOrder.js).
+  const [byDeadline, setByDeadline] = useState(initial?.taskSort === TASK_SORT_DEADLINE);
   // The project's own target date (local calendar date, absent = none). This
   // is not a task field: project tasks keep their own deadlines. The name and
   // wording follow goals, whose date is a targetDate.
@@ -650,6 +652,8 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
       // Undefined for none, so clearing them leaves no field (updateProject
       // spreads it over the row; JSON drops an undefined key).
       taskDefaults: taskDefaultsFromForm(taskDefaults),
+      // Absent for the manual order, as above.
+      taskSort: byDeadline ? TASK_SORT_DEADLINE : undefined,
       createNote: !initial && createNote && !fromTitle, linkNotePath: fromTitle?.path,
     });
   };
@@ -773,6 +777,21 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
         textSecondary={textSecondary}
         hoverBg={hoverBg}
       />
+
+      {/* Task order (#2394): deadlines first, the rest as dragged */}
+      <div className="flex flex-col gap-1">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={byDeadline}
+            onChange={e => setByDeadline(e.target.checked)}
+            className="w-4 h-4 rounded accent-blue-500"
+            data-project-deadline-order
+          />
+          <span className={`text-sm ${textSecondary}`}>{t('goals.orderByDeadlineLabel')}</span>
+        </label>
+        <p className={`text-xs ${textSecondary} opacity-60 ml-6`}>{t('goals.orderByDeadlineHint')}</p>
+      </div>
 
       {/* Status — edit only */}
       {initial && (

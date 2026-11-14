@@ -2078,7 +2078,9 @@
     "allCompletedHidden_one": "O único objetivo aqui está concluído.",
     "allCompletedHidden_other": "Os {{count}} objetivos aqui estão concluídos.",
     "onHold": "Em pausa",
-    "noOnHoldProjects": "Nenhum projeto em pausa"
+    "noOnHoldProjects": "Nenhum projeto em pausa",
+    "orderByDeadlineLabel": "Ordenar tarefas por prazo",
+    "orderByDeadlineHint": "As tarefas não agendadas com prazo aparecem primeiro, a mais próxima no topo. As restantes ficam na ordem em que as arrasta."
   },
   "colors": {
     "gray": "Cinzento",
@@ -2256,7 +2258,10 @@
     "selectForNotes": "Selecione uma tarefa para ver aqui as notas dela.",
     "resizeNotes": "Redimensionar notas",
     "resizeNotesHint": "Arraste para redimensionar · faça duplo clique para repor",
-    "notesKeysHint": "↑ ↓ mover entre tarefas · ← → mudar de lista · Enter ou duplo clique para editar a tarefa · E para editar a nota"
+    "notesKeysHint": "↑ ↓ mover entre tarefas · ← → mudar de lista · Enter ou duplo clique para editar a tarefa · E para editar a nota",
+    "byDeadline": "Por prazo",
+    "byDeadlineOn": "Tarefas não agendadas: prazos primeiro. Clique para usar a sua ordem.",
+    "byDeadlineOff": "Tarefas não agendadas: a sua ordem. Clique para colocar os prazos primeiro."
   },
   "bucket": {
     "title": "Bucket List",
