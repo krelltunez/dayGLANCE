@@ -103,6 +103,9 @@ const EXCLUDED_KEYS = new Set([
   'day-planner-trmnl-last-synced',
   'day-planner-trmnl-push-state',
   'day-planner-steps-cache',
+  // The last good forecast (utils/weatherCache.js): rewritten hourly, which
+  // would defeat backup dedupe, and stale within hours of a restore anyway.
+  'day-planner-weather-cache',
   // Storage trend samples and the last warning (utils/storageProjection.js):
   // this device's measurements, and a daily change would defeat backup dedupe.
   'day-planner-storage-samples',
