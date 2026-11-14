@@ -7,9 +7,10 @@
 import { createHash } from 'node:crypto';
 
 /**
- * Deterministic UUIDv4-shaped id from a seed — the handleIntent.js
- * deterministicTaskId precedent (SHA-256, version/variant bits forced),
- * synchronous via node:crypto since this runs in the main process. Used by
+ * Deterministic UUIDv4-shaped id from a seed: the synchronous twin of
+ * deterministicTaskId in @glance-apps/intents (SHA-256, version/variant bits
+ * forced), via node:crypto since this runs in the main process and its callers
+ * are synchronous. mcpIdempotency.test.ts holds the two equal. Used by
  * create_task: the task id derives from the idempotency key, so a replayed
  * create finds its own id already in state and no-ops (mutation-level
  * idempotency by construction — the create-shaped reuse §5.2 r5 describes).

@@ -40,7 +40,7 @@
     "@glance-apps/billing": "0.2.2",
     "@glance-apps/dayglance-mcp": "file:packages/dayglance-mcp",
     "@glance-apps/dayglance-vault": "file:packages/dayglance-vault",
-    "@glance-apps/intents": "1.4.0",
+    "@glance-apps/intents": "1.5.0",
     "@glance-apps/mcp-host": "file:packages/mcp-host",
     "@glance-apps/obsidian-format": "file:packages/obsidian-format",
     "@glance-apps/sync": "2.4.0",
