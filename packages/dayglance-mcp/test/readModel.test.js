@@ -32,8 +32,16 @@ describe('link: a task another GLANCE app created', () => {
   it('says which app and which item, on blocks and inbox items alike', () => {
     expect(toBlock(T(chore)).link).toEqual({ app: 'lastglance', id: 'chore-sync-1' });
     expect(inboxItem({ id: 'u1', title: 'Mop kitchen', ...chore }).link).toEqual({ app: 'lastglance', id: 'chore-sync-1' });
-    // A lastGLANCE date's task carries its own id form through untouched.
-    expect(toBlock(T({ source_app: 'app.lastglance', source_entity_id: 'date-1:2026' })).link).toEqual({ app: 'lastglance', id: 'date-1:2026' });
+    // A chore's id says nothing of its kind: no kind, lastglance_resolve_link answers.
+    expect(toBlock(T(chore)).link).not.toHaveProperty('kind');
+  });
+
+  it('says "date" where the id shows it: a lastGLANCE date is <date id>:<year>', () => {
+    expect(toBlock(T({ source_app: 'app.lastglance', source_entity_id: 'date-1:2026' })).link).toEqual({ app: 'lastglance', id: 'date-1:2026', kind: 'date' });
+    expect(inboxItem({ id: 'u2', title: 'Sam\'s birthday', source_app: 'app.lastglance', source_entity_id: '7c1e0b9a-55aa-4c1d-9f00-0b6a0f3d2e11:2027' }).link.kind).toBe('date');
+    // Not a year, or another app's id of that shape: no kind.
+    expect(toBlock(T({ source_app: 'app.lastglance', source_entity_id: 'x:26' })).link).not.toHaveProperty('kind');
+    expect(toBlock(T({ source_app: 'app.lifeglance', source_entity_id: 'm-1:2026' })).link).toEqual({ app: 'lifeglance', id: 'm-1:2026' });
   });
 
   it('is absent unless both halves are there, exactly when completions are reported back', () => {
