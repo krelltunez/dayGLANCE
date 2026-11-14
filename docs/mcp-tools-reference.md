@@ -107,12 +107,18 @@ Blocks and inbox items carry `assignee_id` when the task is assigned (multi-user
 items carry `duration_minutes`, the duration scheduling will default to.
 
 **`link`** marks a task another GLANCE app created: `{ app, id }`, the app's short name
-(`"lastglance"`) and the item's id there. From lastGLANCE that is a chore sent to dayGLANCE (`id`
-is the chore's, for `lastglance_get_chore`), a reach-out to a person (the person's id) or a
-birthday or date (`<date id>:<year>`). Completing, reopening, rescheduling or deleting a linked
-task is reported back to that app through the GLANCE integration, as when the user does it in
-dayGLANCE: completing a chore's task here completes the chore there, so do not complete it in both
-apps. Absent on everything else.
+(`"lastglance"`) and the item's id there. From lastGLANCE that is a chore sent to dayGLANCE, a
+reach-out to a person (the person's id) or a birthday or date (`<date id>:<year>`). Completing,
+reopening, rescheduling or deleting a linked task is reported back to that app through the GLANCE
+integration, as when the user does it in dayGLANCE: completing a chore's task here completes the
+chore there, so do not complete it in both apps. Absent on everything else.
+
+Which kind of lastGLANCE item it is: `lastglance_resolve_link` with `link.id` answers `kind`
+(`chore`, `person` or `date`) and the item; then `lastglance_get_chore` for a chore and
+`lastglance_get_person` for a person or a date's person. `link.kind` is `"date"` when the id's
+`<id>:<year>` shape shows it, and absent otherwise: a chore and a person both have a plain id, and
+dayGLANCE stores nothing that tells them apart. (A create cannot carry the kind: the intents
+schema is strict, so a new field would make every released dayGLANCE refuse the create.)
 
 **`created_at` and `completed_at`** ride every inbox item and every `task` and `recurring_task`
 block (not events or routines). Each is `{ date, time }` on the machine's local clock (`date`
@@ -509,7 +515,8 @@ write MCP does not perform.
 
 A task with `link` (see Blocks) came from another GLANCE app: completing or reopening it is
 reported back to that app, so a lastGLANCE chore's task completed here is the chore done in
-lastGLANCE. The response's block or item carries the same `link`.
+lastGLANCE. The response's block or item carries the same `link`; `lastglance_resolve_link`
+identifies `link.id`.
 
 ### `dayglance_add_subtask`
 Add a subtask to a task (inbox, project, or scheduled). Subtasks are the task's own checklist,

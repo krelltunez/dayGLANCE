@@ -214,6 +214,8 @@ describe('the registered surface, read over the wire', () => {
       const d = tools.find((t) => t.name === name)!.description ?? '';
       expect(d, name).toContain('link');
       expect(d, name).toMatch(/reported back/);
+      // And the lastGLANCE tool that says what a link.id is.
+      expect(d, name).toContain('lastglance_resolve_link');
     }
   });
 });

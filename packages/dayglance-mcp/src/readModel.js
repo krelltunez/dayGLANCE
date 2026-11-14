@@ -64,10 +64,21 @@ function wireNote(entity) {
  * reopening, rescheduling and deletion back to that app (useNotifyEmitter's
  * shouldEmit: source_app and source_entity_id), so a reader can see that
  * completing it here is completing it there too. Undefined otherwise.
+ *
+ * `kind` is added only where the id itself says it: a lastGLANCE birthday or
+ * date is `<date id>:<year>`, so it is "date". A chore and a person both have
+ * a plain id, and dayGLANCE keeps nothing that tells them apart (the create
+ * carries no kind, and the intents schema cannot take one without every
+ * released dayGLANCE refusing the create): lastglance_resolve_link answers
+ * for any id.
  */
+const LASTGLANCE_DATE_ID = /^[^:]+:\d{4}$/;
+
 export function wireLink(t) {
   if (!t?.source_app || !t?.source_entity_id) return undefined;
-  return { app: String(t.source_app).replace(/^app\./, ''), id: String(t.source_entity_id) };
+  const app = String(t.source_app).replace(/^app\./, '');
+  const id = String(t.source_entity_id);
+  return app === 'lastglance' && LASTGLANCE_DATE_ID.test(id) ? { app, id, kind: 'date' } : { app, id };
 }
 
 /**

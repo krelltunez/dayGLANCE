@@ -104,8 +104,8 @@ export interface StampOptions {
 }
 
 export function wireSubtasks(task: unknown): WireSubtask[] | undefined;
-/** Another GLANCE app that created a task, and the item's id there (`{ app: 'lastglance', id }`). */
-export interface WireLink { app: string; id: string }
+/** Another GLANCE app that created a task, and the item's id there (`{ app: 'lastglance', id }`); kind only where the id shows it. */
+export interface WireLink { app: string; id: string; kind?: 'date' }
 /** The link for a task carrying source_app and source_entity_id, else undefined. */
 export function wireLink(task: unknown): WireLink | undefined;
 /** A recorded plan in the block's field names. */

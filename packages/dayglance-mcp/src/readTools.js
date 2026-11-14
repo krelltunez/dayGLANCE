@@ -61,8 +61,10 @@ const bridgeError = (r) => toolError(r.error.code, r.error.message);
 // wireLink): said in every description that lists tasks, so a reader knows
 // before it completes one in both apps.
 const LINK_NOTE =
-  'A task with link came from another GLANCE app (link.app, e.g. "lastglance"; link.id is the chore or person ' +
-  'there): completing, reopening or rescheduling it here is reported back to that app, so do not also do it there.';
+  'A task with link came from another GLANCE app (link.app, e.g. "lastglance"; link.id is the item there): ' +
+  'completing, reopening or rescheduling it here is reported back to that app, so do not also do it there. ' +
+  'For lastGLANCE, lastglance_resolve_link with link.id says whether it is a chore, a person or a date and returns ' +
+  'it (then lastglance_get_chore or lastglance_get_person for the rest); link.kind is "date" when the id shows it.';
 
 const NATIVE_NOTE =
   ' Items with type "device_calendar_event" are read-only device calendar events: ' +
