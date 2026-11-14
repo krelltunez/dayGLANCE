@@ -74,6 +74,7 @@ const okScript: Script = {
   list_users: () => ({ ok: true, data: { users: [{ id: 'u1', name: 'Alex' }] } }),
   list_areas: () => ({ ok: true, data: { areas: [] } }),
   list_bucket_list: () => ({ ok: true, data: { lists: [] } }),
+  list_project_tasks: () => ({ ok: true, data: { project: { id: 'p1', title: 'Website', status: 'active' }, items: [{ id: 't1', placement: 'scheduled' }, { id: 'u1', placement: 'inbox' }, { id: 'u2', placement: 'inbox' }] } }),
   create_task: (p) => ({ ok: true, data: { task: { id: (p as { taskId: string }).taskId, title: (p as { title: string }).title } }, undo: { summary: `Created task “${(p as { title: string }).title}”`, op: { kind: 'remove_created_task', taskId: (p as { taskId: string }).taskId } } }),
 };
 
@@ -169,16 +170,16 @@ describe('the registered surface, read over the wire', () => {
   afterAll(() => h.close());
   afterEach(() => { multiUser = false; bridge.calls.length = 0; });
 
-  it('lists exactly the tools the reference documents: 21 without multi-user, 22 with', async () => {
+  it('lists exactly the tools the reference documents: 22 without multi-user, 23 with', async () => {
     const client = await h.connect();
     const without = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(without).toEqual(documentedTools.filter((n) => n !== 'dayglance_list_users'));
-    expect(without).toHaveLength(21);
+    expect(without).toHaveLength(22);
 
     multiUser = true;
     const withUsers = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(withUsers).toEqual(documentedTools);
-    expect(withUsers).toHaveLength(22);
+    expect(withUsers).toHaveLength(23);
   });
 
   it('a multi-user toggle changes the schema on the SAME connection\'s next request, no reconnect', async () => {
@@ -210,7 +211,7 @@ describe('the registered surface, read over the wire', () => {
   it('the tools that list or complete tasks say what link means', async () => {
     const client = await h.connect();
     const tools = (await client.listTools()).tools;
-    for (const name of ['dayglance_get_today', 'dayglance_get_day', 'dayglance_list_unscheduled_tasks', 'dayglance_set_task_completion']) {
+    for (const name of ['dayglance_get_today', 'dayglance_get_day', 'dayglance_list_unscheduled_tasks', 'dayglance_list_project_tasks', 'dayglance_set_task_completion']) {
       const d = tools.find((t) => t.name === name)!.description ?? '';
       expect(d, name).toContain('link');
       expect(d, name).toMatch(/reported back/);
@@ -271,6 +272,41 @@ describe('a read call travels client → listener → bridge → client', () => 
     await client.callTool({ name: 'dayglance_list_areas', arguments: {} });
     await client.callTool({ name: 'dayglance_list_bucket_list', arguments: {} });
     expect(bridge.calls.map((c) => c.method)).toEqual(['list_unscheduled', 'list_areas', 'list_bucket_list']);
+  });
+
+  // #2392: a project's scheduled tasks were one day read per date away.
+  it('list_project_tasks asks for the project with the filter resolved, and pages what comes back', async () => {
+    const client = await h.connect();
+    const first = body(await client.callTool({ name: 'dayglance_list_project_tasks', arguments: { project_id: 'p1', limit: 2 } })) as Record<string, unknown>;
+    expect(first).toMatchObject({
+      project: { id: 'p1', title: 'Website', status: 'active' },
+      items: [{ id: 't1', placement: 'scheduled' }, { id: 'u1', placement: 'inbox' }],
+      truncated: true, total: 3, timezone: TZ,
+    });
+    const rest = body(await client.callTool({ name: 'dayglance_list_project_tasks', arguments: { project_id: 'p1', limit: 2, cursor: first.next_cursor, include_completed: true } })) as Record<string, unknown>;
+    expect(rest).toMatchObject({ items: [{ id: 'u2' }], truncated: false, next_cursor: null });
+    await client.callTool({ name: 'dayglance_list_project_tasks', arguments: { project_id: 'p1', include_completed: false } });
+    // Omitted and explicit true are one filter; the renderer is always told which.
+    expect(bridge.calls.map((c) => [c.method, c.params])).toEqual([
+      ['list_project_tasks', { project_id: 'p1', include_completed: true }],
+      ['list_project_tasks', { project_id: 'p1', include_completed: true }],
+      ['list_project_tasks', { project_id: 'p1', include_completed: false }],
+    ]);
+  });
+
+  it('list_project_tasks: a cursor from another project or filter, and a blank project_id, are validation errors', async () => {
+    const client = await h.connect();
+    const first = body(await client.callTool({ name: 'dayglance_list_project_tasks', arguments: { project_id: 'p1', limit: 1 } })) as { next_cursor: string };
+    for (const args of [{ project_id: 'p2', cursor: first.next_cursor }, { project_id: 'p1', cursor: first.next_cursor, include_completed: false }]) {
+      const r = await client.callTool({ name: 'dayglance_list_project_tasks', arguments: args });
+      expect(r.isError).toBe(true);
+      expect(body(r)).toMatchObject({ error: { code: 'validation' } });
+      expect((body(r) as { error: { message: string } }).error.message).toContain('project=p1;completed=1');
+    }
+    bridge.calls.length = 0;
+    const blank = await client.callTool({ name: 'dayglance_list_project_tasks', arguments: { project_id: '  ' } });
+    expect(body(blank)).toMatchObject({ error: { code: 'validation' } });
+    expect(bridge.calls).toEqual([]);
   });
 
   it('the schedule resources carry the day shape, with frames and daily_note, as JSON text', async () => {
@@ -979,7 +1015,7 @@ describe('plan history on the task output, over the wire', () => {
   it('the task-reading tools tell the model the fields and their limits, and the reference documents them', async () => {
     const client = await h.connect();
     const tools = (await client.listTools()).tools;
-    for (const name of ['dayglance_get_today', 'dayglance_get_day', 'dayglance_list_unscheduled_tasks', 'dayglance_list_bucket_list']) {
+    for (const name of ['dayglance_get_today', 'dayglance_get_day', 'dayglance_list_unscheduled_tasks', 'dayglance_list_project_tasks', 'dayglance_list_bucket_list']) {
       const description = tools.find((t) => t.name === name)!.description!;
       for (const key of HISTORY_KEYS) expect(description, `${name} ${key}`).toContain(key);
     }

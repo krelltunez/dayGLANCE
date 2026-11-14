@@ -164,7 +164,7 @@ describe('a host with no browser', () => {
     const tools = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(tools).toEqual([
       'dayglance_get_day', 'dayglance_get_goal_progress', 'dayglance_get_today', 'dayglance_list_areas',
-      'dayglance_list_bucket_list', 'dayglance_list_unscheduled_tasks', 'dayglance_list_users',
+      'dayglance_list_bucket_list', 'dayglance_list_project_tasks', 'dayglance_list_unscheduled_tasks', 'dayglance_list_users',
     ]);
     const resources = (await client.listResources()).resources.map((r) => r.uri).sort();
     expect(resources).toEqual(['dayglance://goals/tree', 'dayglance://schedule/today', 'dayglance://schedule/week/current']);
@@ -226,6 +226,46 @@ describe('the read surface, answered from the host\'s copy for one user in their
     const rest = await call('dayglance_list_unscheduled_tasks', { limit: 2, cursor: all.next_cursor });
     expect(rest.items.map((t) => t.id)).toEqual(['u3']);
     expect(all.next_cursor.startsWith('dgc1.')).toBe(true);
+  });
+
+  it('a project\'s tasks are the ones its counters count, scheduled and not, in pages', async () => {
+    const tree = await call('dayglance_get_goal_progress');
+    const p1 = tree.goals[0].projects[0];
+    // Sam's t2 is in the project and not the user's: not counted, not listed.
+    const all = await call('dayglance_list_project_tasks', { project_id: 'p1' });
+    expect(all.project).toEqual({ id: 'p1', title: 'Website', status: 'active' });
+    expect(all.items.map((t) => [t.id, t.placement])).toEqual([['t1', 'scheduled'], ['t3', 'scheduled'], ['u2', 'inbox']]);
+    expect(all.total).toBe(p1.tasks_total);
+    expect(all.items.filter((t) => t.completed).length).toBe(p1.tasks_done);
+    expect(all.timezone).toBe(ZONE);
+    // A scheduled task is the block the day read returns, stamps in the user's zone.
+    const day = await call('dayglance_get_today');
+    const { placement: _p, ...block } = all.items[0];
+    expect(block).toEqual(day.blocks.find((b) => b.id === 't1'));
+
+    const first = await call('dayglance_list_project_tasks', { project_id: 'p1', limit: 2 });
+    expect(first.items.map((t) => t.id)).toEqual(['t1', 't3']);
+    expect(first).toMatchObject({ total: 3, truncated: true });
+    // An explicit true is the filter the cursor was issued under.
+    const rest = await call('dayglance_list_project_tasks', { project_id: 'p1', limit: 2, cursor: first.next_cursor, include_completed: true });
+    expect(rest.items.map((t) => t.id)).toEqual(['u2']);
+    expect(rest).toMatchObject({ truncated: false, next_cursor: null });
+
+    const open = await call('dayglance_list_project_tasks', { project_id: 'p1', include_completed: false });
+    expect(open.items.map((t) => t.id)).toEqual(['t3', 'u2']);
+    expect(open.total).toBe(2);
+    expect((await call('dayglance_list_project_tasks', { project_id: 'p2' })).items).toEqual([]);
+
+    const error = async (args) => {
+      const r = await client.callTool({ name: 'dayglance_list_project_tasks', arguments: args });
+      expect(r.isError).toBe(true);
+      return JSON.parse(r.content[0].text).error;
+    };
+    // A cursor is bound to its project and its filter.
+    expect(await error({ project_id: 'p2', cursor: first.next_cursor })).toMatchObject({ code: 'validation' });
+    expect((await error({ project_id: 'p1', cursor: first.next_cursor, include_completed: false })).message)
+      .toContain('project=p1;completed=1');
+    expect(await error({ project_id: 'nope' })).toEqual({ code: 'not_found', message: 'No project with id "nope"' });
   });
 
   it('lists active users, areas, and the Bucket List under the user\'s headings', async () => {

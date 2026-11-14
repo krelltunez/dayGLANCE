@@ -214,6 +214,55 @@ export function registerReadTools(server, deps) {
     },
   );
 
+  server.registerTool(
+    'dayglance_list_project_tasks',
+    {
+      description:
+        "One dayGLANCE project's tasks, wherever they sit: scheduled on any date (past or future), in the " +
+        'inbox, or on the Bucket List. Use this instead of reading day after day to find a project\'s ' +
+        'scheduled tasks. It lists exactly the tasks the project\'s tasks_done and tasks_total count in ' +
+        'dayglance_get_goal_progress, so with completed tasks included, total equals tasks_total. Each item ' +
+        'says where it is in placement: "scheduled" items are day blocks as dayglance_get_day returns them ' +
+        '(date, start_time, duration_minutes, all_day), "inbox" items are as dayglance_list_unscheduled_tasks ' +
+        'returns them, and "bucket_list" items are as dayglance_list_bucket_list returns them, with bucket_id. ' +
+        'Order: scheduled first, by date then start time, then the inbox, then the Bucket List. Not listed: ' +
+        'subtasks as items (they ride their task), recurring series (their occurrences are in the day reads, ' +
+        'and the counters do not count them), and tasks in the recycle bin. project_id comes from ' +
+        `dayglance_get_goal_progress; an unknown id is not_found. Paginated, default page ${DEFAULT_LIST_LIMIT}, ` +
+        `max ${MAX_LIST_LIMIT}; when truncated is true, pass next_cursor back as cursor for the next page. ` +
+        'include_completed defaults to true, pass false for open tasks only. total, truncated and next_cursor ' +
+        'describe the FILTERED set. A cursor is bound to the project and filter it was issued under: to change ' +
+        'either, restart with a fresh call and no cursor.' + PLAN_HISTORY_NOTE + ' ' + LINK_NOTE,
+      inputSchema: z.object({
+        project_id: z.string().describe('The project, by id from dayglance_get_goal_progress.'),
+        include_completed: z.boolean().optional().describe('Default true. Pass false to return only open tasks.'),
+        limit: z.number().int().optional().describe(`Page size, 1-${MAX_LIST_LIMIT}. Default ${DEFAULT_LIST_LIMIT}.`),
+        cursor: z.string().optional().describe('Opaque cursor from a previous response\'s next_cursor.'),
+      }),
+    },
+    async ({ project_id, include_completed, limit, cursor }) => {
+      if (typeof project_id !== 'string' || !project_id.trim()) {
+        return toolError('validation', `project_id must be a project id from dayglance_get_goal_progress, got ${JSON.stringify(project_id)}`);
+      }
+      // Resolved before it is compared or encoded, as for the inbox: an
+      // omitted include_completed and an explicit true are the same filter.
+      const includeCompleted = include_completed !== false;
+      const r = await deps.bridge.request('list_project_tasks', { project_id, include_completed: includeCompleted });
+      if (!r.ok) return bridgeError(r);
+      const filterKey = `project=${encodeURIComponent(project_id)};completed=${includeCompleted ? '1' : '0'}`;
+      const page = paginate(r.data.items ?? [], { limit, cursor, filterKey, cursorPrefix: CURSOR_PREFIX });
+      if (!page.ok) return toolError('validation', page.reason);
+      return ok({
+        project: r.data.project,
+        items: page.items,
+        truncated: page.truncated,
+        next_cursor: page.nextCursor,
+        total: page.total,
+        timezone: deps.timeZone(),
+      });
+    },
+  );
+
   // Registered ONLY while multi-user mode is on: with it off there are no
   // assignees to enumerate and create_task has no assignee_id argument, so
   // the tool would only invite confusion. The roster itself stays in the
@@ -283,8 +332,9 @@ export function registerReadTools(server, deps) {
         "vault folder cannot be read here, it is the bridge plugin's last report of the note instead, with " +
         'description_reported_at saying when; left empty when neither is available. Scope with goal_id ' +
         "for one goal's tree; window is 'active' (default) or 'all' (includes archived/completed goals and " +
-        'projects). Tasks carry project_id, so dayglance_get_day and dayglance_list_unscheduled_tasks give a ' +
-        "project's tasks.",
+        'projects). tasks_done and tasks_total count the non-archived tasks attached to the project, scheduled ' +
+        'or not; progress weighs their minutes, so it is not tasks_done / tasks_total. ' +
+        "dayglance_list_project_tasks lists those tasks.",
       inputSchema: z.object({
         goal_id: z.string().optional().describe('Narrow to one goal by id.'),
         window: z.enum(['active', 'all']).optional().describe("Status scope. Default 'active'."),

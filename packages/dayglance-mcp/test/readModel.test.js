@@ -12,6 +12,7 @@ import {
   buildUsers,
   inboxItem,
   projectItem,
+  buildProjectTasks,
   handleMcpRequest,
 } from '../src/readModel.js';
 
@@ -415,6 +416,15 @@ describe('handleMcpRequest — the dispatcher', () => {
     expect(unknown).toMatchObject({ ok: false, error: { code: 'validation' } });
   });
 
+  it('routes list_project_tasks, and an unknown project is not_found', () => {
+    const withProject = { ...state, projects: [{ id: 'p1', title: 'Website', status: 'active' }] };
+    expect(handleMcpRequest(withProject, { method: 'list_project_tasks', params: { project_id: 'p1' } }))
+      .toEqual({ ok: true, data: { project: { id: 'p1', title: 'Website', status: 'active' }, items: [] } });
+    const nf = handleMcpRequest(withProject, { method: 'list_project_tasks', params: { project_id: 'nope' } });
+    expect(nf).toEqual({ ok: false, error: { code: 'not_found', message: 'No project with id "nope"' } });
+    expect(handleMcpRequest(withProject, { method: 'list_project_tasks' })).toMatchObject({ ok: false, error: { code: 'not_found' } });
+  });
+
   it('routes list_users', () => {
     expect(handleMcpRequest(state, { method: 'list_users' })).toEqual({ ok: true, data: { users: [] } });
   });
@@ -578,5 +588,110 @@ describe('projectItem — the project\'s own target date on the wire', () => {
   it('carries target_date (YYYY-MM-DD) when the project has one, and no key when it does not', () => {
     expect(projectItem({ ...project, targetDate: '2026-12-01' })).toMatchObject({ id: 'p1', target_date: '2026-12-01' });
     expect(projectItem(project)).not.toHaveProperty('target_date');
+  });
+});
+// #2392: a project's scheduled tasks could only be found one day read at a
+// time. #2393: nothing listed the tasks tasks_done and tasks_total count.
+describe('buildProjectTasks: the tasks a project\'s counters count', () => {
+  const ME = 'u-me';
+  const visible = (t) => !t.assignedUserSyncIds?.length || t.assignedUserSyncIds.includes(ME);
+  const state = {
+    isVisibleForUser: visible,
+    projects: [
+      { id: 'p1', title: 'Degree', status: 'active' },
+      { id: 'p2', title: 'Other', status: 'active' },
+      { id: 'p-sam', title: 'Sam\'s', status: 'active', assignedUserSyncIds: ['u-sam'] },
+      { id: 'p-done', title: 'Finished', status: 'completed' },
+    ],
+    tasks: [
+      T({ id: 'late', date: '2027-03-02', startTime: '14:00', projectId: 'p1' }),
+      T({ id: 'noon', date: '2026-09-01', startTime: '12:00', projectId: 'p1', completed: true, completedAt: '2026-09-01T13:00:00.000Z' }),
+      T({ id: 'early', date: '2026-09-01', startTime: '08:30', projectId: 'p1', notes: 'bring ID', subtasks: [{ id: 's1', title: 'Print form', completed: true }] }),
+      T({ id: 'allday', date: '2026-09-01', isAllDay: true, startTime: '10:00', projectId: 'p1' }),
+      T({ id: 'elsewhere', date: '2026-09-01', projectId: 'p2' }),
+      T({ id: 'loose', date: '2026-09-01' }),
+      T({ id: 'gone', date: '2026-09-02', projectId: 'p1', archived: true }),
+      T({ id: 'sams', date: '2026-09-02', projectId: 'p1', assignedUserSyncIds: ['u-sam'] }),
+      T({ id: 'device', date: '2026-09-02', projectId: 'p1', _native: true }),
+      T({ id: 'wrap', date: '2026-08-01', projectId: 'p-done', completed: true }),
+    ],
+    unscheduledTasks: [
+      { id: 'someday', title: 'Maybe a minor', projectId: 'p1', bucketId: 'someday', priority: 2, deadline: '2027-01-01' },
+      { id: 'thesis', title: 'Thesis outline', projectId: 'p1', priority: 3, deadline: '2026-11-15', duration: 90 },
+      { id: 'forms', title: 'Hand in forms', projectId: 'p1', completed: true },
+      { id: 'inbox-other', title: 'Unrelated' },
+      { id: 'old', title: 'Dropped idea', projectId: 'p1', archived: true },
+    ],
+    recurringTasks: [
+      { id: 'weekly', title: 'Study group', projectId: 'p1', startTime: '18:00', duration: 60, recurrence: { type: 'daily', startDate: '2026-09-01' } },
+    ],
+  };
+  const list = (params) => buildProjectTasks(state, params);
+  const ids = (r) => r.items.map((i) => i.id);
+
+  it('lists scheduled tasks by date, all-day first, then by start; then the inbox; then the Bucket List', () => {
+    const r = list({ project_id: 'p1' });
+    expect(r.project).toEqual({ id: 'p1', title: 'Degree', status: 'active' });
+    expect(r.items.map((i) => [i.id, i.placement])).toEqual([
+      ['allday', 'scheduled'], ['early', 'scheduled'], ['noon', 'scheduled'], ['late', 'scheduled'],
+      ['thesis', 'inbox'], ['forms', 'inbox'],
+      ['someday', 'bucket_list'],
+    ]);
+  });
+
+  it('is the set the goal tree counts: as long as tasks_total, with tasks_done of them completed', () => {
+    const tree = buildGoalProgress(state, { window: 'all' });
+    for (const p of tree.standalone_projects) {
+      const r = list({ project_id: p.id });
+      expect(r.items.length, p.id).toBe(p.tasks_total);
+      expect(r.items.filter((i) => i.completed).length, p.id).toBe(p.tasks_done);
+    }
+    expect(tree.standalone_projects.find((p) => p.id === 'p1')).toMatchObject({ tasks_total: 7, tasks_done: 2 });
+  });
+
+  it('leaves out what the counters leave out: archived, another member\'s, device events, other projects, recurring series', () => {
+    const got = ids(list({ project_id: 'p1' }));
+    for (const id of ['gone', 'old', 'sams', 'device', 'elsewhere', 'loose', 'inbox-other', 'weekly']) expect(got, id).not.toContain(id);
+    expect(got.some((id) => String(id).startsWith('recurring-'))).toBe(false);
+  });
+
+  it('a scheduled task is a day block, an inbox task an inbox item, a Bucket List item has bucket_id and no priority or deadline', () => {
+    const byId = Object.fromEntries(list({ project_id: 'p1' }).items.map((i) => [i.id, i]));
+    const { placement: _p, ...block } = byId.early;
+    expect(block).toEqual(toBlock(state.tasks[2]));
+    expect(byId.early).toMatchObject({ date: '2026-09-01', start_time: '08:30', notes: 'bring ID', subtasks: [{ id: 's1', title: 'Print form', completed: true }] });
+    expect(byId.allday).toMatchObject({ all_day: true, start_time: null });
+    const { placement: _q, ...item } = byId.thesis;
+    expect(item).toEqual(inboxItem(state.unscheduledTasks[1]));
+    expect(byId.thesis).toMatchObject({ priority: 3, deadline: '2026-11-15', duration_minutes: 90 });
+    expect(byId.thesis).not.toHaveProperty('date');
+    expect(byId.someday).toMatchObject({ bucket_id: 'someday', placement: 'bucket_list' });
+    expect(byId.someday).not.toHaveProperty('priority');
+    expect(byId.someday).not.toHaveProperty('deadline');
+  });
+
+  it('include_completed false leaves only the open tasks, in the same order', () => {
+    expect(ids(list({ project_id: 'p1', include_completed: false }))).toEqual(['allday', 'early', 'late', 'thesis', 'someday']);
+  });
+
+  it('a completed project lists like any other', () => {
+    expect(ids(list({ project_id: 'p-done' }))).toEqual(['wrap']);
+  });
+
+  it('a project with no tasks is an empty list, not an error', () => {
+    expect(list({ project_id: 'p2', include_completed: false })).toMatchObject({ notFound: false });
+    expect(ids(buildProjectTasks({ ...state, tasks: [] }, { project_id: 'p2' }))).toEqual([]);
+  });
+
+  it('an unknown id, a missing one, and a project the user cannot see are not found', () => {
+    expect(list({ project_id: 'nope' })).toEqual({ notFound: true });
+    expect(list({})).toEqual({ notFound: true });
+    expect(list(undefined)).toEqual({ notFound: true });
+    expect(list({ project_id: 'p-sam' })).toEqual({ notFound: true });
+  });
+
+  it('stamps are reported in the state\'s zone, as in the day and inbox reads', () => {
+    const r = buildProjectTasks({ ...state, timeZone: 'America/Los_Angeles' }, { project_id: 'p1' });
+    expect(r.items.find((i) => i.id === 'noon').completed_at).toEqual({ date: '2026-09-01', time: '06:00' });
   });
 });

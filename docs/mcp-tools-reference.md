@@ -294,8 +294,42 @@ plugin's report instead, and the entity also carries `description_reported_at`, 
 reported it: the text is as current as that report. A note the plugin reports deleted is not filled
 in. When neither is available (no folder, and the vault is not paired or the plugin has not reported
 the note), the pointer alone is returned and `description` is empty. Reads open the linked notes, at
-most 40 per call. Tasks carry `project_id`, so `dayglance_get_day` and
-`dayglance_list_unscheduled_tasks` give a project's tasks.
+most 40 per call. `dayglance_list_project_tasks` lists the tasks a project's `tasks_done` and
+`tasks_total` count.
+
+### `dayglance_list_project_tasks`
+One project's tasks, wherever they sit: scheduled on any date, in the inbox, or on the Bucket List.
+Paginated. Use it instead of reading day after day to find a project's scheduled tasks.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `project_id` | string | yes | From `dayglance_get_goal_progress`. Unknown id, or a project the current user cannot see → `not_found`. Completed and archived projects are listed like any other. |
+| `include_completed` | boolean | no | Default `true`. Pass `false` for open tasks only. |
+| `limit` | integer | no | Page size 1–200. Default 50. |
+| `cursor` | string | no | Opaque cursor from a previous response's `next_cursor`. Bound to the project and filter it was issued under. |
+
+Returns `{ project, items, truncated, next_cursor, total, timezone }`, with `project` as
+`{ id, title, status }`.
+
+**The list is the set the counters count**: every non-archived task attached to the project. With
+`include_completed` left on, `total` equals the project's `tasks_total`, and the completed items
+number `tasks_done`. Not listed, as they are not counted: recurring series (their occurrences are in
+the day reads, carrying the `project_id`), tasks in the recycle bin, and device calendar events.
+Subtasks ride their task in `subtasks`; they are not items.
+
+Each item says where it sits in `placement`, and is otherwise in the shape of the tool that already
+lists it:
+
+| `placement` | Shape | Order |
+|---|---|---|
+| `scheduled` | A block as `dayglance_get_day` returns it (`date`, `start_time`, `duration_minutes`, `all_day`, …; see Block types). | First: by date, all-day before timed, then by start time. |
+| `inbox` | An item as `dayglance_list_unscheduled_tasks` returns it. | Next, in that tool's order. |
+| `bucket_list` | An item as `dayglance_list_bucket_list` returns it, with `bucket_id`. | Last, in that tool's order. |
+
+Filtering happens before pagination, and cursors follow the inbox's rules: `total`, `truncated` and
+`next_cursor` describe the filtered set, and a cursor presented with another `project_id` or
+`include_completed` is a `validation` error naming both sides. Omitting `include_completed` on one
+page and passing `true` on the next is the same filter.
 
 ### `dayglance_list_areas`
 The areas of life a goal can belong to, as `{ id, name }`, in the user's order. Use the id as

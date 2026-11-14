@@ -353,13 +353,30 @@ export function buildUnscheduledItems(state, filter = {}) {
 }
 
 /**
+ * The rows project and goal progress are measured over: the user's visible
+ * tasks, scheduled and not. Device calendar events are left out: they are not
+ * completable dayGLANCE work and would dilute every percentage.
+ */
+function progressRows(state) {
+  const { tasks = [], unscheduledTasks = [], isVisibleForUser = () => true } = state;
+  return [...tasks, ...unscheduledTasks].filter(isVisibleForUser).filter((t) => !t._native);
+}
+
+/**
+ * Of those rows, the ones a project's tasks_done and tasks_total count, the
+ * same test calculateProjectProgress applies. buildProjectTasks lists exactly
+ * this set, so a client can reconcile the counters task by task (#2393).
+ */
+const inProject = (projectId) => (t) => t.projectId === projectId && !t.archived;
+
+/**
  * A project as the goal tree reports it (2026-10-04: the record's own fields
  * beside the progress). `description` is the record's notes box; for a
  * project linked to an Obsidian note the box lives in that note's opening
  * section and the record is empty, which `obsidian_note` tells the reader.
  */
 export function projectItem(p, progressTasks = []) {
-  const projectTasks = progressTasks.filter((t) => t.projectId === p.id && !t.archived);
+  const projectTasks = progressTasks.filter(inProject(p.id));
   const progress = calculateProjectProgress(p.id, progressTasks);
   const item = {
     id: p.id,
@@ -428,7 +445,7 @@ export function buildAreas(state) {
  */
 export function buildGoalProgress(state, params) {
   const {
-    goals = [], projects = [], tasks = [], unscheduledTasks = [],
+    goals = [], projects = [],
     isVisibleForUser = () => true,
   } = state;
   const { goal_id: goalId, window: windowParam } = params ?? {};
@@ -444,10 +461,7 @@ export function buildGoalProgress(state, params) {
   // on-hold project is open, and reports its status so the reader knows it
   // is paused.
   const inScope = (entity) => scope === 'all' || (entity.status !== 'archived' && entity.status !== 'completed');
-  const allTasks = [...tasks, ...unscheduledTasks].filter(isVisibleForUser);
-  // Progress denominators deliberately exclude device calendar events: they are
-  // not completable dayGLANCE work and would dilute every percentage.
-  const progressTasks = allTasks.filter((t) => !t._native);
+  const progressTasks = progressRows(state);
 
   const visibleGoals = goals.filter((g) => isVisibleForUser(g) && inScope(g));
   const selected = goalId === undefined ? visibleGoals : visibleGoals.filter((g) => g.id === goalId);
@@ -471,6 +485,56 @@ export function buildGoalProgress(state, params) {
     : [];
 
   return { notFound: false, invalid: null, goals: result, standalone_projects: standalone };
+}
+
+/**
+ * One project's tasks (#2392): the set its tasks_done and tasks_total count,
+ * so with completed tasks included the list is as long as tasks_total. Before
+ * this the only way to a project's scheduled tasks was one day read per date.
+ *
+ * Each item is in the shape the tool that already lists it uses, and says
+ * where it sits in `placement`: 'scheduled' (a day block, with its date),
+ * 'inbox' (an inbox item) or 'bucket_list' (a Bucket List item, with
+ * bucket_id). Scheduled tasks come first, by date, all-day before timed, then
+ * by start; then the inbox and the Bucket List in their stored order, which is
+ * the order dayglance_list_unscheduled_tasks and dayglance_list_bucket_list
+ * return. A recurring series is not listed, as it is not counted: it has no
+ * end to enumerate, and its occurrences are in the day reads.
+ *
+ * Unpaginated: the tool layer owns paging, as for the inbox (§5.1).
+ */
+export function buildProjectTasks(state, params) {
+  const { project_id: projectId, include_completed: includeCompleted = true } = params ?? {};
+  const { projects = [], tasks = [], unscheduledTasks = [], isVisibleForUser = () => true } = state;
+  const project = projects.find((p) => p && p.id === projectId && isVisibleForUser(p));
+  if (!project) return { notFound: true };
+
+  const mine = (t) => t && isVisibleForUser(t) && !t._native && inProject(project.id)(t) && (includeCompleted || !t.completed);
+  const stamp = { timeZone: state.timeZone };
+  const minutes = (t) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t.startTime ?? '');
+    return m ? Number(m[1]) * 60 + Number(m[2]) : Number.MAX_SAFE_INTEGER;
+  };
+  const scheduled = tasks.filter(mine)
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => String(a.t.date ?? '').localeCompare(String(b.t.date ?? ''))
+      || (a.t.isAllDay ? 0 : 1) - (b.t.isAllDay ? 0 : 1)
+      || (a.t.isAllDay ? 0 : minutes(a.t) - minutes(b.t))
+      || a.i - b.i)
+    .map(({ t }) => ({ ...toBlock(t, stamp), placement: 'scheduled' }));
+  const unscheduled = unscheduledTasks.filter(mine);
+  const inbox = unscheduled.filter(notBucketed).map((t) => ({ ...inboxItem(t, stamp), placement: 'inbox' }));
+  const bucket = unscheduled.filter((t) => !notBucketed(t)).map((t) => {
+    // Bucket List items carry no priority or deadline (buildBucketList).
+    const { priority: _p, deadline: _d, ...item } = inboxItem(t, stamp);
+    return { ...item, bucket_id: t.bucketId, placement: 'bucket_list' };
+  });
+
+  return {
+    notFound: false,
+    project: { id: project.id, title: project.title, status: project.status },
+    items: [...scheduled, ...inbox, ...bucket],
+  };
 }
 
 /**
@@ -516,6 +580,11 @@ export function handleMcpRequest(state, request) {
       return { ok: true, data: buildAreas(state) };
     case 'list_bucket_list':
       return { ok: true, data: buildBucketList(state) };
+    case 'list_project_tasks': {
+      const r = buildProjectTasks(state, params);
+      if (r.notFound) return { ok: false, error: { code: 'not_found', message: `No project with id ${JSON.stringify(params.project_id)}` } };
+      return { ok: true, data: { project: r.project, items: r.items } };
+    }
     case 'goal_progress': {
       const r = buildGoalProgress(state, params);
       if (r.invalid) return { ok: false, error: { code: 'validation', message: r.invalid } };
