@@ -34,6 +34,7 @@ describe('collectDeviceSettings', () => {
       // excluded: volatile cursors
       'day-planner-cloud-sync-last-synced': '2026-07-22T00:00:00Z',
       'day-planner-steps-cache': '{"big":"cache"}',
+      'day-planner-weather-cache': '{"temp":61}',
       'day-planner-storage-samples': '[{"date":"2026-10-19","bytes":1}]',
       'day-planner-auto-backup-remote-fingerprint': '{"fingerprint":"f"}',
       // legacy unprefixed settings — the inbox filter bar and dismissals
@@ -76,6 +77,7 @@ describe('collectDeviceSettings', () => {
     expect(out['day-planner-cloud-sync-config']).toBeUndefined();
     expect(out['day-planner-cloud-sync-last-synced']).toBeUndefined();
     expect(out['day-planner-steps-cache']).toBeUndefined();
+    expect(out['day-planner-weather-cache']).toBeUndefined();
     // This device's storage samples change daily and would defeat backup dedupe.
     expect(out['day-planner-storage-samples']).toBeUndefined();
     // A backup marker: captured, it would change the payload after every upload.
