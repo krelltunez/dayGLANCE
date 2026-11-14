@@ -17,6 +17,7 @@ export default function useComputedViews({
   hideStandaloneTasksInbox,
   inboxTagFilter,
   inboxProjectFilter,
+  inboxSort,
   projects,
   goalsProjectsEnabled,
   isVisibleForUser,
@@ -97,11 +98,11 @@ export default function useComputedViews({
     () => filterInboxTasks(unscheduledTasks, {
       inboxPriorityFilter, hideCompletedInbox, hideProjectTasksInbox, hideStandaloneTasksInbox,
       liveProjectFilter: liveInboxProjectFilter, liveTagFilter: liveInboxTagFilter,
-      goalsProjectsEnabled, isVisibleForUser,
+      goalsProjectsEnabled, isVisibleForUser, inboxSort,
     }),
     [unscheduledTasks, inboxPriorityFilter, hideCompletedInbox, hideProjectTasksInbox,
      hideStandaloneTasksInbox, liveInboxTagFilter, liveInboxProjectFilter, goalsProjectsEnabled,
-     isVisibleForUser]
+     isVisibleForUser, inboxSort]
   );
 
   // Today's tasks filtered by tag selection

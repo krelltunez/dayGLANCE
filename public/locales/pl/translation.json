@@ -2222,7 +2222,12 @@
     "showingAllPrioritiesClick": "Wszystkie priorytety (kliknij, aby filtrować)",
     "showingPriorityClick": "Priorytet {{priority}}+ (kliknij, aby zmienić)",
     "zero": "Pusta skrzynka",
-    "priorityAll": "Wszystkie"
+    "priorityAll": "Wszystkie",
+    "sort": {
+      "title": "Sortuj według",
+      "priorityHint": "Najpierw najwyższy priorytet",
+      "deadlineHint": "Najpierw najbliższy termin; zadania bez terminu potem, według priorytetu"
+    }
   },
   "glance": {
     "allDoneMessage": "{{time}}, wszystko zrobione!",

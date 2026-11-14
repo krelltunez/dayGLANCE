@@ -3,6 +3,7 @@ import { useNotifyTrayOnChange } from '../utils/trayNotify.js';
 import { isTrayMode } from '../utils/trayMode.js';
 import { dailyNotesSyncable, writeDailyNotes } from '../utils/dailyNotesStore.js';
 import { writeItem } from '../utils/storageWrites.js';
+import { INBOX_SORT_KEY } from '../utils/inboxFilter.js';
 
 export default function useLocalStoragePersist({
   minimizedSections,
@@ -13,6 +14,7 @@ export default function useLocalStoragePersist({
   hideStandaloneTasksInbox,
   inboxTagFilter,
   inboxProjectFilter,
+  inboxSort,
   priorityPromptDismissed,
   sectionInfoDismissed, skipOnboardingPersist,
   dailyNotes, suppressCloudUploadRef, cloudSyncConfig, cloudSyncInitialDoneRef,
@@ -50,6 +52,11 @@ export default function useLocalStoragePersist({
   useEffect(() => {
     writeItem('hideStandaloneTasksInbox', hideStandaloneTasksInbox.toString());
   }, [hideStandaloneTasksInbox]);
+
+  // Persist the Inbox sort (utils/inboxFilter.js), on this device like the filters
+  useEffect(() => {
+    writeItem(INBOX_SORT_KEY, inboxSort);
+  }, [inboxSort]);
 
   // Persist inbox tag and project filters to localStorage
   useEffect(() => {

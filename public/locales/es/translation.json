@@ -2125,7 +2125,12 @@
     "showingAllPrioritiesClick": "Se muestran todas las prioridades (haz clic para filtrar)",
     "showingPriorityClick": "Se muestra la prioridad {{priority}}+ (haz clic para cambiar)",
     "zero": "Bandeja de entrada vacía",
-    "priorityAll": "Todas"
+    "priorityAll": "Todas",
+    "sort": {
+      "title": "Ordenar por",
+      "priorityHint": "Primero la prioridad más alta",
+      "deadlineHint": "Primero la fecha límite más próxima; las tareas sin fecha límite después, por prioridad"
+    }
   },
   "glance": {
     "allDoneMessage": "{{time}}, ¡todo listo!",

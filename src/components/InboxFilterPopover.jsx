@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { notBucketed } from '../utils/bucketList.js';
 import useRememberedOpen from '../hooks/useRememberedOpen.js';
 import { groupInboxProjects, projectIdsOf, selectionState, toggleProjectGroup } from '../utils/inboxProjectGroups.js';
+import { INBOX_SORT_PRIORITY, INBOX_SORT_DEADLINE } from '../utils/inboxFilter.js';
 
 // Open or closed, remembered on this device per section and group, the way
 // the SCHED rail keeps its sections (#2232).
@@ -84,6 +85,7 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
     hideStandaloneTasksInbox, setHideStandaloneTasksInbox,
     inboxTagFilter, setInboxTagFilter,
     inboxProjectFilter, setInboxProjectFilter,
+    inboxSort, setInboxSort,
   } = useDayPlannerCtx();
   const { t } = useTranslation();
   const { goalsProjectsEnabled, projects, goals, areas } = useFeaturesCtx();
@@ -235,6 +237,30 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
         </div>
 
         <div className="p-3 flex flex-col gap-3 max-h-[70vh] overflow-y-auto">
+          {/* Sort (#2394): the order of the list, not a filter, so it neither
+              lights the Filter button nor is reset by Clear all. */}
+          <Section storageKey="sort" title={t('inbox.sort.title')} {...themed}>
+            <div className="flex gap-1.5 flex-wrap" role="radiogroup" aria-label={t('inbox.sort.title')}>
+              {[
+                { value: INBOX_SORT_PRIORITY, label: t('task.priority'), hint: t('inbox.sort.priorityHint') },
+                { value: INBOX_SORT_DEADLINE, label: t('task.deadline'), hint: t('inbox.sort.deadlineHint') },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={inboxSort === option.value}
+                  data-inbox-sort={option.value}
+                  title={option.hint}
+                  className={`${chipBase} ${inboxSort === option.value ? chipOn : chipOff}`}
+                  onClick={() => setInboxSort(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </Section>
+
           {/* Status */}
           <Section storageKey="status" title={t('common.status')} count={hideCompletedInbox ? 1 : 0} {...themed}>
             <div className="flex gap-1.5 flex-wrap">

@@ -2119,7 +2119,12 @@
     "showingAllPrioritiesClick": "正在显示所有优先级（点击筛选）",
     "showingPriorityClick": "正在显示优先级 {{priority}}+（点击更改）",
     "zero": "收件箱已清空",
-    "priorityAll": "全部"
+    "priorityAll": "全部",
+    "sort": {
+      "title": "排序方式",
+      "priorityHint": "优先级最高的在前",
+      "deadlineHint": "截止日期最近的在前；没有截止日期的任务排在后面，按优先级排列"
+    }
   },
   "glance": {
     "allDoneMessage": "{{time}}，都完成了！",

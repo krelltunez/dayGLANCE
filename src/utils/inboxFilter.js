@@ -8,7 +8,16 @@
 import { extractTags } from './taskUtils.js';
 import { notBucketed } from './bucketList.js';
 
-/** The six Inbox filter preferences, device-local, as the app's initialisers read them. */
+// How the Inbox list is ordered (#2394): by priority, as it always was, or by
+// deadline. Device-local like the filters beside it, under a prefixed key so
+// the device-settings backup carries it (utils/deviceSettings.js).
+export const INBOX_SORT_KEY = 'day-planner-inbox-sort';
+export const INBOX_SORT_PRIORITY = 'priority';
+export const INBOX_SORT_DEADLINE = 'deadline';
+/** A stored or passed sort as one of the two: anything but 'deadline' is the priority order. */
+export const inboxSortOf = (value) => (value === INBOX_SORT_DEADLINE ? INBOX_SORT_DEADLINE : INBOX_SORT_PRIORITY);
+
+/** The Inbox filter preferences and its sort, device-local, as the app's initialisers read them. */
 export function readInboxFilterPrefs(storage = globalThis.localStorage) {
   const get = (key) => { try { return storage?.getItem(key) ?? null; } catch { return null; } };
   const list = (key) => { try { const v = JSON.parse(get(key) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
@@ -23,6 +32,7 @@ export function readInboxFilterPrefs(storage = globalThis.localStorage) {
     hideStandaloneTasksInbox: get('hideStandaloneTasksInbox') === 'true',
     inboxTagFilter: list('inboxTagFilter'),
     inboxProjectFilter: list('inboxProjectFilter'),
+    inboxSort: inboxSortOf(get(INBOX_SORT_KEY)),
   };
 }
 
@@ -64,15 +74,25 @@ export function liveInboxTagFilter(saved = [], filterableTags = []) {
   return kept.length === saved.length ? saved : kept;
 }
 
+const deadlineOf = (task) => (typeof task?.deadline === 'string' ? task.deadline : '');
+
 /**
- * The Inbox as the user sees it, sorted (open tasks first, then by priority).
+ * The Inbox as the user sees it, sorted: open tasks first, then by priority,
+ * highest first. Under `inboxSort: 'deadline'` (#2394) the open tasks with a
+ * deadline lead, soonest first (a YYYY-MM-DD string, so it compares as text),
+ * and priority orders the tasks that share a date and the ones with none.
+ * Tasks the sort cannot tell apart keep their stored order either way. The
+ * sort decides only the order: which tasks are in the Inbox, and so every
+ * count, is the same under both.
  * When goals/projects are on, project tasks live on their project card unless
  * the user opts in; if the feature is off, that exclusion is lifted.
  */
 export function filterInboxTasks(unscheduledTasks = [], {
   inboxPriorityFilter = 0, hideCompletedInbox = false, hideProjectTasksInbox = true, hideStandaloneTasksInbox = false,
   liveProjectFilter = [], liveTagFilter = [], goalsProjectsEnabled = false, isVisibleForUser = () => true,
+  inboxSort = INBOX_SORT_PRIORITY,
 } = {}) {
+  const byDeadline = inboxSortOf(inboxSort) === INBOX_SORT_DEADLINE;
   return unscheduledTasks
     // Bucket List items never appear in the Inbox: the Inbox nags, the Bucket doesn't.
     .filter(notBucketed)
@@ -98,6 +118,15 @@ export function filterInboxTasks(unscheduledTasks = [], {
     .sort((a, b) => {
       // Completed tasks always sink below incomplete ones.
       if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      if (byDeadline) {
+        const da = deadlineOf(a);
+        const db = deadlineOf(b);
+        if (da !== db) {
+          if (!da) return 1;
+          if (!db) return -1;
+          return da.localeCompare(db);
+        }
+      }
       return (b.priority || 0) - (a.priority || 0);
     });
 }
