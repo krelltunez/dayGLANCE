@@ -30,6 +30,8 @@ This check is mandatory — even mid-task, even for "small fixes", even when you
 
 Do **not** post comments to GitHub issues directly using `mcp__github__add_issue_comment`. Instead, draft the proposed response and present it to the user so they can review and post it themselves.
 
+When the issue is written in a language other than English, draft the reply in that language first, then the same reply in English below it, so anyone else following the issue can read it.
+
 # Bridge scenario harness
 
 `dayglance-obsidian-plugin/test/` runs the real Obsidian plugin transport and
