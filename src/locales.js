@@ -44,7 +44,14 @@ export const languages = Object.keys(loaders).sort();
  * who never asked for it. Browsers reporting a Portuguese-speaking region we
  * do not ship (pt-AO, pt-MZ) land here too.
  */
-const REGIONAL_DEFAULTS = { pt: 'pt-PT' };
+const REGIONAL_DEFAULTS = { pt: 'pt-PT', zh: 'zh-CN' };
+
+/**
+ * Chinese tags that mean the Traditional written standard: the script subtag
+ * ("zh-Hant", "zh-Hant-TW", as iOS and Android report it) or a region that
+ * writes it ("zh-TW", "zh-HK", "zh-MO"). Everything else under "zh" is Simplified.
+ */
+const TRADITIONAL_CHINESE = /^zh-(hant|tw|hk|mo)(-|$)/i;
 
 /**
  * Map any language tag onto one this app actually ships.
@@ -63,6 +70,8 @@ export function resolveLanguage(reported, available = languages) {
   // "pt-br" from a browser that lower-cases the region.
   const exact = available.find((l) => l.toLowerCase() === reported.toLowerCase());
   if (exact) return exact;
+
+  if (TRADITIONAL_CHINESE.test(reported) && available.includes('zh-TW')) return 'zh-TW';
 
   const base = reported.split('-')[0].toLowerCase();
   if (available.includes(base)) return base;

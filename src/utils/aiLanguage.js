@@ -29,6 +29,7 @@ export const LANGUAGE_NAMES = Object.freeze({
   'pt-PT': ['European Portuguese', 'Português de Portugal'],
   'uk': ['Ukrainian', 'Українська'],
   'zh-CN': ['Simplified Chinese', '简体中文'],
+  'zh-TW': ['Traditional Chinese', '繁體中文'],
 });
 
 /**

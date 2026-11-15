@@ -67,9 +67,10 @@ describe('mac.electronLanguages', () => {
     // and asserted so the store listing showing them is never a surprise.
     ['en_GB', true],
     ['es_419', true],
-    // Traditional Chinese is a different written standard and we do not ship
-    // it; 'zh-CN' must not drag it along.
-    ['zh_TW', false],
+    ['zh_TW', true],
+    // Traditional Chinese is a different written standard from zh-CN, and each
+    // is declared on its own; neither drags in other Chinese regions.
+    ['zh_HK', false],
     ['ja', false],
     ['ko', false],
     ['ru', false],
@@ -83,7 +84,7 @@ describe('mac.electronLanguages', () => {
 describe('CFBundleLocalizations', () => {
   it('declares the same set, in Apple’s spelling', () => {
     expect(config.mac.extendInfo.CFBundleLocalizations).toEqual(
-      (config.mac.electronLanguages as string[]).map((l) => (l === 'zh-CN' ? 'zh-Hans' : l)),
+      (config.mac.electronLanguages as string[]).map((l) => ({ 'zh-CN': 'zh-Hans', 'zh-TW': 'zh-Hant' }[l] ?? l)),
     );
   });
 });
