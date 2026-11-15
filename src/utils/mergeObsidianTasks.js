@@ -31,6 +31,9 @@ import { LINE_OWNED_TASK_FIELDS } from '@glance-apps/obsidian-format';
 // @param {Record<string, string>} [noteMtimes]  note date → that note's lastModified
 //   ISO for the notes THIS scan/observation batch actually read (revival evidence;
 //   see below). Callers without note mtimes pass nothing and get the old behavior.
+// @param {object[]} [otherList]  the OTHER list's current tasks (inbox when merging
+//   scheduled, scheduled when merging the inbox), so a task the scan moves between
+//   lists keeps its app-only fields. Callers that pass nothing get the old behavior.
 // @returns {object[]} merged list
 
 const ts = (v) => {
@@ -207,24 +210,41 @@ export function preserveObsidianAppFields(old, scanned = {}, noteMtime = undefin
   };
 }
 
-export function mergeObsidianTasks(prevList, scannedList, scannedIdsAllLists, preserveAppFields, tombstones = {}, noteMtimes = {}) {
+export function mergeObsidianTasks(prevList, scannedList, scannedIdsAllLists, preserveAppFields, tombstones = {}, noteMtimes = {}, otherList = null) {
   const prev = prevList || [];
   const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
   const oldObsidian = prev.filter(t => t.importSource === 'obsidian');
   const oldMap = new Map(oldObsidian.map(t => [String(t.id), t]));
-  const merged = (scannedList || []).map(t => {
+  // THE OTHER LIST'S COPY. The scan decides which list a task is in (a line
+  // scheduled or unscheduled in Obsidian moves it), and this merge runs once
+  // per list: a task arriving from the other list has no prior copy HERE, so
+  // it was added as the bare parse and lost everything the line does not
+  // carry. Its project went with that, and for a task in a linked project's
+  // note the placement pass then read it as no longer assigned there and
+  // removed its line from the note. `otherList` is the list the task is
+  // leaving, so the carry follows it across.
+  const otherMap = new Map((otherList || []).filter(t => t && t.importSource === 'obsidian').map(t => [String(t.id), t]));
+  const find = (map, t) => map.get(String(t.id))
     // Secondary lookup by the scanned task's legacy-id hint: bridges the
     // one-time switch from content-derived to ^dg- block-derived ids, so
     // app-only fields survive on a device that still holds the task under
     // its old id (see resolveExistingObsidianTask in obsidian.js).
-    const old = oldMap.get(String(t.id))
-      ?? (t.obsidianLegacyId ? oldMap.get(String(t.obsidianLegacyId)) : undefined);
+    ?? (t.obsidianLegacyId ? map.get(String(t.obsidianLegacyId)) : undefined);
+  const merged = (scannedList || []).map(t => {
+    const here = find(oldMap, t);
+    const old = here ?? find(otherMap, t);
+    if (!old) return t;
     // The scanned task is passed alongside so preserveAppFields can decline
     // to stomp a value the SCAN itself produced — Step 2's per-field
     // vault-edit adoption sets `deadline` on the scan result, and a blind
     // old-side carry here would silently undo the adoption.
     const noteKey = t.obsidianNotePath || t.obsidianFileDate || obsidianKeyDate(String(t.id));
-    return old ? { ...t, ...preserveAppFields(old, t, noteKey ? noteMtimes[noteKey] : undefined) } : t;
+    const carried = preserveAppFields(old, t, noteKey ? noteMtimes[noteKey] : undefined);
+    // The priority SHAPE (a scheduled copy has no key, an inbox copy has one)
+    // belongs to the list: across lists the per-note merge has already given
+    // the task the shape of the list it is entering.
+    if (!here && Object.prototype.hasOwnProperty.call(carried, 'priority')) delete carried.priority;
+    return { ...t, ...carried };
   }).map(t => reviveScannedAgainstTombstone(t, tombstones, noteMtimes))
     .filter(t => !isObsidianTombstoned(tombstones, String(t.id), t.lastModified));
   const retained = oldObsidian.filter(t =>

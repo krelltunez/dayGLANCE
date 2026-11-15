@@ -552,6 +552,10 @@ export function applyBridgeObservations(observations, {
   // note NOT in this batch still carries a token; defaults to the app's own
   // store so every caller sees the same vault.
   knownDailyNotes = null,
+  // (existing, observedRawTitle) → true when the report shows the line as it
+  // was before a write of this device that has not been seen back yet
+  // (utils/obsidianOwnWrites.js). Such a line is not read as a vault edit.
+  staleOwnWrite = null,
 }) {
   const dailyNotes = {};
   const scopedNotes = {}; // path → { lastModified, deleted? } for scoped (non-daily) notes in this batch
@@ -577,6 +581,7 @@ export function applyBridgeObservations(observations, {
   const completedSince = scope && today ? completedSinceFor(scope, today) : null;
   const ctx = buildExistingObsidianTaskContext(existingTasks, existingInbox);
   if (Array.isArray(projects)) ctx.resolveProject = (ref) => resolveProjectRef(ref, projects);
+  if (typeof staleOwnWrite === 'function') ctx.staleOwnWrite = staleOwnWrite;
   const isDefaultPattern = !dailyNotePattern || dailyNotePattern === 'yyyy-MM-dd';
   const dateParser = isDefaultPattern ? null : buildDateParser(dailyNotePattern);
   const folderPrefix = dailyNotesPath ? `${dailyNotesPath.replace(/\/+$/, '')}/` : '';

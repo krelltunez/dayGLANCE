@@ -185,3 +185,60 @@ describe('preserveObsidianAppFields: the record\'s note target (2026-09-17)', ()
     expect(out.obsidianNoteLinkSeen).toBe(true);
   });
 });
+
+// 2026-11-15: the scan decides which list a task is in, and the merge runs
+// once per list. A task arriving from the other list had no prior copy in
+// this one, so it was added as the bare parse: its project went, and for a
+// task in a linked project's note the placement pass then removed its line.
+describe('mergeObsidianTasks — a task the scan moves between lists', () => {
+  const ids = new Set(['o1']);
+  const inboxCopy = obs('o1', { projectId: 'p1', color: 'bg-orange-500', projectOrder: 30, createdAt: '2026-09-01T08:00:00.000Z', priority: 2, lastModified: '2026-09-02T00:00:00.000Z' });
+  const scheduledCopy = obs('o1', { projectId: 'p1', color: 'bg-orange-500', createdAt: '2026-09-01T08:00:00.000Z', date: '2026-09-10', startTime: '14:00', duration: 90, transitionId: 'tr-1', lastModified: '2026-09-02T00:00:00.000Z' });
+
+  it('into the scheduled list: the app-only fields come across from the inbox copy', () => {
+    const scanned = obs('o1', { date: '2026-09-10', startTime: '00:00', isAllDay: true, duration: 45, lastModified: '2026-09-02T00:00:00.000Z' });
+    const [merged] = mergeObsidianTasks([], [scanned], ids, preserveObsidianAppFields, {}, {}, [inboxCopy]);
+    expect(merged).toMatchObject({ projectId: 'p1', projectOrder: 30, createdAt: '2026-09-01T08:00:00.000Z' });
+    // What the line owns is the scan's (colour among it: the per-note merge
+    // has already copied that from the copy it matched).
+    expect(merged).toMatchObject({ date: '2026-09-10', isAllDay: true, duration: 45 });
+    expect(merged.color).toBeUndefined();
+  });
+
+  it('into the inbox: the same, and the priority the per-note merge gave it stays', () => {
+    const scanned = obs('o1', { priority: 0, duration: 90, lastModified: '2026-09-02T00:00:00.000Z' });
+    const [merged] = mergeObsidianTasks([], [scanned], ids, preserveObsidianAppFields, {}, {}, [scheduledCopy]);
+    expect(merged).toMatchObject({ projectId: 'p1', createdAt: '2026-09-01T08:00:00.000Z', duration: 90 });
+    // The scheduled copy has no priority key; the inbox copy keeps its own.
+    expect(merged.priority).toBe(0);
+    expect(merged.date).toBeUndefined();
+  });
+
+  it('a copy in THIS list wins over the other list\'s, and its priority shape rule still applies', () => {
+    const here = obs('o1', { projectId: 'p-here', date: '2026-09-10', startTime: '14:00' });
+    const scanned = obs('o1', { date: '2026-09-10', startTime: '14:00', priority: 0 });
+    const [merged] = mergeObsidianTasks([here], [scanned], ids, preserveObsidianAppFields, {}, {}, [inboxCopy]);
+    expect(merged.projectId).toBe('p-here');
+    expect(merged.priority).toBeUndefined();
+  });
+
+  it('a vault edit that unassigns the task (projectId null on the scan) is not undone by the carry', () => {
+    const scanned = obs('o1', { date: '2026-09-10', startTime: '00:00', projectId: null });
+    const [merged] = mergeObsidianTasks([], [scanned], ids, preserveObsidianAppFields, {}, {}, [inboxCopy]);
+    expect(merged.projectId).toBeUndefined();
+  });
+
+  it('only an Obsidian task in the other list is a prior copy, and without the list nothing changes', () => {
+    const scanned = obs('o1', { date: '2026-09-10', startTime: '00:00' });
+    expect(mergeObsidianTasks([], [scanned], ids, preserveObsidianAppFields, {}, {}, [{ id: 'o1', title: 'app task', projectId: 'p9' }])[0]).toEqual(scanned);
+    expect(mergeObsidianTasks([], [scanned], ids, preserveObsidianAppFields)[0]).toEqual(scanned);
+    expect(mergeObsidianTasks([], [scanned], ids, preserveObsidianAppFields, {}, {}, null)[0]).toEqual(scanned);
+  });
+
+  it('finds the other list\'s copy under the scanned task\'s legacy id too', () => {
+    const legacy = obs('obsidian-2026-09-01-abc', { projectId: 'p1' });
+    const scanned = obs('obsidian-dg-xxxx0001', { obsidianLegacyId: 'obsidian-2026-09-01-abc', date: '2026-09-10', startTime: '00:00' });
+    const [merged] = mergeObsidianTasks([], [scanned], new Set(['obsidian-dg-xxxx0001']), preserveObsidianAppFields, {}, {}, [legacy]);
+    expect(merged.projectId).toBe('p1');
+  });
+});
