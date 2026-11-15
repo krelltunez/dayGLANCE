@@ -24,6 +24,13 @@ import { nativeHttpRequest } from '../native.js';
 import { createAbsentRemoteSeedGuard } from './absentRemoteSeedGuard.js';
 import { createMidCycleEditGuard } from './midCycleEdits.js';
 import {
+  REMOTE_UNREADABLE_CODE,
+  REMOTE_UNREADABLE_REASON,
+  createUnreadableRemoteTracker,
+  installUnreadableRemoteGuard,
+  isUnreadableRemoteError,
+} from './unreadableRemote.js';
+import {
   createVerifiedWriteGuard,
   installVerifiedWriteGuard,
   targetScopedHasSyncedBefore,
@@ -166,6 +173,18 @@ export const createDayGlanceEngine = (callbacks, { appFolderName = 'GLANCE/daygl
     targetKey,
   });
 
+  // A remote file that is there but cannot be read (#2409). The engine reports
+  // it as NETWORK_ERROR; this is how the error it is about to report is known
+  // to be that one, and reported under its own code.
+  const unreadableRemote = createUnreadableRemoteTracker();
+  const reportError = (message, code, isHardStop) => {
+    if (message && unreadableRemote.takeReport()) {
+      callbacks.onError?.(REMOTE_UNREADABLE_REASON, REMOTE_UNREADABLE_CODE, false);
+      return;
+    }
+    callbacks.onError?.(message, code, isHardStop);
+  };
+
   // An edit made between the cycle's read and its apply (the upload runs in
   // between) is merged back over the result rather than lost (#2233).
   const merge = (local, remote) => mergeSyncData(local, remote, callbacks.getSyncRetentionDays());
@@ -192,7 +211,7 @@ export const createDayGlanceEngine = (callbacks, { appFolderName = 'GLANCE/daygl
     }),
     validateApplyPayload,
     onStatusChange:      callbacks.onStatusChange,
-    onError:             callbacks.onError,
+    onError:             reportError,
     onLastSyncedChange:  (iso) => {
       // The target a cycle succeeded against is what makes "this device has
       // synced before" target-scoped.
@@ -213,8 +232,57 @@ export const createDayGlanceEngine = (callbacks, { appFolderName = 'GLANCE/daygl
   // engine reads (the package returns it by reference).
   if (providerOverrides && engine.providers) Object.assign(engine.providers, providerOverrides);
 
+  // Innermost, so JSON that is not a sync file is refused before the guards
+  // below could record it as a verified read of the target.
+  installUnreadableRemoteGuard(engine.providers, unreadableRemote, verifiedWriteGuard);
+
   // Wraps `download` (absent-remote rule + verified-read record) and `upload`
   // (validator injection) on the map the engine itself reads.
   installVerifiedWriteGuard(engine.providers, verifiedWriteGuard);
+
+  /**
+   * The user's way out of an unreadable remote file (#2409): read it once more
+   * and, only if that read is unreadable too, put this device's data in its
+   * place. Never called by the app itself.
+   *
+   * The read is what makes it safe to offer: a file that reads normally, or is
+   * simply gone, is not replaced. That case runs an ordinary cycle, which
+   * merges (or applies the timed rule for a missing file).
+   *
+   * @returns {Promise<{outcome: 'replaced'|'not-needed'|'busy'|'failed'|'disabled'}>}
+   */
+  engine.replaceUnreadableRemote = async () => {
+    const cfg = engine.getConfig();
+    const provider = cfg?.enabled ? engine.providers?.[cfg.provider] : null;
+    if (!provider) return { outcome: 'disabled' };
+    // A cycle in flight owns the guards' read state; it ends in seconds.
+    if (engine.isSyncing()) return { outcome: 'busy' };
+
+    try {
+      await provider.download(cfg);
+    } catch (err) {
+      if (!isUnreadableRemoteError(err)) {
+        callbacks.onStatusChange?.('error');
+        callbacks.onError?.(err?.message || String(err), 'SYNC_FAILED', false);
+        return { outcome: 'failed' };
+      }
+      // This read is the request's own evidence, not an error to report.
+      unreadableRemote.takeReport();
+      if (!verifiedWriteGuard.authorizeReplace()) return { outcome: 'failed' };
+      // engine.upload() validates (the empty-payload guard still applies),
+      // writes with no validator, stamps "last synced" and reports its own
+      // status and errors.
+      const written = await engine.upload();
+      // An upload that never reached its decision (a cycle began meanwhile)
+      // must not leave the request armed for another.
+      verifiedWriteGuard.cancelReplace();
+      if (written) return { outcome: 'replaced' };
+      return { outcome: engine.isSyncing() ? 'busy' : 'failed' };
+    }
+
+    // Readable, or absent: nothing to replace.
+    await engine.download();
+    return { outcome: 'not-needed' };
+  };
   return engine;
 };

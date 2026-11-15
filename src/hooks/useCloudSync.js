@@ -49,6 +49,10 @@ const useCloudSync = () => {
   });
   const [cloudSyncStatus, setCloudSyncStatus] = useState('idle');
   const [cloudSyncError, setCloudSyncError] = useState(null);
+  // The sync file on the server is there but cannot be read (#2409). Held from
+  // the first such error until a sync succeeds, not cleared with the error text
+  // at the start of each cycle: the settings notice it shows carries a button.
+  const [cloudSyncRemoteUnreadable, setCloudSyncRemoteUnreadable] = useState(false);
   const [cloudSyncLastSynced, setCloudSyncLastSynced] = useState(() =>
     localStorage.getItem('day-planner-cloud-sync-last-synced') || null
   );
@@ -144,6 +148,7 @@ const useCloudSync = () => {
     cloudSyncConfig, setCloudSyncConfig,
     cloudSyncStatus, setCloudSyncStatus,
     cloudSyncError, setCloudSyncError,
+    cloudSyncRemoteUnreadable, setCloudSyncRemoteUnreadable,
     cloudSyncLastSynced, setCloudSyncLastSynced,
     cloudSyncConflict, setCloudSyncConflict,
     syncKeyReady, setSyncKeyReady,

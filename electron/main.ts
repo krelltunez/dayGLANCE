@@ -62,6 +62,7 @@ import {
   type TrustedHostsFile,
 } from './proxyUrlPolicy.js';
 import { writeFileAtomicSync } from './atomicWrite.js';
+import { proxyFetchInit } from './proxyFetchInit.js';
 import {
   defaultSyncProxyConfig,
   parseSyncProxyConfig,
@@ -899,13 +900,9 @@ ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, header
     let currentBody = body;
     let response: Awaited<ReturnType<typeof net.fetch>>;
     for (let hop = 0; ; hop++) {
-      response = await send(currentUrl, {
-        method: currentMethod,
-        headers,
-        redirect: 'manual',
-        signal: controller.signal,
-        ...(currentBody != null ? { body: currentBody } : {}),
-      });
+      // Built in proxyFetchInit.ts: manual redirects, and the HTTP cache kept
+      // out of it so a sync read is what the server holds now (#2409).
+      response = await send(currentUrl, proxyFetchInit(currentMethod, headers, currentBody, controller.signal));
       // Not a 3xx, or a 3xx without a Location — this is the final response.
       const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
       if (!location) break;

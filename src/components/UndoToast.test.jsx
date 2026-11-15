@@ -43,6 +43,23 @@ describe('the undo toast', () => {
     expect(warning).toContain('pointer-events-auto');
   });
 
+  // #2409: sync stopped on a server file it cannot read, and stays stopped.
+  it('is red for an error, and otherwise behaves as a warning does', () => {
+    const error = render({ message: en.sync.errors.remoteUnreadableToast, kind: 'error' });
+    expect(error).toContain('data-toast-kind="error"');
+    expect(error).toContain('bg-red-700');
+    expect(error).not.toContain('bg-amber-700');
+    expect(error).toContain('role="alert"');
+    expect(error).toContain('aria-live="assertive"');
+    expect(error).toContain('pointer-events-auto');
+    expect(error).toContain('the file on your sync server can&#x27;t be read');
+
+    const dark = renderToStaticMarkup(
+      <UndoToast toast={{ message: 'x', kind: 'error' }} setToast={vi.fn()} darkMode isMobile={false} onUndo={vi.fn()} onRedo={vi.fn()} onFollowUp={vi.fn()} />,
+    );
+    expect(dark).toContain('bg-red-900');
+  });
+
   it('offers a follow-up beside Undo after a completion', () => {
     const html = render({ message: 'Completed "Write report"', actionable: true, followUp: { id: 't1' } });
     expect(html).toContain('data-follow-up-action');
