@@ -149,6 +149,13 @@ describe('following iOS language changes', () => {
     expect(i18n.changeLanguage).toHaveBeenCalledWith('zh-CN');
   });
 
+  it('maps a Traditional Chinese iOS tag onto zh-TW', () => {
+    globalThis.window = { DayGlanceIOS: true };
+    const i18n = fakeI18n('en');
+    followIOSLanguageChanges(i18n, 'zh-Hant-TW', store('en-US'));
+    expect(i18n.changeLanguage).toHaveBeenCalledWith('zh-TW');
+  });
+
   it('does nothing off iOS, Android included', () => {
     globalThis.window = { DayGlanceNative: {} };
     const i18n = fakeI18n('en');

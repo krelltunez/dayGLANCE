@@ -27,12 +27,12 @@ const ANDROID_RES = join(ROOT, 'dayglance-android/app/src/main/res');
 // A web tag maps onto one Android resource qualifier. Android has no separate
 // pt-BR and pt-PT here: both are served by values-pt, the European standard, as
 // the single Portuguese resource set.
-const ANDROID_QUALIFIER = { 'zh-CN': 'zh-rCN', 'pt-BR': 'pt', 'pt-PT': 'pt' };
+const ANDROID_QUALIFIER = { 'zh-CN': 'zh-rCN', 'zh-TW': 'zh-rTW', 'pt-BR': 'pt', 'pt-PT': 'pt' };
 const androidDirFor = (tag) => `values-${ANDROID_QUALIFIER[tag] ?? tag}`;
 
 // Apple string catalogs use zh-Hans for Simplified Chinese while the web
 // bundle uses zh-CN.
-const IOS_LOCALE_NAME = { 'zh-CN': 'zh-Hans' };
+const IOS_LOCALE_NAME = { 'zh-CN': 'zh-Hans', 'zh-TW': 'zh-Hant' };
 const iosLocaleFor = (tag) => IOS_LOCALE_NAME[tag] ?? tag;
 
 // The <locale> entries in locales_config.xml use the web tags as-is (BCP-47).
@@ -49,8 +49,8 @@ const androidLocaleFor = (tag) => ANDROID_LOCALE_NAME[tag] ?? tag;
  * actually land.
  */
 const NATIVE_TRANSLATION_PENDING = {
-  android: {},
-  ios: {},
+  android: { 'zh-TW': 'web bundle first; native strings follow in a separate change' },
+  ios: { 'zh-TW': 'web bundle first; native strings follow in a separate change' },
 };
 
 const iosCatalogs = ['dayglance-ios/DayGlance/Localizable.xcstrings', 'dayglance-ios/DayGlanceWidget/Localizable.xcstrings']

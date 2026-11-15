@@ -36,9 +36,10 @@ const SHIPPED_LANGUAGES = readdirSync(path.join(__dirname, 'public', 'locales'),
 
 // Apple's spelling for a tag where it differs from ours. zh-CN is the legacy
 // identifier; zh-Hans is what App Store Connect lists as "Chinese, Simplified".
+// Likewise zh-TW is listed as zh-Hant, "Chinese, Traditional".
 // Only CFBundleLocalizations goes through this — electronLanguages is matched
 // against Electron's own .lproj names, which use zh_CN.
-const APPLE_LANGUAGE_IDS = { 'zh-CN': 'zh-Hans' };
+const APPLE_LANGUAGE_IDS = { 'zh-CN': 'zh-Hans', 'zh-TW': 'zh-Hant' };
 
 const hasCert = Boolean(process.env.CSC_LINK);
 // MAS builds sign from the keychain (no CSC_LINK), so they must never inherit the
