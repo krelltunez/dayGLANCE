@@ -217,3 +217,28 @@ describe('plan history rides the task output the read tools return', () => {
     expect(bucket.map((i) => [i.id, i.deferrals, i.original_plan?.date])).toEqual([['k1', 4, MON]]);
   });
 });
+
+// A chore another GLANCE app sends arrives all-day and is then given a time.
+// An assistant read that as "slipped: originally 00:00".
+describe('a task first planned all-day', () => {
+  const allDayPlan = { date: MON, startTime: '00:00', duration: 30, allDay: true };
+  const chore = (over = {}) => ({ id: 'c1', title: 'Water the plants', completed: false, originalPlan: allDayPlan, ...over });
+
+  it('given a time on its own day reports no plan history at all', () => {
+    expect(wirePlanHistory(chore({ date: MON, startTime: '14:00', duration: 45 }))).toEqual({});
+    const block = toBlock(chore({ date: MON, startTime: '14:00', duration: 45 }));
+    for (const key of HISTORY_KEYS) expect(block).not.toHaveProperty(key);
+  });
+
+  it('moved to another day reports the day it was planned for, all-day, with no time or length', () => {
+    expect(wirePlanHistory(chore({ date: WED, startTime: '14:00', duration: 45 })))
+      .toEqual({ original_plan: { date: MON, all_day: true, start_time: null } });
+  });
+
+  it('a baseline recorded before the all-day flag reads the same way', () => {
+    const old = { date: MON, startTime: '00:00', duration: 30 };
+    expect(wirePlanHistory(chore({ date: MON, startTime: '14:00', duration: 45, originalPlan: old }))).toEqual({});
+    expect(wirePlanHistory(chore({ date: WED, startTime: '14:00', originalPlan: old })).original_plan)
+      .toEqual({ date: MON, all_day: true, start_time: null });
+  });
+});

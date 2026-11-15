@@ -32,7 +32,7 @@ const isDateString = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}
 
 export function PlanHistoryPanel({ history, task, formatTime }) {
   const { t } = useTranslation();
-  const { plan, changed } = history ?? { plan: null, changed: {} };
+  const { plan, changed, allDay: planAllDay } = history ?? { plan: null, changed: {}, allDay: false };
   const deferrals = Number(task?.deferrals) || 0;
   // Reversed HERE rather than in the util: the data's order is chronological,
   // and which way the panel reads is a layout decision.
@@ -52,16 +52,22 @@ export function PlanHistoryPanel({ history, task, formatTime }) {
   // a deadline, and a task moved back to the Inbox keeps its history) has no
   // date or time now: that row says so rather than formatting a missing date,
   // which threw "Invalid time value" the moment the panel opened.
-  const row = (date, startTime, duration, emphasis = changed) => (
+  // An all-day plan reads "All Day", never the midnight it is stored at or a
+  // length it was not planned for (agenda-core's isAllDayPlan).
+  const row = (date, startTime, duration, emphasis = changed, allDay = false) => (
     <div className="flex items-center gap-1.5 whitespace-nowrap">
       {isDateString(date)
         ? part(formatShortDate(new Date(`${date}T12:00:00`)), emphasis.date)
         : part(t('task.planHistoryInInbox'), emphasis.date)}
-      {isDateString(date) && startTime && (<>
+      {isDateString(date) && allDay && (<>
+        <span className="opacity-40">·</span>
+        {part(t('task.allDay'), emphasis.startTime)}
+      </>)}
+      {isDateString(date) && !allDay && startTime && (<>
         <span className="opacity-40">·</span>
         {part(formatTime(startTime), emphasis.startTime)}
       </>)}
-      {typeof duration === 'number' && (<>
+      {!allDay && typeof duration === 'number' && (<>
         <span className="opacity-40">·</span>
         {part(formatDuration(duration, t), emphasis.duration)}
       </>)}
@@ -82,7 +88,7 @@ export function PlanHistoryPanel({ history, task, formatTime }) {
           It is also how every other history reads: newest at the top. */}
       {history && (<>
         <div className="opacity-60 mb-0.5">{t('task.nowScheduled')}</div>
-        {row(task.date, task.startTime, task.duration)}
+        {row(task.date, task.startTime, task.duration, changed, !!task.isAllDay)}
         {/* The stops in between, which is what makes this a history rather than
             a before-and-after. Flat rather than emphasised: the eye should land
             on where it is now and where it began, with the middle read only if
@@ -105,7 +111,7 @@ export function PlanHistoryPanel({ history, task, formatTime }) {
           </div>
         </>)}
         <div className="opacity-60 mt-1.5 mb-0.5">{t('task.originallyPlanned')}</div>
-        {row(plan.date, plan.startTime, plan.duration)}
+        {row(plan.date, plan.startTime, plan.duration, changed, planAllDay)}
       </>)}
       {/* The count is the other half of the story: two points say WHERE it moved,
           this says how often it slipped. Counted only for moves made after the

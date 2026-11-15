@@ -53,15 +53,30 @@ export function hasComeDue(task, now, todayStr) {
 }
 
 /**
+ * Was an all-day task given a time on the day it was already planned for?
+ *
+ * That is placing it, not pushing it back. An all-day task is stored with
+ * `startTime: '00:00'`, so by the clock it has "come due" from midnight and
+ * every time it was given later that day counted as a slip: a chore sent by
+ * another GLANCE app arrives all-day and is then put at 14:00, and the history
+ * read "slipped from 00:00". The day is the whole of an all-day plan, and the
+ * day has not changed. Moving it to ANOTHER day is still judged as before.
+ */
+export function placesAllDayWithinItsDay(prev, next) {
+  return !!prev?.isAllDay && !next?.isAllDay && !!prev.date && prev.date === next?.date;
+}
+
+/**
  * Did the edit from `prev` to `next` defer a task that had already come due?
  *
  * Requires the schedule to have actually moved. An edit to a due task's title
- * is not a deferral, and neither is completing it.
+ * is not a deferral, and neither is completing it, nor is giving an all-day
+ * task a time on its own day (placesAllDayWithinItsDay).
  */
 export function isDeferral(prev, next, now, todayStr) {
   if (!prev || !next) return false;
   const moved = prev.date !== next.date || prev.startTime !== next.startTime;
-  return moved && hasComeDue(prev, now, todayStr);
+  return moved && !placesAllDayWithinItsDay(prev, next) && hasComeDue(prev, now, todayStr);
 }
 
 /**

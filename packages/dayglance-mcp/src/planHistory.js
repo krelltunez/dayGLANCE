@@ -29,10 +29,13 @@ const isMinutes = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 /**
  * A recorded plan (`{ date, startTime, duration? }`) in the block's own field
  * names: `{ date, start_time, duration_minutes? }`. Null when it is not one.
- * An all-day plan records its time as 00:00, as the app stores it.
+ * An all-day plan is `{ date, all_day: true, start_time: null }`, as a block
+ * reports an all-day task: the 00:00 it is stored at is not a time it was
+ * planned for, and neither is its placeholder length.
  */
-function wirePlan(plan) {
+function wirePlan(plan, allDay = false) {
   if (!plan || typeof plan !== 'object' || !isDate(plan.date) || !isTime(plan.startTime)) return null;
+  if (allDay) return { date: plan.date, all_day: true, start_time: null };
   const out = { date: plan.date, start_time: plan.startTime };
   if (isMinutes(plan.duration)) out.duration_minutes = plan.duration;
   return out;
@@ -51,9 +54,11 @@ function movedAt(at, timeZone) {
  *  - `original_plan`: `{ date, start_time, duration_minutes? }`, the plan the
  *    task was first given, only when its current plan differs from it (the
  *    panel's rule, planHistory). An inbox task that was once scheduled always
- *    differs: it has no plan now.
+ *    differs: it has no plan now. A task first planned all-day differs only
+ *    once its DAY moves, and is `{ date, all_day: true, start_time: null }`.
  *  - `deferrals`: how many times it slipped (was moved after it had come
- *    due), only when at least once.
+ *    due), only when at least once. Giving an all-day task a time on its own
+ *    day is not one (src/utils/deferrals.js).
  *  - `plan_trail`: the recorded slips, OLDEST FIRST, each `{ moved_at,
  *    date, start_time, duration_minutes? }`: when the move was made (a wire
  *    stamp in `timeZone`, as created_at) and where it moved the task to. The
@@ -70,7 +75,7 @@ export function wirePlanHistory(task, timeZone) {
   if (!task || typeof task !== 'object') return out;
 
   const history = planHistory(task);
-  const original = history ? wirePlan(history.plan) : null;
+  const original = history ? wirePlan(history.plan, history.allDay) : null;
   if (original) out.original_plan = original;
 
   const count = isMinutes(task.deferrals) ? Math.floor(task.deferrals) : 0;

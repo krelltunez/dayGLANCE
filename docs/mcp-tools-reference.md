@@ -145,7 +145,10 @@ Read them with their limits:
 
 - **`deferrals` counts slips, not moves.** A slip is a schedule change made after the task had
   come due (its start had passed). Laying out tomorrow by dragging tasks around is planning and is
-  not counted, so a task moved five times the evening before reads `0`.
+  not counted, so a task moved five times the evening before reads `0`. Giving an all-day task a
+  time on the day it was already planned for is not a slip either: the day is the whole of an
+  all-day plan, so a chore that arrives all-day and is then put at 14:00 has not slipped. (Counts
+  recorded before 5.15.0 may include such moves; a count never goes down.)
 - **`plan_trail` keeps only the last 6 slips.** The count keeps rising after the trail stops
   growing; `plan_trail_omitted` says how many it no longer lists. Its newest (last) entry is usually
   where the task sits now. A task that slipped before dayGLANCE recorded the trail has `deferrals`
@@ -153,7 +156,10 @@ Read them with their limits:
 - **`original_plan` appears only when the plan changed**, and only for tasks first scheduled since
   dayGLANCE began recording it: older tasks are never backfilled, so no `original_plan` means "not
   known" as often as "never moved". A plan recorded before durations were has no `duration_minutes`.
-  An all-day plan records its time as `"00:00"`.
+  A task first planned **all-day** is `{ date, all_day: true, start_time: null }`, as a block
+  reports an all-day task, and it counts as changed only once its day moves: a time or a length
+  given on that same day is no change from an all-day plan. (Before 5.15.0 it read
+  `start_time: "00:00"` and counted as changed the moment the task was given a time.)
 - **Not on events or routines**, which a calendar or the routines dashboard moves, and not on a
   recurring occurrence: the app keeps plan history for one-off tasks, and an occurrence moved on
   its own date is an edit to its series.

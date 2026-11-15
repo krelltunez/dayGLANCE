@@ -244,9 +244,11 @@ export function parseStamp(value: unknown): { date: Date; hasTime: boolean } | n
 
 // planHistory.js: reading a task's plan history (originalPlan, deferrals,
 // planTrail), as the app's history panel and the MCP read surface tell it.
-export interface PlanBaseline { date?: string; startTime?: string; duration?: number }
+export interface PlanBaseline { date?: string; startTime?: string; duration?: number; allDay?: boolean }
 export interface PlanStop { at: number | string; date: string; startTime: string; duration?: number }
-export function planHistory(task: unknown): { plan: PlanBaseline; changed: { date: boolean; startTime: boolean; duration: boolean } } | null;
+export function planHistory(task: unknown): { plan: PlanBaseline; changed: { date: boolean; startTime: boolean; duration: boolean }; allDay: boolean } | null;
+/** Whether a recorded plan was an all-day one: flagged, or (an older baseline) stored at 00:00. */
+export function isAllDayPlan(plan: unknown): boolean;
 export function planTrailStops(trail: unknown): PlanStop[];
 export function hiddenStops(task: unknown): number;
 
