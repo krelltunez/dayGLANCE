@@ -260,9 +260,8 @@ describe('locale bundles', () => {
       const get = (bundle, key) => key.split('.').reduce((value, part) => value?.[part], bundle);
       const placeholders = (value) => [...(value || '').matchAll(/{{(.*?)}}/g)].map(match => match[1]).sort();
       // A form that exists for exactly one count may spell it out ("raz") instead
-      // of interpolating it, and `plural` is English's "s" suffix, which has no
-      // equivalent in a language whose noun changes by number.
-      const tolerated = (key) => (name) => name !== 'plural' && !(isPlural(key) && name === 'count');
+      // of interpolating it.
+      const tolerated = (key) => (name) => !(isPlural(key) && name === 'count');
       const leaves = [...keysOf(lng)].filter((k) => keysOf('en').has(k) || keysOf('en').has(`${family(k)}_other`));
       for (const key of leaves) {
         const enKey = keysOf('en').has(key) ? key : `${family(key)}_other`;
@@ -272,6 +271,14 @@ describe('locale bundles', () => {
         // The tolerance is for dropping a placeholder, never for adding one.
         expect(got.every((name) => want.includes(name)), `${lng}: ${key} invents a placeholder`).toBe(true);
       }
+    });
+
+    // A `{{plural}}` slot filled by the caller with "s" is English grammar: the
+    // empty-bin confirmation had one and read "Aufgabes" in German and "任务s"
+    // in Chinese. A count that changes the noun is a plural key, in every bundle.
+    it.each(EXPECTED)('%s builds no plural by hand', (lng) => {
+      const raw = readFileSync(join(process.cwd(), 'public', 'locales', lng, 'translation.json'), 'utf8');
+      expect(raw.match(/{{\s*plural\s*}}/g) ?? []).toEqual([]);
     });
 
     it.each(TRANSLATED)('%s covers every key in en', (lng) => {

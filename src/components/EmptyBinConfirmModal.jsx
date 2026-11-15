@@ -29,7 +29,7 @@ const EmptyBinConfirmModal = () => {
               <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('modal.emptyBinTitle')}</h3>
             </div>
             <p className={`${textSecondary} mb-6`}>
-              {t('modal.emptyBinMessage', { count: recycleBin.length, plural: recycleBin.length !== 1 ? 's' : '' })}
+              {t('modal.emptyBinMessage', { count: recycleBin.length })}
             </p>
             <div className="flex justify-end gap-2">
               <button
