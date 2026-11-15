@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasComeDue, isDeferral, stampDeferrals, mergeDeferrals } from './deferrals.js';
+import { hasComeDue, isDeferral, stampDeferrals, mergeDeferrals, placesAllDayWithinItsDay } from './deferrals.js';
 
 const TODAY = '2026-09-19';
 const at = (h, m = 0) => new Date(2026, 8, 19, h, m);
@@ -61,6 +61,49 @@ describe('isDeferral distinguishes a slip from planning', () => {
 
   it('is false for a task with no previous copy to compare against', () => {
     expect(isDeferral(undefined, task(), at(14, 0), TODAY)).toBe(false);
+  });
+});
+
+// A chore sent by another GLANCE app arrives all-day and is then put at a
+// time. Stored at 00:00, it had "come due" at midnight, so that counted as a slip.
+describe('giving an all-day task a time on its own day is placing it, not a slip', () => {
+  const allDay = (over = {}) => task({ isAllDay: true, startTime: '00:00', ...over });
+  const timed = (startTime, over = {}) => task({ isAllDay: false, startTime, ...over });
+
+  it('is not a deferral, at any time of that day', () => {
+    for (const hour of [0, 9, 15, 23]) {
+      expect(isDeferral(allDay(), timed('14:00'), at(hour, 30), TODAY), `at ${hour}:30`).toBe(false);
+    }
+    expect(placesAllDayWithinItsDay(allDay(), timed('14:00'))).toBe(true);
+  });
+
+  it('moving an all-day task to another day is still judged as before', () => {
+    // Today's, pushed to tomorrow (all-day or timed): its day is being left.
+    expect(isDeferral(allDay(), allDay({ date: '2026-09-20' }), at(15), TODAY)).toBe(true);
+    expect(isDeferral(allDay(), timed('10:00', { date: '2026-09-20' }), at(15), TODAY)).toBe(true);
+    // Yesterday's, given a time today: it was overdue.
+    expect(isDeferral(allDay({ date: '2026-09-18' }), timed('14:00'), at(9), TODAY)).toBe(true);
+    // Tomorrow's, given a time tomorrow or moved further out: planning.
+    expect(isDeferral(allDay({ date: '2026-09-20' }), timed('14:00', { date: '2026-09-20' }), at(9), TODAY)).toBe(false);
+  });
+
+  it('a timed task that came due is unaffected, including one made all-day', () => {
+    expect(isDeferral(timed('09:00'), timed('14:00'), at(9, 30), TODAY)).toBe(true);
+    expect(isDeferral(timed('09:00'), allDay(), at(9, 30), TODAY)).toBe(true);
+    expect(placesAllDayWithinItsDay(timed('09:00'), timed('14:00'))).toBe(false);
+    expect(placesAllDayWithinItsDay(allDay(), allDay())).toBe(false);
+  });
+
+  it('adds no count and no trail stop', async () => {
+    const { stampPlanTrail } = await import('./planTrail.js');
+    const prev = [allDay()];
+    const next = [timed('14:00')];
+    expect(stampDeferrals(next, prev, at(15), TODAY)).toBe(next);
+    expect(stampPlanTrail(next, prev, at(15), TODAY)).toBe(next);
+    // The same edit on a timed task that had come due adds both.
+    const slipped = [timed('09:00')];
+    expect(stampDeferrals(next, slipped, at(15), TODAY)[0].deferrals).toBe(1);
+    expect(stampPlanTrail(next, slipped, at(15), TODAY)[0].planTrail).toHaveLength(1);
   });
 });
 

@@ -284,3 +284,36 @@ describe('PlanHistoryPanel — a task now in the Inbox', () => {
     expect(html).not.toContain('null');
   });
 });
+
+// A chore another GLANCE app sends arrives all-day and is then given a time.
+// The badge appeared and the panel read "Originally planned ... 00:00".
+describe('a task first planned all-day', () => {
+  const ALL_DAY = { date: '2026-09-17', startTime: '00:00', duration: 30, allDay: true };
+  const renderPanel = async (task) => renderToStaticMarkup(
+    <I18nextProvider i18n={await i18n()}>
+      <PlanHistoryPanel history={planHistory(task)} task={task} formatTime={(v) => v} />
+    </I18nextProvider>,
+  );
+
+  it('given a time on its own day shows no history badge', async () => {
+    expect(await render({ id: 'c1', date: '2026-09-17', startTime: '14:00', duration: 45, originalPlan: ALL_DAY })).toBe('');
+  });
+
+  it('moved to another day shows the plan as its day, "All Day", with no midnight and no length', async () => {
+    const html = await renderPanel({ id: 'c1', date: '2026-09-19', startTime: '14:00', duration: 45, originalPlan: ALL_DAY });
+    const planned = html.slice(html.indexOf('Originally planned'));
+    expect(planned).toContain('All Day');
+    expect(planned).not.toContain('00:00');
+    expect(planned).not.toContain('30m');
+    // Where it is now still reads in full.
+    expect(html.slice(0, html.indexOf('Originally planned'))).toContain('14:00');
+  });
+
+  it('a timed task that is all-day now reads "All Day" on its current row', async () => {
+    const html = await renderPanel({ id: 't1', date: '2026-09-17', startTime: '00:00', duration: 60, isAllDay: true, originalPlan: { date: '2026-09-17', startTime: '09:00', duration: 60 } });
+    const now = html.slice(0, html.indexOf('Originally planned'));
+    expect(now).toContain('All Day');
+    expect(now).not.toContain('00:00');
+    expect(html.slice(html.indexOf('Originally planned'))).toContain('09:00');
+  });
+});

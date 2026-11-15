@@ -30,13 +30,30 @@
 export function planHistory(task) {
   const plan = task?.originalPlan;
   if (!plan) return null;
+  // An all-day plan is its date. The task was not planned AT midnight or FOR
+  // its placeholder length, so giving it a time and a length on that day is
+  // no change from the plan: the history has nothing to tell until the day
+  // itself moves, and then it tells the day.
+  const allDay = isAllDayPlan(plan);
   const changed = {
     date: plan.date !== task.date,
-    startTime: plan.startTime !== task.startTime,
-    duration: typeof plan.duration === 'number' && plan.duration !== task.duration,
+    startTime: !allDay && plan.startTime !== task.startTime,
+    duration: !allDay && typeof plan.duration === 'number' && plan.duration !== task.duration,
   };
   if (!changed.date && !changed.startTime && !changed.duration) return null;
-  return { plan, changed };
+  return { plan, changed, allDay };
+}
+
+/**
+ * Was this recorded plan an all-day one? Baselines written since the flag
+ * exists say so (`allDay: true`, src/utils/originalPlan.js). An older one
+ * holds only the stored start, and an all-day task's is '00:00', so midnight
+ * is read as all-day: a task really first planned at midnight is rare, and
+ * the cost of the misreading is a history that names its day and not "00:00".
+ */
+export function isAllDayPlan(plan) {
+  if (!plan || typeof plan !== 'object') return false;
+  return plan.allDay === true || (plan.allDay === undefined && plan.startTime === '00:00');
 }
 
 /**

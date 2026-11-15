@@ -51,10 +51,13 @@
 // A task counts as scheduled once it has both a date and a start time. All-day
 // tasks carry `startTime: '00:00'`, so they qualify too and their baseline is
 // effectively the date, which is the only part of an all-day plan that can move.
+// The baseline says so (`allDay: true`), so a reader does not take the stored
+// midnight for a time the task was planned at (agenda-core's planHistory).
 function scheduleOf(task) {
   if (!task || !task.date || !task.startTime) return null;
   const plan = { date: task.date, startTime: task.startTime };
   if (typeof task.duration === 'number') plan.duration = task.duration;
+  if (task.isAllDay) plan.allDay = true;
   return plan;
 }
 

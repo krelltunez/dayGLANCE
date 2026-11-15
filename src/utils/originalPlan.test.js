@@ -32,7 +32,13 @@ describe('recording the original plan', () => {
 
   it('treats an all-day task as scheduled, since its date can still move', () => {
     const [out] = stampOriginalPlan([task({ isAllDay: true, startTime: '00:00' })], []);
-    expect(out.originalPlan).toEqual({ date: '2026-09-17', startTime: '00:00', duration: 60 });
+    // And says it was all-day, so the stored midnight is not read as a planned time.
+    expect(out.originalPlan).toEqual({ date: '2026-09-17', startTime: '00:00', duration: 60, allDay: true });
+  });
+
+  it('a timed task\'s baseline carries no all-day flag', () => {
+    const [out] = stampOriginalPlan([task()], []);
+    expect(out.originalPlan).not.toHaveProperty('allDay');
   });
 });
 
