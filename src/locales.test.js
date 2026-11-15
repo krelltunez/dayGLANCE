@@ -8,7 +8,7 @@ import { languages, loaders, resolveLanguage } from './locales.js';
 // only checked the files existed would have passed throughout that bug — the
 // assertions below go through the same loaders i18n.js resolves at runtime.
 describe('locale bundles', () => {
-  const EXPECTED = ['de', 'en', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk', 'zh-CN'];
+  const EXPECTED = ['de', 'en', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk', 'zh-CN', 'zh-TW'];
   const TRANSLATED = EXPECTED.filter((l) => l !== 'en');
 
   const bundles = {};
@@ -61,9 +61,15 @@ describe('locale bundles', () => {
       expect(resolveLanguage('de-AT')).toBe('de');
     });
 
-    it('deliberately offers Simplified Chinese until a Traditional bundle ships', () => {
-      for (const tag of ['zh', 'zh-CN', 'zh-Hans', 'zh-TW', 'zh-Hant', 'zh-HK']) {
+    it('offers Simplified Chinese for the bare and Simplified tags', () => {
+      for (const tag of ['zh', 'zh-CN', 'zh-Hans', 'zh-Hans-CN', 'zh-SG']) {
         expect(resolveLanguage(tag)).toBe('zh-CN');
+      }
+    });
+
+    it('offers Traditional Chinese for the Traditional script and its regions', () => {
+      for (const tag of ['zh-TW', 'zh-tw', 'zh-Hant', 'zh-Hant-TW', 'zh-Hant-HK', 'zh-HK', 'zh-MO']) {
+        expect(resolveLanguage(tag)).toBe('zh-TW');
       }
     });
 
