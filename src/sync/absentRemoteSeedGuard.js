@@ -159,8 +159,14 @@ export function installAbsentRemoteSeedGuard(providers, ...guards) {
     if (!provider || typeof provider.download !== 'function') continue;
     if (provider.download.absentRemoteSeedGuarded) continue;
     const original = provider.download;
-    const wrapped = async function (cfg) {
-      const result = await original.call(this, cfg);
+    // Every argument goes through: the engine's second one is the conditional
+    // read (`{ ifNoneMatch }`, its idle gate), and a wrapper that took only
+    // `cfg` turned every quiet poll into a full download of the sync file.
+    // A 304 comes back as `{ notModified: true, etag }`: a truthy result, and
+    // rightly a read of the target, since the server has just confirmed the
+    // file is the one this device already merged.
+    const wrapped = async function (...args) {
+      const result = await original.apply(this, args);
       for (const observer of observers) observer.observeRead(result);
       return result;
     };

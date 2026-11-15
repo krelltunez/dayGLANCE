@@ -95,3 +95,10 @@ on every poll.
 Every WebDAV path above (hosted, Docker, desktop, native and the dev server)
 passes `If-None-Match` and the `304` through. A proxy of your own in front of the server has to do the
 same, or each poll falls back to a full download (which still works).
+
+The app's own read wrappers pass it through as well (`absentRemoteSeedGuard.js`,
+`unreadableRemote.js`). The first one used to take only the provider config,
+so the condition never left the app and every quiet poll downloaded the file;
+`src/sync/adapterConditionalRead.test.js` holds the header to the wire. A `304`
+counts as a read of the target for the write guard, since the server has just
+confirmed the file is the one already merged.
