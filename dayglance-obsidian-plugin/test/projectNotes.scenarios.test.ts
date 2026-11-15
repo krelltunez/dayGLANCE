@@ -336,6 +336,124 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     expect(order()).toEqual(['First', 'Second', 'Fresh']);
   });
 
+  // ── Writes the app has sent and not yet seen back, and moves the vault
+  // decides (2026-11-15, the durations that "kept reverting to 30"). An
+  // assistant scheduling several tasks of one project note over MCP, seconds
+  // apart, is what made these routine.
+  const p1Tasks = () => A.all().filter((t) => t.projectId === 'p1');
+  const byTitle = (title: string) => A.all().find((t) => String(t.title).startsWith(title))!;
+  const listOf = (t: Row) => (A.state.tasks.includes(t) ? 'scheduled' : 'inbox');
+  /** A schedule as dayglance_schedule_task makes it (applyScheduleTask): out of the inbox, onto a time, with a length. */
+  const mcpSchedule = (title: string, startTime: string, duration: number) => {
+    const t = A.state.inbox.find((x) => String(x.title).startsWith(title))!;
+    const { priority: _p, deadline: _d, ...preserved } = t;
+    A.state.inbox.splice(A.state.inbox.indexOf(t), 1);
+    A.state.tasks.push({ ...preserved, date: '2026-09-10', startTime, duration, isAllDay: false, lastModified: new Date().toISOString() });
+  };
+  const settleInNote = async () => { await A.writeback(); await s.plugin.transport.drain(); await s.settle(); await A.sync(); };
+
+  it('26. AN ASSISTANT\'S BATCH (2026-11-15): two tasks of one note scheduled seconds apart; the report the first write produced, read after the second was queued, changes nothing on the second', async () => {
+    await bootLinked();
+    A.add({ title: 'One', projectId: 'p1', duration: 30, priority: 0, color: 'bg-orange-500' });
+    A.add({ title: 'Two', projectId: 'p1', duration: 30, priority: 0, color: 'bg-orange-500' });
+    await settleInNote();
+    const twoId = byTitle('Two').id;
+
+    mcpSchedule('One', '14:00', 90);
+    await A.writeback();
+    await s.plugin.transport.drain();   // the plugin applies One's schedule; its report of the note is waiting
+    await s.settle();
+    mcpSchedule('Two', '16:00', 120);   // the next call, before the app has read that report
+    await A.writeback();
+    const queued = JSON.parse(JSON.stringify(byTitle('Two')));
+    expect(queued).toMatchObject({ startTime: '16:00', duration: 120, obsidianRawTitle: 'Two [scheduled:: 2026-09-10]' });
+
+    // That report shows Two's line as it was before our write. It used to read
+    // as Obsidian removing the schedule: Two went back to the inbox, lost its
+    // project, and its line was then taken out of the note.
+    await A.sync();
+    expect(listOf(byTitle('Two'))).toBe('scheduled');
+    expect(byTitle('Two')).toEqual(queued);
+
+    await s.plugin.transport.drain(); await s.settle(); await A.sync();
+    await settleInNote();
+    expect(byTitle('One')).toMatchObject({ id: expect.stringMatching(/^obsidian-dg-/), projectId: 'p1', date: '2026-09-10', startTime: '14:00', duration: 90 });
+    expect(byTitle('Two')).toMatchObject({ id: twoId, projectId: 'p1', date: '2026-09-10', startTime: '16:00', duration: 120, color: 'bg-orange-500', obsidianNotePath: NOTE });
+    expect(p1Tasks()).toHaveLength(2);
+    const text = s.text(NOTE)!;
+    expect(text).toMatch(/- \[ \] 14:00-15:30 One \[scheduled:: 2026-09-10\] \^dg-/);
+    expect(text).toMatch(/- \[ \] 16:00-18:00 Two \[scheduled:: 2026-09-10\] \^dg-/);
+  });
+
+  it('26b. the same for a retitle: a report of the old title, read while the retitle is on its way, does not put the old title back; once the write has been seen, an Obsidian edit of the line wins as before', async () => {
+    await bootLinked();
+    A.add({ title: 'Beta', projectId: 'p1', duration: 30, priority: 0 });
+    A.add({ title: 'Other', projectId: 'p1', duration: 30, priority: 0 });
+    await settleInNote();
+    A.patch(byTitle('Beta').id, { title: 'Beta, revised #obsidian' });
+    await A.writeback();
+    expect(byTitle('Beta, revised').obsidianRawTitle).toBe('Beta, revised');
+    // Another line of the note is edited in Obsidian before the plugin applies the retitle.
+    await s.write(NOTE, s.text(NOTE)!.replace('Other ^dg-', 'Other thing ^dg-'));
+    await s.settle();
+    await A.sync();
+    expect(A.all().some((t) => String(t.title).startsWith('Beta, revised'))).toBe(true);
+    expect(byTitle('Other')).toMatchObject({ title: 'Other thing #obsidian' });
+
+    await s.plugin.transport.drain(); await s.settle(); await A.sync();
+    expect(s.text(NOTE)).toMatch(/- \[ \] Beta, revised \^dg-/);
+    // Seen back: from here a different line is Obsidian's own edit.
+    await s.advance(5000);
+    await s.write(NOTE, s.text(NOTE)!.replace('Beta, revised ^dg-', 'Beta ^dg-'));
+    await s.settle();
+    await A.sync();
+    expect(byTitle('Beta')).toMatchObject({ title: 'Beta #obsidian', obsidianRawTitle: 'Beta' });
+  });
+
+  it('26c. and for a task that is already scheduled: the report of its timed line under the old title does not put the old title back', async () => {
+    await bootLinked();
+    A.add({ title: 'Gamma', projectId: 'p1', date: '2026-09-06', startTime: '10:00', duration: 45 });
+    A.add({ title: 'Other', projectId: 'p1', duration: 30, priority: 0 });
+    await settleInNote();
+    expect(s.text(NOTE)).toMatch(/- \[ \] 10:00-10:45 Gamma \[scheduled:: 2026-09-06\] \^dg-/);
+    A.patch(byTitle('Gamma').id, { title: 'Gamma, revised #obsidian' });
+    await A.writeback();
+    await s.write(NOTE, s.text(NOTE)!.replace('Other ^dg-', 'Other thing ^dg-'));
+    await s.settle();
+    await A.sync();
+    expect(byTitle('Gamma')).toMatchObject({ title: 'Gamma, revised #obsidian', date: '2026-09-06', startTime: '10:00', duration: 45, projectId: 'p1' });
+    await s.plugin.transport.drain(); await s.settle(); await A.sync();
+    expect(s.text(NOTE)).toMatch(/- \[ \] 10:00-10:45 Gamma, revised \[scheduled:: 2026-09-06\] \^dg-/);
+    expect(byTitle('Gamma')).toMatchObject({ title: 'Gamma, revised #obsidian', startTime: '10:00', duration: 45 });
+  });
+
+  it('27. A SCHEDULE TYPED IN OBSIDIAN (2026-11-15): a linked-note task scheduled or unscheduled on its line stays in its project, keeps what the line does not carry, and its line stays in the note', async () => {
+    await bootLinked();
+    A.add({ title: 'Solo', projectId: 'p1', duration: 45, priority: 2, color: 'bg-orange-500', projectOrder: 30, createdAt: '2026-09-01T08:00:00.000Z' });
+    await settleInNote();
+    const id = byTitle('Solo').id;
+    const kept = { id, projectId: 'p1', duration: 45, color: 'bg-orange-500', projectOrder: 30, createdAt: '2026-09-01T08:00:00.000Z', obsidianNotePath: NOTE, importSource: 'obsidian' };
+
+    await s.write(NOTE, s.text(NOTE)!.replace('Solo ^dg-', 'Solo [scheduled:: 2026-09-10] ^dg-'));
+    await s.settle(); await A.sync();
+    expect(listOf(byTitle('Solo'))).toBe('scheduled');
+    expect(byTitle('Solo')).toMatchObject({ ...kept, date: '2026-09-10', isAllDay: true });
+    // It used to arrive in the scheduled list as the bare line: no project,
+    // and the next pass removed its line from the project's note.
+    await settleInNote();
+    expect(byTitle('Solo')).toMatchObject({ ...kept, date: '2026-09-10' });
+    expect(s.text(NOTE)).toMatch(/- \[ \] Solo \[scheduled:: 2026-09-10\] \^dg-/);
+
+    await s.write(NOTE, s.text(NOTE)!.replace(' [scheduled:: 2026-09-10]', ''));
+    await s.settle(); await A.sync();
+    expect(listOf(byTitle('Solo'))).toBe('inbox');
+    expect(byTitle('Solo')).toMatchObject(kept);
+    expect(byTitle('Solo').date).toBeUndefined();
+    await settleInNote();
+    expect(byTitle('Solo')).toMatchObject(kept);
+    expect(s.text(NOTE)).toMatch(/- \[ \] Solo \^dg-/);
+  });
+
   it('6. assigning an existing daily-note task moves its line into the note under the SAME id; unassigning removes the line and the task stays in dayGLANCE, app-only', async () => {
     await bootLinked();
     await s.write('Daily/2026-09-04.md', '## Tasks\n- [ ] Call the plumber\n');

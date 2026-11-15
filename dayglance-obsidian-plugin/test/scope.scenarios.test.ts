@@ -134,6 +134,8 @@ function mountDevice(name: string) {
   api.bridgeHeartbeatRef.current = { obsidianRunning: true, pluginAuthoritative: true };
   return {
     name, state, api, store, log,
+    /** The lists the hook reads its tasks from (scenario 30 hands it React's shape: a new array per write). */
+    refs: { tasksRef, inboxRef },
     sync: () => run(() => until(api.performObsidianSync())),
     /** Run the writeback effect against the current lists, then push the outbox to the vault. */
     writeback: () => run(async () => {
@@ -1030,6 +1032,77 @@ describe('vault task scope, end to end', () => {
     expect(s.plugin.transport.heldIntents()).toBe(0);
     expect(s.text(NOTE)).toContain('Line 29 ^dg-empty0029');
     warn.mockRestore();
+  });
+
+  it('30. THE LISTS ARE READ AFTER THE FETCH (2026-11-15, the durations that "kept reverting to 30"): a task scheduled while a cycle is fetching keeps its time and its length', async () => {
+    await bootWithScopedNote(`# House\n\n- [ ] ${LINE}\n- [ ] Second task\n`);
+    const id = A.byPath(NOTE).find((t) => t.title.startsWith(LINE))!.id;
+    expect(A.state.inbox.find((t) => t.id === id)).toMatchObject({ duration: 30 });
+    // A report of the note is waiting: another line was edited in Obsidian.
+    await s.write(NOTE, s.text(NOTE)!.replace('Second task', 'Second task, edited'));
+    await s.settle();
+
+    // React hands the app a NEW array on every write, so the lists a cycle
+    // read when it began do not have a write made while it fetched. The
+    // harness mutates its lists in place, which hides exactly that: for this
+    // cycle the hook is given what the app gives it, a copy as of the start,
+    // and the live lists once the write has rendered.
+    A.refs.tasksRef.current = [...A.state.tasks];
+    A.refs.inboxRef.current = [...A.state.inbox];
+    const inbound = await import('../../src/utils/obsidianBridgeInbound.js');
+    const fetchSpy = vi.mocked(inbound.fetchBridgeObservations);
+    const realFetch = fetchSpy.getMockImplementation()!;
+    fetchSpy.mockImplementationOnce(async (...a: unknown[]) => {
+      const out = await realFetch(...a);
+      // dayglance_schedule_task lands while the fetch is out (applyScheduleTask's shape).
+      const t = A.state.inbox.find((x) => x.id === id)!;
+      const { priority: _p, deadline: _d, ...preserved } = t;
+      A.setUnscheduledTasks((p) => p.filter((x) => x.id !== id));
+      A.setTasks((p) => [...p, { ...preserved, date: '2026-09-10', startTime: '14:00', duration: 90, isAllDay: false, lastModified: new Date().toISOString() }]);
+      A.refs.tasksRef.current = A.state.tasks;
+      A.refs.inboxRef.current = A.state.inbox;
+      return out;
+    });
+    await A.sync();
+
+    // Merged against the lists from before the fetch, the task went back to
+    // the inbox with its old 30 minutes; observed again once its timed line
+    // was written, it was scheduled from the line at 14:00 with those 30.
+    expect(A.state.inbox.some((t) => t.id === id)).toBe(false);
+    expect(A.state.tasks.find((t) => t.id === id)).toMatchObject({ date: '2026-09-10', startTime: '14:00', duration: 90, isAllDay: false });
+    expect(A.all().find((t) => t.title.startsWith('Second task'))).toMatchObject({ title: 'Second task, edited #obsidian' });
+
+    await A.writeback();
+    await s.plugin.transport.drain();
+    await s.settle();
+    await A.sync();
+    expect(s.text(NOTE)).toMatch(/- \[ \] 14:00-15:30 Call the plumber \[scheduled:: 2026-09-10\] \^dg-/);
+    expect(A.state.tasks.find((t) => t.id === id)).toMatchObject({ date: '2026-09-10', startTime: '14:00', duration: 90 });
+    expect(A.state.inbox.some((t) => t.id === id)).toBe(false);
+  });
+
+  it('31. A REPORT THAT PREDATES OUR OWN WRITE (2026-11-15): a timed daily-note task retitled in dayGLANCE keeps its new title when the note is reported, with the old line, before the plugin has applied the retitle', async () => {
+    await bootWithScopedNote();
+    const DAILY = 'Daily/2026-09-04.md';
+    await s.write(DAILY, '## Tasks\n- [ ] 09:00-09:30 Water the plants\n- [ ] Feed the cat\n');
+    await s.settle();
+    await A.sync();
+    const task = A.all().find((t) => /Water the plants/.test(t.title))!;
+    expect(A.state.tasks.map((t) => t.id)).toContain(task.id);
+    A.patch(task.id, { title: 'Water the ferns #obsidian' });
+    await A.writeback();
+    expect(A.all().find((t) => t.id === task.id)).toMatchObject({ obsidianRawTitle: 'Water the ferns' });
+    // Another line of the note is edited in Obsidian before the plugin applies the retitle.
+    await s.write(DAILY, s.text(DAILY)!.replace('Feed the cat', 'Feed the cats'));
+    await s.settle();
+    await A.sync();
+    expect(A.all().find((t) => t.id === task.id)).toMatchObject({ title: 'Water the ferns #obsidian', obsidianRawTitle: 'Water the ferns', startTime: '09:00' });
+    expect(A.all().some((t) => /Feed the cats/.test(t.title))).toBe(true);
+    await s.plugin.transport.drain();
+    await s.settle();
+    await A.sync();
+    expect(s.text(DAILY)).toMatch(/- \[ \] 09:00-09:30 Water the ferns \^dg-/);
+    expect(A.all().find((t) => t.id === task.id)).toMatchObject({ title: 'Water the ferns #obsidian' });
   });
 
   it('9. a plugin reload republishes the pairing meta WITH the scope (harness finding)', async () => {

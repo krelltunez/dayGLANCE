@@ -494,6 +494,65 @@ scenario 13. Recovery of the damaged note is the owner's choice: restore
 the version before the wipe by hand (all 21 lines, the app's completed
 state wins on merge), or let the re-append return the six open lines.
 
+### 2.9 Field incident record (2026-11-15): the durations that kept reverting
+
+**What happened.** Tasks in Obsidian-linked projects were scheduled over MCP,
+several in a row, each with a length. They kept coming back at the 30-minute
+default, and held their length only after three or four more tries.
+
+**Why.** Four gaps on the stream path, found by replaying the case in the
+scenario harness. Each write an assistant makes produces a report of the
+note, so the next write, seconds later, lands inside a cycle that is reading
+the previous one's report.
+
+1. **The cycle merged against the lists it read before the fetch.**
+   `currentTasks` is read when a cycle begins; the fetch then takes as long
+   as the network does, and React hands out a new array on every write. A
+   task scheduled meanwhile was merged from its pre-write copy: back to the
+   inbox, at its old length. When its own timed line was observed it was
+   scheduled again FROM THE LINE (a schedule seen in the vault is adopted),
+   at the right time, with the old length, since the length is the app's and
+   was copied from the stale copy.
+2. **A report of the line as it read before our own pending write looked
+   like a vault edit.** The app records a line's new text on enqueue, so a
+   report generated before the plugin applied the write shows a line that
+   "differs from what we last wrote": the schedule just written looked
+   removed in Obsidian, and a retitle looked reverted.
+3. **A task the scan moves between lists lost everything the line does not
+   carry.** The commit merges each list by itself, so a task arriving from
+   the other list was the bare parse: no project. For a linked project's
+   note the placement pass then read it as no longer assigned there and
+   removed its line. This one needs no race: typing `[scheduled:: …]` on an
+   inbox line of a project note did it.
+4. **A change made during a cycle was recorded as written.** The writeback is
+   held while a cycle runs; the cycle's snapshot refresh for the tasks it
+   observed is built from the merged task, so the waiting change was
+   absorbed and the re-run found nothing to write.
+
+**What changed.** (1) The stream path reads the lists again after the fetch
+and merges and commits against those; nothing awaits in between. (2) Line
+writes sent and not yet seen back are remembered per task, in memory
+(`utils/obsidianOwnWrites.js`): a report showing exactly the text a line had
+before such a write is given the text the task already holds, so no rule
+finds a vault edit in it. The report that shows the write, the task's text
+moving on by another route, or ten minutes ends the wait. (3)
+`mergeObsidianTasks` is given the other list and carries from it. (4) An
+observed task whose snapshot entry already disagrees with the app's copy
+keeps its entry (`hasUnwrittenChange`).
+
+**Not changed.** The direct-access scan still merges against the lists it
+was started with, and rebuilds its whole snapshot afterwards: the same two
+gaps as (1) and (4), over a longer window, on the path that has no linked
+notes. Another DEVICE has no record of this device's pending write and can
+still misread the same report; its copy then meets the newer one in sync,
+and (3) means it no longer loses the project on the way.
+
+**Scenarios.** `scope.scenarios.test.ts` 30 and 31,
+`projectNotes.scenarios.test.ts` 26, 26b, 26c and 27. Scenario 30 hands the
+hook React's shape for one cycle (a copy of the lists at the start, the live
+ones after the write), because the harness mutates its lists in place and
+would otherwise hide gap 1.
+
 ---
 
 ## 3. Decisions of record

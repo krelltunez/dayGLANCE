@@ -31,3 +31,25 @@ export function writebackSnapshotEntry(t, lineSchedule) {
     projectId: t.projectId || null,
   };
 }
+
+/**
+ * Does the app hold a change to this task that the snapshot has not seen,
+ * and so has not been written to the vault?
+ *
+ * The writeback is held while a cycle runs and re-run when it ends, diffing
+ * each task against this snapshot. A change made DURING a cycle (a task
+ * scheduled over MCP while the stream was being fetched) is therefore still
+ * waiting when the cycle refreshes the snapshot for the tasks it observed,
+ * and that refresh is built from the merged task: it recorded the waiting
+ * change as "what the line agrees with", the re-run found nothing to write,
+ * and the note never got the schedule. An observed task whose entry already
+ * disagrees with the app's copy keeps its entry, so the write still goes out.
+ *
+ * @param {object|undefined} entry  the task's current snapshot entry
+ * @param {object|undefined} live   the app's copy of the task as the cycle found it
+ */
+export function hasUnwrittenChange(entry, live) {
+  if (!entry || !live) return false;
+  const now = writebackSnapshotEntry(live, null);
+  return Object.keys(now).some((key) => (entry[key] ?? null) !== (now[key] ?? null));
+}

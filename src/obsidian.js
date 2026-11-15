@@ -1081,9 +1081,20 @@ export function buildExistingObsidianTaskContext(existingTasks, existingInbox) {
 export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
   const { existingTaskMap, userScheduledIds, userInboxIds } = ctx;
   const { allScheduled, allInbox } = out;
+  // A report showing a line exactly as it read before a write of this device
+  // that has not been seen back yet (utils/obsidianOwnWrites.js) says nothing
+  // new about that line: it is given the text the task already holds, so the
+  // rules below find no vault edit in it, and its title is not taken either.
+  const staleOwnWrite = (task, existing) => {
+    if (!existing || typeof ctx.staleOwnWrite !== 'function') return false;
+    if (!ctx.staleOwnWrite(existing, task.obsidianRawTitle)) return false;
+    task.obsidianRawTitle = existing.obsidianRawTitle;
+    return true;
+  };
   for (const task of parsed.scheduledTasks) {
     const existing = resolveExistingObsidianTask(existingTaskMap, task);
     keepExistingHint(task, existing, existingTaskMap);
+    const stale = staleOwnWrite(task, existing);
     if (existing) {
       // Line-derived values, captured BEFORE the existing-fields copies
       // overwrite them — the adoption below restores exactly the fields
@@ -1102,6 +1113,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       if (existing.startTime !== undefined) task.startTime = existing.startTime;
       if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
       resolveTitleOwnership(task, existing, onTitleConflict);
+      if (stale && existing.title !== undefined) task.title = existing.title;
       adoptVaultMetadataEdits(task, edits, lineVals, ctx.resolveProject);
       // OWNED-SCHEDULE ENFORCEMENT (§3.10, 2026-09-02 correction): DG owns
       // scheduling once a task is imported, and the copy above enforces
@@ -1117,7 +1129,8 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       // untimed line of a DG-scheduled task is not "a different time" and
       // is left alone (its own ruling, if ever). A vault ⏳ edit adopted
       // above makes the two equal and reports nothing.
-      if (out.lineSchedule && lineVals.startTime && task.startTime && lineVals.startTime !== task.startTime) {
+      // Not from a stale report: its time is the one our pending write replaces.
+      if (!stale && out.lineSchedule && lineVals.startTime && task.startTime && lineVals.startTime !== task.startTime) {
         out.lineSchedule[task.id] = { startTime: lineVals.startTime };
       }
       // Preserve lastModified so cloud merge keeps recognising the
@@ -1185,6 +1198,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
   for (const task of parsed.inboxTasks) {
     const existing = resolveExistingObsidianTask(existingTaskMap, task);
     keepExistingHint(task, existing, existingTaskMap);
+    const stale = staleOwnWrite(task, existing);
     if (existing) {
       const lineVals = { deadline: task.deadline, priority: task.priority };
       const edits = vaultMetadataEdits(task, existing);
@@ -1196,6 +1210,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       if (existing.color !== undefined) task.color = existing.color;
       if (existing.duration !== undefined) task.duration = existing.duration;
       resolveTitleOwnership(task, existing, onTitleConflict);
+      if (stale && existing.title !== undefined) task.title = existing.title;
       adoptVaultMetadataEdits(task, edits, lineVals, ctx.resolveProject);
       if (existing.lastModified) task.lastModified = existing.lastModified;
       // An untimed line: the writeback that removed the time has landed, so

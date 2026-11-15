@@ -21,6 +21,7 @@ import { validateWikiNoteName } from '../utils/obsidianFilename.js';
 import { classifyVaultPaths } from '../utils/vaultPortability.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks, preserveObsidianAppFields, noteMtimesFromDailyNotes, noteMtimesFromScopedNotes } from '../utils/mergeObsidianTasks.js';
+import { createOwnWriteRegistry } from '../utils/obsidianOwnWrites.js';
 import { applyLateObservationGate, dropTasksOfSkippedNotes } from '../utils/lateObservationGate.js';
 import { detectObsidianDeletions, addObsidianTombstones, commitObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
@@ -45,7 +46,7 @@ import { lineReappendStamp, readLineReappends, writeLineReappends } from '../uti
 import { blockIdWritesEnabled, completionMarkerWritesEnabled } from '../utils/obsidianWritePolicy.js';
 import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
 import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
-import { writebackSnapshotEntry } from '../utils/obsidianWritebackSnapshot.js';
+import { writebackSnapshotEntry, hasUnwrittenChange } from '../utils/obsidianWritebackSnapshot.js';
 import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, publishBridgeCalendarProjection, getBridgePairingMeta, cachedBridgePairingMeta, checkBridgeDelivery, readBridgeDeliveryState } from '../utils/obsidianBridgeStream.js';
 import { vaultViewerFor, visibleToViewer, assignVaultViewer, knownTaskIds } from '../utils/obsidianUserScope.js';
 import { writebackTargetFor } from '../utils/obsidianWritebackTarget.js';
@@ -596,6 +597,9 @@ export default function useObsidianSync({
   const writebackPendingRef = useRef(false);
   // (task id)>(token) pairs whose re-mint refusal has been logged this session.
   const remintRefusalLoggedRef = useRef(new Set());
+  // Line writes sent and not yet seen back (utils/obsidianOwnWrites.js).
+  const ownWritesRef = useRef(null);
+  if (!ownWritesRef.current) ownWritesRef.current = createOwnWriteRegistry();
 
   // ── Tasks-plugin detection (completion-marker format) ─────────────────────
   // Vault-level: is the Obsidian Tasks plugin enabled? Decides the marker
@@ -1143,10 +1147,25 @@ export default function useObsidianSync({
           // pull does not continue (or one never completed) lists from its
           // own seq, once from zero.
           void noteCyclePathListing(fetched.pathListing, { catchUp: holding });
+          // THE LISTS AS THEY ARE NOW, not as they were before the fetch.
+          // currentTasks and currentInbox were read when the cycle began; the
+          // awaits above take as long as the network does, and React hands
+          // out a new array on every write, so a write made meanwhile is
+          // missing from them. The per-note merge copies a task's schedule,
+          // duration, priority and deadline from the copy it is given, and
+          // the commit below takes those fields from the merge, so a stale
+          // copy silently undid the write: a task scheduled over MCP while a
+          // cycle was fetching went back to the inbox with its old length,
+          // and when its own timed line was then observed it was scheduled
+          // again from the line, at the right time, with that old length
+          // (the durations that "kept reverting to 30"). Nothing awaits
+          // between here and the commit, so these are the lists it commits to.
+          const liveTasks = obsidianTasksRef.current;
+          const liveInbox = obsidianInboxRef.current;
           const applied = fetched.observations.length
             ? applyBridgeObservations(fetched.observations, {
-                existingTasks: currentTasks,
-                existingInbox: currentInbox,
+                existingTasks: liveTasks,
+                existingInbox: liveInbox,
                 dailyNotesPath: obsidianConfig?.dailyNotesPath || '',
                 dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
                 onTitleConflict,
@@ -1158,6 +1177,7 @@ export default function useObsidianSync({
                 projectByNotePath: projectByNotePath(projectsRef.current),
                 projects: projectsRef.current,
                 knownDailyNotes: dailyNotes ?? null,
+                staleOwnWrite: (existing, observedRaw) => ownWritesRef.current.isStale(existing, observedRaw),
               })
             : null;
 
@@ -1208,7 +1228,7 @@ export default function useObsidianSync({
           if (applied?.withdrawn?.length) {
             const withdrawnAt = new Date().toISOString();
             const withdrawnPaths = new Set(applied.withdrawn);
-            const ids = [...currentTasks, ...currentInbox]
+            const ids = [...liveTasks, ...liveInbox]
               .filter(t => t?.importSource === 'obsidian' && withdrawnPaths.has(t.obsidianNotePath))
               .map(t => String(t.id));
             if (ids.length) {
@@ -1252,7 +1272,7 @@ export default function useObsidianSync({
           const pendingStore = readPendingNoteDeletions();
           const pendingNoteDeletions = applyPendingContinuityGuard(pendingStore.entries, pendingStore.touchedAt);
           const liveObsidianIds = new Set(
-            [...currentTasks, ...currentInbox].filter(t => t?.importSource === 'obsidian').map(t => String(t.id)));
+            [...liveTasks, ...liveInbox].filter(t => t?.importSource === 'obsidian').map(t => String(t.id)));
           // A DELETED daily note is complete knowledge that none of its lines
           // exist (2026-09-05 finding: it used to be parked unread). Its tasks
           // enter the same wall-clock hold as any other absent line; the
@@ -1262,8 +1282,8 @@ export default function useObsidianSync({
                 observedNotes: { ...applied.dailyNotes, ...(applied.deletedDailyNotes || {}) },
                 observedPaths: applied.scopedNotes,
                 scannedIds: batchScannedIds,
-                tasks: currentTasks,
-                inbox: currentInbox,
+                tasks: liveTasks,
+                inbox: liveInbox,
               })
             : [];
           const { commits, nextPending } = reconcileNoteScopedDeletions({
@@ -1332,11 +1352,17 @@ export default function useObsidianSync({
             // to the app is the vault's viewer's — here the pairing meta's
             // user, since every device on the account applies this stream.
             const viewer = vaultViewerFor({ authoritative: true, meta: cachedBridgePairingMeta() });
-            const known = knownTaskIds(currentTasks, currentInbox, recycleBinRef.current);
+            const known = knownTaskIds(liveTasks, liveInbox, recycleBinRef.current);
             const scheduledIn = assignVaultViewer(binRestore.scheduledTasks, { viewer, knownIds: known });
             const inboxIn = assignVaultViewer(binRestore.inboxTasks, { viewer, knownIds: known });
-            setTasks(prev => mergeObsidianTasks(prev, scheduledIn, applied.scannedIds, preserveObsidianAppFields, tombstones, observedNoteMtimes));
-            setUnscheduledTasks(prev => mergeObsidianTasks(prev, inboxIn, applied.scannedIds, preserveObsidianAppFields, tombstones, observedNoteMtimes));
+            // Each list is given the other as it stood BEFORE this commit, so
+            // a task the batch moves between them keeps its app-only fields
+            // (mergeObsidianTasks). Copied first: the second merge must not
+            // see the first one's result.
+            const inboxBefore = [...liveInbox];
+            const tasksBefore = [...liveTasks];
+            setTasks(prev => mergeObsidianTasks(prev, scheduledIn, applied.scannedIds, preserveObsidianAppFields, tombstones, observedNoteMtimes, inboxBefore));
+            setUnscheduledTasks(prev => mergeObsidianTasks(prev, inboxIn, applied.scannedIds, preserveObsidianAppFields, tombstones, observedNoteMtimes, tasksBefore));
             // Refresh the writeback snapshot for the OBSERVED tasks only —
             // observations are per-note, so untouched entries stay put.
             // This is also how this device's own emitted writes settle
@@ -1345,7 +1371,12 @@ export default function useObsidianSync({
             // machinery (title ownership, ^dg- identity) absorbs it exactly
             // like another device's write.
             const snap = obsidianPrevTaskStateRef.current;
+            const beforeById = new Map([...tasksBefore, ...inboxBefore].map(t => [String(t?.id), t]));
             for (const t of [...binRestore.scheduledTasks, ...binRestore.inboxTasks]) {
+              // A change the app made and has not written yet (one made while
+              // this cycle ran: the writeback is held until it ends) keeps
+              // its entry, or the refresh would record it as written.
+              if (hasUnwrittenChange(snap[t.id], beforeById.get(String(t.id)))) continue;
               // A line whose time differs from DG's is recorded with the
               // LINE's time, so the writeback enforces DG's (see the helper).
               snap[t.id] = writebackSnapshotEntry(t, applied.lineSchedule);
@@ -1361,7 +1392,7 @@ export default function useObsidianSync({
             // below) whenever stampable tasks exist. Self-limiting: once
             // stamped, nothing here matches and the nudge stops firing.
             if (blockIdWritesEnabled()
-              && [...binRestore.scheduledTasks, ...binRestore.inboxTasks, ...currentTasks, ...currentInbox]
+              && [...binRestore.scheduledTasks, ...binRestore.inboxTasks, ...liveTasks, ...liveInbox]
                 .some(t => t?.importSource === 'obsidian' && t.obsidianRawTitle && !t.obsidianBlockId)) {
               nudgeWriteback = true;
             }
@@ -1583,8 +1614,12 @@ export default function useObsidianSync({
       const directKnown = knownTaskIds(currentTasks, currentInbox, recycleBinRef.current);
       const scheduledIn = assignVaultViewer(binRestore.scheduledTasks, { viewer: directViewer, knownIds: directKnown });
       const inboxIn = assignVaultViewer(binRestore.inboxTasks, { viewer: directViewer, knownIds: directKnown });
-      setTasks(prev => mergeObsidianTasks(prev, scheduledIn, mergeScannedIds, preserveObsidianAppFields, tombstones, scannedNoteMtimes));
-      setUnscheduledTasks(prev => mergeObsidianTasks(prev, inboxIn, mergeScannedIds, preserveObsidianAppFields, tombstones, scannedNoteMtimes));
+      // The other list as it stands now, read after the scan and copied
+      // before either merge runs: see the stream path above.
+      const otherInbox = [...(obsidianInboxRef.current || [])];
+      const otherTasks = [...(obsidianTasksRef.current || [])];
+      setTasks(prev => mergeObsidianTasks(prev, scheduledIn, mergeScannedIds, preserveObsidianAppFields, tombstones, scannedNoteMtimes, otherInbox));
+      setUnscheduledTasks(prev => mergeObsidianTasks(prev, inboxIn, mergeScannedIds, preserveObsidianAppFields, tombstones, scannedNoteMtimes, otherTasks));
 
       // Snapshot the fresh task state so the writeback effect doesn't re-trigger
       const snapshot = {};
@@ -1890,12 +1925,16 @@ export default function useObsidianSync({
 
     // Map oldId → { id, obsidianRawTitle } across both lists, moving the
     // change-detection snapshot entry along with the id.
-    const applyTitleUpdate = ({ oldId, newId, newRawTitle }) => {
+    const applyTitleUpdate = ({ oldId, newId, newRawTitle, oldRawTitle }) => {
       const apply = t => (t.id === oldId ? { ...t, id: newId, obsidianRawTitle: newRawTitle } : t);
       setTasks(prevTasks => prevTasks.map(apply));
       setUnscheduledTasks(prevTasks => prevTasks.map(apply));
       const snap = obsidianPrevTaskStateRef.current;
       if (oldId !== newId && snap[oldId]) { snap[newId] = snap[oldId]; delete snap[oldId]; }
+      // The line's text is ours to change from here, and reports of it as it
+      // read before are not vault edits until the write is seen back
+      // (utils/obsidianOwnWrites.js).
+      ownWritesRef.current.note(newId, oldRawTitle, newRawTitle);
     };
 
     // Commit a fresh block-id assignment to app state once the vault write
@@ -1907,6 +1946,7 @@ export default function useObsidianSync({
     // scan could ever match or tombstone).
     const applyBlockIdAssignment = (fromId, blockId) => {
       const newId = appIdForBlockId(blockId);
+      ownWritesRef.current.rekey(fromId, newId);
       const apply = t => (t.id === fromId ? { ...t, id: newId, obsidianBlockId: blockId } : t);
       setTasks(prevTasks => prevTasks.map(apply));
       setUnscheduledTasks(prevTasks => prevTasks.map(apply));
@@ -2414,7 +2454,7 @@ export default function useObsidianSync({
         const newId = task.obsidianBlockId ? task.id
           : target.isNoteTask ? noteTaskId(target.noteKey, newRawTitle)
           : `obsidian-${sourceDate}-${obsidianSimpleHash(newRawTitle)}`;
-        titleUpdate = { oldId: task.id, newId, newRawTitle };
+        titleUpdate = { oldId: task.id, newId, newRawTitle, oldRawTitle: task.obsidianRawTitle };
         postTitleId = newId;
       }
 
