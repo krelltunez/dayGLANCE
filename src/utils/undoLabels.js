@@ -23,6 +23,7 @@ export const UNDO_LABELS = [
   'deleted',
   'restored',
   'binEmptied',
+  'binDeleted',
   'moved',
   'resized',
   'toInbox',
