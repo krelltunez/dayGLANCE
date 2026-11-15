@@ -2,17 +2,16 @@ import React from 'react';
 import {
   BarChart3, CalendarDays, Check, CheckCircle, ChevronDown, ChevronUp,
   Clock, Filter, Flag, Flame, FolderOpen, Hash, Inbox,
-  MoreHorizontal, Target, Trash2, TrendingUp, Trophy, Undo2, X,
+  MoreHorizontal, Target, TrendingUp, Trophy, X,
 } from 'lucide-react';
-import { renderTitle } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags } from '../utils/taskUtils.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
-import { formatDuration, formatTaskDuration } from '../utils/formatDuration.js';
+import { formatDuration } from '../utils/formatDuration.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
-import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 import DaySummaryCallouts from './DaySummaryCallouts.jsx';
+import RecycleBinSheet from './RecycleBinSheet.jsx';
 import CalendarFilterProjects, { useCalendarFilterSummary } from './CalendarFilterProjects.jsx';
 
 const MobileBottomSheets = () => {
@@ -23,7 +22,6 @@ const MobileBottomSheets = () => {
     tasks,
     expandedRecurringTasks,
     unscheduledTasks,
-    recycleBin, setRecycleBin,
     completedTaskUids,
     selectedTags,
     filterableTags,
@@ -48,15 +46,12 @@ const MobileBottomSheets = () => {
     allTimeProjectsCreated, allTimeProjectsCompleted,
     allTimeIncompleteTasks,
     todayIncompleteTasks,
-    formatTime,
     toggleTag,
     selectAllTags, clearTagFilter,
-    restoreFromRecycleBin, emptyRecycleBin, undeleteTask,
     getTasksForDate,
   } = useDayPlannerCtx();
   const { t } = useTranslation();
   const calendarFilter = useCalendarFilterSummary();
-  const { showMobileRecycleBin, setShowMobileRecycleBin } = useSyncCtx();
   const {
     activeHabits, habitStreaks, habitLogs, habitsEnabled,
     focusLog,
@@ -66,85 +61,7 @@ const MobileBottomSheets = () => {
   return (
     <>
 {/* Mobile Recycle Bin Bottom Sheet */}
-{showMobileRecycleBin && (
-  <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileRecycleBin(false)}>
-    <div className="bg-black/30 absolute inset-0" />
-    <div
-      className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[70vh] flex flex-col`}
-      style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {/* Handle */}
-      <div className="flex justify-center pt-3 pb-1">
-        <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`} />
-      </div>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Trash2 size={18} className={textSecondary} />
-          <span className={`font-semibold ${textPrimary}`}>{t('app.recycleBin')}</span>
-          <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-stone-200 text-stone-500'}`}>
-            {recycleBin.filter(t => !t.isExample).length}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {recycleBin.filter(t => !t.isExample).length > 0 && (
-            <button
-              onClick={emptyRecycleBin}
-              className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-500/5 active:bg-red-500/10 dark:hover:bg-red-500/10 dark:active:bg-red-500/20 transition-colors"
-            >
-              {t('app.emptyAll')}
-            </button>
-          )}
-          <button
-            onClick={() => setShowMobileRecycleBin(false)}
-            className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
-            aria-label={t('app.closeRecycleBin', { defaultValue: 'Close recycle bin' })}
-          >
-            <X size={16} className={textSecondary} />
-          </button>
-        </div>
-      </div>
-      {/* Task list */}
-      <div className="overflow-y-auto px-4 pb-2 space-y-2">
-        {recycleBin.filter(t => !t.isExample).length === 0 ? (
-          <p className={`text-sm ${textSecondary} text-center py-8`}>{t('app.recycleBinEmpty')}</p>
-        ) : (
-          recycleBin.filter(t => !t.isExample).map(task => (
-            <div
-              key={`mobile-bin-${task.id}`}
-              className={`${task.color} rounded-lg p-3 opacity-60`}
-            >
-              <div className="flex items-start justify-between text-white">
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">{renderTitle(task.title)}</div>
-                  <div className="text-xs opacity-75 mt-1">
-                    {task._deletedFrom === 'inbox' ? (
-                      <>{t('app.recycleBinInbox')} • {formatTaskDuration(task.duration, t)}</>
-                    ) : task.startTime ? (
-                      <>{formatTime(task.startTime)} • {formatTaskDuration(task.duration, t)}</>
-                    ) : (
-                      <>{formatTaskDuration(task.duration, t)}</>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => { undeleteTask(task.id); if (recycleBin.filter(t => !t.isExample).length <= 1) setShowMobileRecycleBin(false); }}
-                    className="bg-white/20 rounded-lg p-1.5 hover:bg-white/25 active:bg-white/30 transition-colors"
-                    title={t('common.restore')}
-                  >
-                    <Undo2 size={14} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  </div>
-)}
+<RecycleBinSheet variant="phone" />
 
 {/* Mobile Tag Filter Bottom Sheet */}
 {showMobileTagFilter && (

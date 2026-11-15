@@ -109,3 +109,82 @@ describe('automatic emptying', () => {
     expect(deps.setRecycleBin).not.toHaveBeenCalled();
   });
 });
+
+// #2406: one task out of the bin for good, without emptying it.
+describe('deleteFromBin', () => {
+  let store;
+  let deps;
+  beforeEach(() => {
+    resetWriteFailures();
+    store = { 'day-planner-deleted-task-ids': JSON.stringify({ old: '2026-01-01T00:00:00.000Z' }) };
+    globalThis.localStorage = {
+      getItem: vi.fn((k) => store[k] ?? null),
+      setItem: vi.fn((k, v) => { store[k] = v; }),
+    };
+    globalThis.window = { DayGlanceNative: { deindexSpotlight: vi.fn() } };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    deps = {
+      recycleBin: [{ id: 'b1', title: 'One' }, { id: 2, title: 'Two' }, { id: 'b3', title: 'Three' }],
+      setRecycleBin: vi.fn(),
+      pushUndo: vi.fn(),
+      setTasks: vi.fn(),
+      setUnscheduledTasks: vi.fn(),
+      playUISound: vi.fn(),
+      onStorageFull: vi.fn(),
+      onDeleted: vi.fn(),
+    };
+  });
+  afterEach(() => { delete globalThis.localStorage; delete globalThis.window; vi.restoreAllMocks(); });
+
+  const remaining = () => deps.setRecycleBin.mock.calls[0][0](deps.recycleBin).map(t => t.id);
+
+  it('removes that task and no other, with a tombstone for it alone', () => {
+    useRecycleBin(deps).deleteFromBin('b1');
+    expect(remaining()).toEqual([2, 'b3']);
+    // The tombstones already there stay; only the deleted task gains one.
+    expect(Object.keys(JSON.parse(store['day-planner-deleted-task-ids'])).sort()).toEqual(['b1', 'old']);
+  });
+
+  it('is an undo step named for the task, pushed before the bin changes', () => {
+    const order = [];
+    deps.pushUndo.mockImplementation(() => order.push('undo'));
+    deps.setRecycleBin.mockImplementation(() => order.push('remove'));
+    useRecycleBin(deps).deleteFromBin('b3');
+    expect(deps.pushUndo).toHaveBeenCalledWith({ key: 'binDeleted', taskId: 'b3' });
+    expect(order).toEqual(['undo', 'remove']);
+  });
+
+  it('says what it did, so the caller can offer the undo', () => {
+    deps.onDeleted = vi.fn();
+    deps.pushUndo.mockReturnValue('Permanently deleted "Three"');
+    useRecycleBin(deps).deleteFromBin('b3');
+    expect(deps.onDeleted).toHaveBeenCalledWith('Permanently deleted "Three"');
+  });
+
+  it('matches an id whatever its type', () => {
+    useRecycleBin(deps).deleteFromBin('2');
+    expect(remaining()).toEqual(['b1', 'b3']);
+    expect(JSON.parse(store['day-planner-deleted-task-ids'])).toHaveProperty('2');
+  });
+
+  it('takes the task out of Spotlight', () => {
+    useRecycleBin(deps).deleteFromBin('b1');
+    expect(globalThis.window.DayGlanceNative.deindexSpotlight).toHaveBeenCalledWith(JSON.stringify(['b1']));
+  });
+
+  it('removes nothing when the tombstone cannot be written', () => {
+    globalThis.localStorage.setItem = vi.fn(() => { throw quota(); });
+    expect(() => useRecycleBin(deps).deleteFromBin('b1')).not.toThrow();
+    expect(deps.setRecycleBin).not.toHaveBeenCalled();
+    expect(deps.pushUndo).not.toHaveBeenCalled();
+    expect(deps.onStorageFull).toHaveBeenCalled();
+    expect(deps.onDeleted).not.toHaveBeenCalled();
+  });
+
+  it('does nothing for a task the bin does not hold', () => {
+    useRecycleBin(deps).deleteFromBin('nope');
+    expect(deps.setRecycleBin).not.toHaveBeenCalled();
+    expect(deps.pushUndo).not.toHaveBeenCalled();
+    expect(globalThis.localStorage.setItem).not.toHaveBeenCalled();
+  });
+});

@@ -10,6 +10,8 @@ export default function useRecycleBin({
   setUnscheduledTasks,
   playUISound,
   onStorageFull,
+  // Told what a per-task delete did, in words (or null), to offer its undo.
+  onDeleted,
   // Automatic emptying (#2141): days after which a bin item is removed for
   // good, 0 for never. Runs once the data has loaded and whenever the setting
   // changes; the app reloads every night, which makes that a daily sweep.
@@ -85,6 +87,24 @@ export default function useRecycleBin({
     playUISound('crumple');
   };
 
+  // One task, for good (#2406): the same tombstone, undo step and deindex as
+  // emptying the bin, for the task the user pointed at. Nothing is removed
+  // when the tombstone cannot be written.
+  const deleteFromBin = (id) => {
+    const task = recycleBin.find(t => String(t.id) === String(id));
+    if (!task) return;
+    if (!writeBinTombstones([task])) {
+      onStorageFull?.();
+      return;
+    }
+    const said = pushUndo({ key: 'binDeleted', taskId: id });
+    deindex([task]);
+    setRecycleBin(prev => prev.filter(t => String(t.id) !== String(id)));
+    playUISound('crumple');
+    // There is no confirmation to press, so the way back is said out loud.
+    onDeleted?.(said);
+  };
+
   // The automatic empty. No undo step and no sound: nobody pressed anything.
   // When the tombstones cannot be written nothing is removed, and the next
   // launch tries again.
@@ -108,5 +128,6 @@ export default function useRecycleBin({
     undeleteTask,
     emptyRecycleBin,
     confirmEmptyBin,
+    deleteFromBin,
   };
 }

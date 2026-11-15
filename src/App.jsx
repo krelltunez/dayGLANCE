@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import i18n from 'i18next';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, TextCursorInput, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, TextCursorInput, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask, nativeResultsToTasks, extendCalendarFilter, nativeEventEndString } from './utils/nativeCalendar.js';
 import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeWriteDailyNote, nativeClearVault, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeGetWidgetPendingAction, triggerHaptic, nativeTouchLauncherHeartbeat } from './native.js';
@@ -61,7 +61,7 @@ import { useWidgetNativeEvents } from './hooks/useWidgetNativeEvents.js';
 import { getStoredWeatherCoords } from './utils/solar.js';
 import useFolderBackup from './hooks/useFolderBackup.js';
 import useStorageProjection from './hooks/useStorageProjection.js';
-import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, extractShareTitle } from './utils/textFormatting.jsx';
+import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, highlightMatch, extractShareTitle } from './utils/textFormatting.jsx';
 import { msUntilMidnightRefresh, rememberViewsForMidnight, readMidnightViews, clearMidnightViews } from './utils/midnightRefresh.js';
 import { adjustPastConflicts } from './utils/dayOccupancy.js';
 import { focusBlockAt, focusModeAvailableAt } from './utils/focusBlock.js';
@@ -139,6 +139,7 @@ import useMobileTabBack from './hooks/useMobileTabBack.js';
 import useAudio from './hooks/useAudio.js';
 import useUndo from './hooks/useUndo.js';
 import UndoToast from './components/UndoToast.jsx';
+import RecycleBinSheet from './components/RecycleBinSheet.jsx';
 import useJoboUndo from './hooks/useJoboUndo.js';
 import { buildPastDaySlices, buildPastDayIndex, pastDayDisplay, doSessionsByTask } from './jobo/pastDay.js';
 import { makeTaskDraft } from './jobo/carryForward.js';
@@ -1604,12 +1605,14 @@ const DayPlanner = () => {
     undeleteTask,
     emptyRecycleBin,
     confirmEmptyBin,
+    deleteFromBin,
   } = useRecycleBin({
     recycleBin, setRecycleBin,
     pushUndo,
     setTasks, setUnscheduledTasks,
     playUISound,
     onStorageFull: () => setUndoToast({ message: t('backup.storageFull'), kind: 'warning' }),
+    onDeleted: (said) => setUndoToast({ message: said ?? t('app.deleteForever'), actionable: true }),
     autoEmptyDays: binAutoEmptyDays, dataLoaded, isTrayMode,
   });
   // A daily sample of local-storage use and a warning before it is full (#2141).
@@ -7335,7 +7338,7 @@ const DayPlanner = () => {
 
     // ── Functions – undo / recycle bin ────────────────────────────────────────
     pushUndo, pushUndoAction, readRecurringTasks, performUndo, performRedo,
-    confirmEmptyBin, emptyRecycleBin,
+    confirmEmptyBin, emptyRecycleBin, deleteFromBin,
   };
 
   const syncCtx = {
@@ -8225,58 +8228,7 @@ const DayPlanner = () => {
       )}
 
       {/* Desktop/Tablet: Recycle Bin Bottom Sheet */}
-      {!isMobile && showMobileRecycleBin && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end items-start" onClick={() => setShowMobileRecycleBin(false)}>
-          <div className="bg-black/30 absolute inset-0" />
-          <div
-            className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[70vh] flex flex-col`}
-            style={{ paddingBottom: '1rem', width: '320px' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-center pt-3 pb-1">
-              <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`} />
-            </div>
-            <div className="flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Trash2 size={18} className={textSecondary} />
-                <span className={`font-semibold ${textPrimary}`}>{t('app.recycleBin')}</span>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-stone-200 text-stone-500'}`}>
-                  {recycleBin.filter(t => !t.isExample).length}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {recycleBin.filter(t => !t.isExample).length > 0 && (
-                  <button onClick={emptyRecycleBin} className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-500/5 active:bg-red-500/10 dark:hover:bg-red-500/10 dark:active:bg-red-500/20 transition-colors">{t('app.emptyAll')}</button>
-                )}
-                <button onClick={() => setShowMobileRecycleBin(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`} aria-label={t('common.close')}>
-                  <X size={16} className={textSecondary} />
-                </button>
-              </div>
-            </div>
-            <div className="overflow-y-auto px-4 pb-2 space-y-2">
-              {recycleBin.filter(t => !t.isExample).length === 0 ? (
-                <p className={`text-sm ${textSecondary} text-center py-8`}>{t('app.recycleBinEmpty')}</p>
-              ) : (
-                recycleBin.filter(t => !t.isExample).map(task => (
-                  <div key={`tablet-bin-${task.id}`} className={`${task.color} rounded-lg p-3 opacity-60`}>
-                    <div className="flex items-start justify-between text-white">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{renderTitle(task.title)}</div>
-                        <div className="text-xs opacity-75 mt-1">
-                          {task._deletedFrom === 'inbox' ? <>{t('app.recycleBinInbox')} • {task.duration}min</> : task.startTime ? <>{formatTime(task.startTime)} • {task.duration}min</> : <>{task.duration}min</>}
-                        </div>
-                      </div>
-                      <button onClick={() => { undeleteTask(task.id); if (recycleBin.filter(t => !t.isExample).length <= 1) setShowMobileRecycleBin(false); }} className="bg-white/20 rounded-lg p-1.5 hover:bg-white/25 active:bg-white/30 transition-colors" title={t('common.restore')}>
-                        <Undo2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {!isMobile && <RecycleBinSheet variant="desktop" />}
 
       {/* Desktop/Tablet: Daily Summary Bottom Card */}
       {!isMobile && showMobileDailySummary && (
