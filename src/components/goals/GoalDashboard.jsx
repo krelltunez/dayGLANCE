@@ -59,6 +59,7 @@ import ProjectCard from '../projects/ProjectCard.jsx';
 import ProjectTaskDefaultsFields, { ApplyTaskDefaults, taskDefaultsForm, taskDefaultsFromForm } from '../projects/ProjectTaskDefaultsFields.jsx';
 import { applyTargets, seedTaskDefaultsFor } from '../../utils/projectTaskDefaults.js';
 import ConfirmDialog from '../ConfirmDialog.jsx';
+import SidePanelFrame from '../SidePanelFrame.jsx';
 import ArchivedProjectReview from './ArchivedProjectReview.jsx';
 import { groupArchivedProjects, restoredStatus } from '../../utils/archiveCascade.js';
 import { hyperGlanceRuns, isOnHold, pausedLast } from '../../utils/projectStatus.js';
@@ -1395,7 +1396,7 @@ const GoalSpaceSidebar = ({
   completedGoalsCount = 0,   // completed goals the area filter lets through
   hiddenCompletedCount = 0,  // ...of which hidden
 }) => {
-  const { darkMode, cardBg, borderClass, textSecondary } = useDayPlannerCtx();
+  const { darkMode, cardBg, borderClass, textSecondary, sidePanelCollapsed } = useDayPlannerCtx();
   const { moveProject } = useFeaturesCtx();
   const { t } = useTranslation();
   const { dragProjectId, dropZoneTarget, setDropZoneTarget, endDrag } = drag;
@@ -1407,6 +1408,7 @@ const GoalSpaceSidebar = ({
   const countClass = `text-[11px] font-normal ${textSecondary}`;
 
   return (
+    <SidePanelFrame collapsed={!!sidePanelCollapsed}>
     <div
       data-goals-sidebar
       className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0 relative`}
@@ -1503,6 +1505,7 @@ const GoalSpaceSidebar = ({
       </div>
 
     </div>
+    </SidePanelFrame>
   );
 };
 
@@ -2779,6 +2782,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
     darkMode,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     expandedNotesTaskId, setExpandedNotesTaskId,
+    expandSidePanel,
   } = useDayPlannerCtx();
   const {
     goals, projects, setProjects,
@@ -3018,7 +3022,8 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
   const { goalsSpaceKeysRef } = useFeaturesCtx();
   const keysImplRef = useRef(null);
   keysImplRef.current = {
-      setTab: setSidebarTab,
+      // ',' and '.' point at the sidebar, so it has to be on screen (#2407).
+      setTab: (tab) => { expandSidePanel?.(); setSidebarTab(tab); },
       // 'n': the "+" — on the Goals tab its menu (project in the goal on
       // screen, or a goal), or a goal when there is none to name; a new
       // standalone project on Projects
@@ -3030,6 +3035,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
       },
       // '/': the project filter (switching to the Projects tab if needed)
       focusFilter: () => {
+        expandSidePanel?.();
         setSidebarTab('projects');
         requestAnimationFrame(() => filterInputRef.current?.focus());
       },

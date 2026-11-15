@@ -31,6 +31,7 @@ import { HOUR_GUTTER_W } from '../constants/timeline.js';
 import InboxArchivedBar from './InboxArchivedBar.jsx';
 import GlanceSidebar from './GlanceSidebar.jsx';
 import InboxSidebar from './InboxSidebar.jsx';
+import SidePanelFrame from './SidePanelFrame.jsx';
 import MobileListView from './MobileListView.jsx';
 import MobileViewToggle from './MobileViewToggle.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -42,6 +43,7 @@ import { useTranslation } from 'react-i18next';
 const DesktopLayout = () => {
   const {
     isPhone, isMobile, isTablet, isLandscape,
+    sidePanelCollapsed,
     visibleDays, visibleDates,
     effectiveViewMode,
     tabBarRef, suppressTabBarRef,
@@ -788,7 +790,9 @@ const DesktopLayout = () => {
 
           {/* Desktop side panel — Glance + Inbox (matching tablet landscape design) */}
           {!isTablet && (
+          <SidePanelFrame collapsed={sidePanelCollapsed}>
           <div
+            data-side-panel
             className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0 relative`}
             style={{ width: '340px', height: '100%' }}
           >
@@ -837,6 +841,7 @@ const DesktopLayout = () => {
             {/* Action pills + the handle that collapses them, bottom-left. */}
             {tabletActiveTab === 'glance' && <GlanceFabs />}
           </div>
+          </SidePanelFrame>
           )}
 
           {/* Calendar area — shared between desktop and tablet */}

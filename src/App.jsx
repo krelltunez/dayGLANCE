@@ -133,6 +133,7 @@ import MobileNewTaskModal from './components/MobileNewTaskModal.jsx';
 import ProjectPlanner from './components/projects/ProjectPlanner.jsx';
 import DesktopNewTaskModal from './components/DesktopNewTaskModal.jsx';
 import useVisibleDays from './hooks/useVisibleDays.js';
+import useSidePanelCollapse from './hooks/useSidePanelCollapse.js';
 import useDeviceType from './hooks/useDeviceType.js';
 import useIsLandscape from './hooks/useIsLandscape.js';
 import useMobileTabBack from './hooks/useMobileTabBack.js';
@@ -403,7 +404,16 @@ const DayPlanner = () => {
       return () => clearTimeout(t);
     }
   }, [dailyNotesModalDate]);
-  const [tabletActiveTab, setTabletActiveTab] = useState('glance'); // 'glance' | 'inbox' — for landscape tabbed panel
+  const [tabletActiveTab, setTabletActiveTabState] = useState('glance'); // 'glance' | 'inbox' — for landscape tabbed panel
+  // The desktop side panel can be hidden (#2407). Picking one of its tabs, by
+  // a shortcut, a jump to the Inbox or anything else, is asking to see it, so
+  // every path that sets the tab opens the panel first.
+  const { sidePanelCollapsible, sidePanelCollapsed, toggleSidePanel, expandSidePanel } =
+    useSidePanelCollapse({ enabled: !isMobile && !isTablet });
+  const setTabletActiveTab = useCallback((tab) => {
+    expandSidePanel();
+    setTabletActiveTabState(tab);
+  }, [expandSidePanel]);
   // Override visible days: tablet uses orientation (static panel always present), mobile always 1, desktop uses width-based hook
   const visibleDays = isTablet ? (isLandscape ? 2 : 1) : isMobile ? 1 : _visibleDays;
   // Views turned off on this device (settings, "Views on this device"). Per
@@ -3713,6 +3723,7 @@ const DayPlanner = () => {
     setShowMobileTagFilter,
     setShowBackupMenu,
     isMobile, tabletActiveTab, setTabletActiveTab,
+    sidePanelCollapsible, toggleSidePanel,
     aiConfig, setShowVoiceInput,
     showBucketList, setShowBucketList,
     habitsEnabled, setHabitsEnabled, setShowHabitModal,
@@ -7072,6 +7083,7 @@ const DayPlanner = () => {
 
     // ── Layout / navigation ───────────────────────────────────────────────────
     tabletActiveTab, setTabletActiveTab,
+    sidePanelCollapsible, sidePanelCollapsed, toggleSidePanel, expandSidePanel,
     mobileActiveTab, setMobileActiveTab,
     mobileViewMode, setMobileViewMode, tabletListView, tabletJoboView,
     mobileDefaultView, setMobileDefaultView,

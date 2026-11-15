@@ -624,6 +624,7 @@ These are the ones worth knowing by heart:
 | `6` | Go straight to JOBO (with JOBO on) |
 | `C` | Cycle through the views |
 | `,` / `.` | Side panel: Glance / Inbox |
+| `Ctrl+B` / `⌘B` | Side panel: show or hide (desktop) |
 | `M` | Toggle month nav |
 | `Space` | In MONTH: step a day |
 | `↑` / `↓` | In MONTH: a week back / forward |

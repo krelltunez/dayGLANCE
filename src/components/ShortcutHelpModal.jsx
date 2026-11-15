@@ -77,6 +77,7 @@ const ShortcutHelpModal = () => {
                 ['B', t('shortcuts.backupMenu')],
                 [',', t('shortcuts.sidePanelGlance')],
                 ['.', t('shortcuts.sidePanelInbox')],
+                [isMac ? '⌘B' : 'Ctrl+B', t('shortcuts.sidePanelToggle')],
                 ['?', t('shortcuts.thisHelp')],
               ];
             })().map(([key, desc]) => (

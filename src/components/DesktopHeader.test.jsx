@@ -192,3 +192,34 @@ describe('DesktopHeader layout', () => {
     }
   });
 });
+
+// #2407: the button that shows or hides the side panel lives in the header,
+// because once the panel is hidden nothing inside it can bring it back.
+describe('the side panel toggle', () => {
+  const toggle = html => html.match(/<button[^>]*data-side-panel-toggle[^>]*>/)?.[0];
+
+  it('is offered where the panel can be hidden, first in the header, and says what it will do', () => {
+    fixture.planner = { ...fixture.planner, sidePanelCollapsible: true, sidePanelCollapsed: false, toggleSidePanel: vi.fn() };
+    const html = render();
+    const button = toggle(html);
+    expect(button).toBeTruthy();
+    expect(button).toContain('aria-expanded="true"');
+    expect(button).toContain('aria-label="shortcuts.sidePanelHide"');
+    expect(button).toMatch(/title="shortcuts\.sidePanelHide \((Ctrl\+B|⌘B)\)"/);
+    // Before the weather and everything else on the left.
+    expect(html.indexOf('data-side-panel-toggle')).toBeLessThan(html.indexOf('28°'));
+  });
+
+  it('says Show, and is still there, when the panel is hidden', () => {
+    fixture.planner = { ...fixture.planner, sidePanelCollapsible: true, sidePanelCollapsed: true, toggleSidePanel: vi.fn() };
+    const button = toggle(render());
+    expect(button).toContain('aria-expanded="false"');
+    expect(button).toContain('aria-label="shortcuts.sidePanelShow"');
+  });
+
+  it('is absent where the panel cannot be hidden', () => {
+    expect(toggle(render())).toBeUndefined();
+    fixture.planner = { ...fixture.planner, sidePanelCollapsible: false, sidePanelCollapsed: false };
+    expect(toggle(render())).toBeUndefined();
+  });
+});
