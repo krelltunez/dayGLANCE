@@ -388,7 +388,7 @@ async function routeIncoming(raw, context, opts = {}) {
   // A THROW here propagates to the caller (transient → bounded retry). A returned
   // result.success===false is a SOFT failure: the handler refusing this intent,
   // which won't change on retry → permanent.
-  const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id });
+  const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id, emittedAt: envelope.emitted_at });
   logActivity({
     direction: 'in', action: envelope.action, event: envelope.payload.event ?? null,
     source_app: envelope.payload.source_app ?? envelope.emitted_by ?? null,

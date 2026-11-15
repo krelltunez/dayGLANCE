@@ -353,7 +353,7 @@ async function _pollICloud(config, context) {
         }
       }
 
-      const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id });
+      const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id, emittedAt: envelope.emitted_at });
       logActivity({
         direction: 'in',
         action: envelope.action,
@@ -538,7 +538,7 @@ async function _poll(config, context) {
         }
       }
 
-      const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id });
+      const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id, emittedAt: envelope.emitted_at });
       logActivity({
         direction: 'in',
         action: envelope.action,
