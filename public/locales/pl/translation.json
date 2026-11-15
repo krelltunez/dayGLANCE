@@ -1112,7 +1112,6 @@
     "editRecurrenceTitle": "Edytuj powtarzanie",
     "convertToRegular": "Brak (zamień na zwykłe zadanie)",
     "emptyBinTitle": "Opróżnij kosz",
-    "emptyBinMessage": "Czy na pewno chcesz trwale usunąć wszystkie zadania ({{count}}) z kosza? Tej czynności nie można cofnąć.",
     "emptyBinMessage_one": "Czy na pewno chcesz trwale usunąć {{count}} zadanie z kosza? Tej czynności nie można cofnąć.",
     "emptyBinMessage_few": "Czy na pewno chcesz trwale usunąć {{count}} zadania z kosza? Tej czynności nie można cofnąć.",
     "emptyBinMessage_many": "Czy na pewno chcesz trwale usunąć {{count}} zadań z kosza? Tej czynności nie można cofnąć.",
