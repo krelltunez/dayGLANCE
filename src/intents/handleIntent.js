@@ -57,6 +57,32 @@ function clearGoalTombstone(goalId) {
 // intent, derives the same id from the same copy. Re-exported for the tests.
 export { deterministicTaskId };
 
+/**
+ * The stamp an inbound intent's write carries: when the intent was EMITTED
+ * (the envelope's emitted_at), never later than now, as an ISO string. Null
+ * when the transport has no emit time (an Android broadcast, a URL action).
+ *
+ * WHY NOT THE TIME IT IS PROCESSED. Every device on the account drains the
+ * same intent, each when it gets to it, and a task created from one has a
+ * deterministic id so the copies merge as one row. Sync keeps the copy with
+ * the newer lastModified, WHOLE. Stamped at processing time, the copy made by
+ * the device that got to the intent LAST was the newest: a desktop that woke
+ * from sleep and drained a chore sent that morning rebuilt it as it was sent,
+ * all-day, stamped now, and that copy replaced the one the user had since
+ * scheduled on their phone, on every device. Stamped at emit time, every
+ * device builds the same row with the same stamp, and anything the user did
+ * to the task after it arrived is newer, whichever device drains when. The
+ * rule the bridge's task creates already keep (utils/obsidianBridgeCreates.js).
+ *
+ * Never later than now: an emitter whose clock runs ahead must not make a
+ * row that outranks the edits of the next few minutes.
+ */
+export function intentWriteStamp(emittedAt, nowMs = Date.now()) {
+  const emittedMs = typeof emittedAt === 'string' ? Date.parse(emittedAt) : NaN;
+  if (!Number.isFinite(emittedMs)) return null;
+  return new Date(Math.min(emittedMs, nowMs)).toISOString();
+}
+
 function ok(extra = {}) {
   return { success: true, task_id: '', error: '', warning: '', ...extra };
 }
@@ -261,8 +287,10 @@ async function handleCreate(payload, context) {
     goals = [],
     addGoal,
     eventId,
+    emittedAt, // the envelope's emitted_at, where the transport has one (intentWriteStamp)
     deletedTaskIds, // optional override for the tombstone lookup (tests)
   } = context;
+  const stamp = intentWriteStamp(emittedAt);
 
   const v = validate(CreateSchema, payload);
   if (!v.ok) return fail(v.error);
@@ -320,6 +348,18 @@ async function handleCreate(payload, context) {
       recurringTasks.find(t => t._intentKey === intentKey);
 
     if (existing) {
+      // An intent no newer than the task's last write changes nothing. This
+      // is the same intent arriving on a second device (it made the task, or
+      // the task was edited since), and its title and notes are the ones the
+      // task was created with: applied, they overwrote a rename or a note the
+      // user made in between, and restamped the row to carry that fleet-wide.
+      // A create the source emits LATER (the chore renamed there) is newer
+      // than the row and still updates it. Without an emit time there is
+      // nothing to compare, and the update applies as it always did.
+      const lastWrite = Date.parse(existing.lastModified);
+      if (stamp && Number.isFinite(lastWrite) && Date.parse(stamp) <= lastWrite) {
+        return ok({ task_id: existing.id, warning: 'Task already exists; this create is not newer than it' });
+      }
       if (setTasks || setUnscheduledTasks || setRecurringTasks) {
         // Execute: update the existing task in whichever list it lives in.
         const projectId = resolveProjectId(normalized.project, projects);
@@ -418,6 +458,10 @@ async function handleCreate(payload, context) {
     ...(normalized.source_entity_id ? { source_entity_id: normalized.source_entity_id } : {}),
     ...(intentKey ? { _intentKey: intentKey } : {}),
     ...(raw.assigned_user_ids?.length ? { assignedUserSyncIds: raw.assigned_user_ids } : {}),
+    // When the intent was emitted, so every device's copy carries one stamp
+    // and none outranks what the user did to the task since (intentWriteStamp).
+    // Without one the save pass stamps it now, as before.
+    ...(stamp ? { lastModified: stamp } : {}),
   };
 
   if (recurring) {
@@ -430,7 +474,7 @@ async function handleCreate(payload, context) {
       recurrence: freqToRecurrence(recurring, startDate),
       completedDates: [],
       exceptions: {},
-      lastModified: new Date().toISOString(),
+      lastModified: stamp ?? new Date().toISOString(),
     };
     setRecurringTasks(prev => prev.some(t => t.id === taskId) ? prev : [...prev, newRecurring]);
   } else if (due) {

@@ -68,6 +68,11 @@ describe('vault receive plaintext rejection', () => {
     // Routed with the DECRYPTED action + payload.
     expect(handleIntent.mock.calls[0][0]).toBe('notify');
     expect(handleIntent.mock.calls[0][1].title).toBe('inbound');
+    // With the envelope's own id and emit time: a task made from an intent is
+    // stamped when the intent was sent, not when this device got to it
+    // (handleIntent's intentWriteStamp; intentCreateStamp.scenarios.test.js).
+    expect(handleIntent.mock.calls[0][2]).toMatchObject({ eventId: env.event_id, emittedAt: env.emitted_at });
+    expect(env.emitted_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it('(d) an encrypted row with NO vault key cached is TRANSIENT: routeIncoming throws (held, not advanced)', async () => {
