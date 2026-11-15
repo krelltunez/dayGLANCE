@@ -266,6 +266,8 @@ import { useSubscription } from './hooks/useSubscription.js';
 import { useTranslation } from 'react-i18next';
 import { formatDuration } from './utils/formatDuration.js';
 import { syncErrorText } from './sync/syncErrors.js';
+import { REMOTE_UNREADABLE_CODE } from './sync/unreadableRemote.js';
+import useUnreadableRemoteToast from './hooks/useUnreadableRemoteToast.js';
 import { isTrayMode } from './utils/trayMode.js';
 import { shouldFetchNativeEvents } from './utils/trayFetchGate.js';
 import { nativeFetchWindowFor, windowDates, NATIVE_FETCH_RADIUS_DAYS } from './utils/nativeFetchWindow.js';
@@ -950,6 +952,7 @@ const DayPlanner = () => {
     cloudSyncConfig, setCloudSyncConfig,
     cloudSyncStatus, setCloudSyncStatus,
     cloudSyncError, setCloudSyncError,
+    cloudSyncRemoteUnreadable, setCloudSyncRemoteUnreadable,
     cloudSyncLastSynced, setCloudSyncLastSynced,
     cloudSyncConflict, setCloudSyncConflict,
     syncKeyReady, setSyncKeyReady,
@@ -1016,8 +1019,15 @@ const DayPlanner = () => {
         if (status === 'idle' && (prev === 'uploading' || prev === 'downloading')) return prev;
         return status;
       }),
-      onError:              (msg, code) => setCloudSyncError(syncErrorText(t, msg, code)),
-      onLastSyncedChange:   (iso) => setCloudSyncLastSynced(iso),
+      onError:              (msg, code) => {
+        setCloudSyncError(syncErrorText(t, msg, code));
+        // Held until a sync succeeds, not cleared with the text (#2409).
+        if (msg && code === REMOTE_UNREADABLE_CODE) setCloudSyncRemoteUnreadable(true);
+      },
+      onLastSyncedChange:   (iso) => {
+        setCloudSyncLastSynced(iso);
+        setCloudSyncRemoteUnreadable(false);
+      },
       onConflict:           (remoteData, remoteModified, etag) =>
         setCloudSyncConflict({ remoteData, remoteModified, etag }),
       onPassphraseRequired: () => setSyncKeyReady(false),
@@ -1593,6 +1603,8 @@ const DayPlanner = () => {
       if (tab === 'glance' || tab === 'inbox') setTabletActiveTab(tab === 'glance' ? 'glance' : 'inbox');
     },
   };
+
+  useUnreadableRemoteToast({ unreadable: cloudSyncRemoteUnreadable, setUndoToast, t });
 
   // URL action handler: fires once on mount. Reads ?action= from the URL, dispatches
   // through handleIntent (or shows a hint for 'query'), and shows a toast outcome.
@@ -7380,6 +7392,7 @@ const DayPlanner = () => {
     cloudSyncConfig, setCloudSyncConfig,
     cloudSyncStatus, setCloudSyncStatus,
     cloudSyncError, setCloudSyncError,
+    cloudSyncRemoteUnreadable,
     cloudSyncLastSynced, setCloudSyncLastSynced,
     cloudSyncConflict, setCloudSyncConflict,
     syncKeyReady, setSyncKeyReady,
@@ -7431,6 +7444,9 @@ const DayPlanner = () => {
     cloudSyncTest:     (cfg) => cloudSyncEngineRef.current.test(cfg),
     // Manual "Sync now" for the WebDAV file tier (full merge cycle).
     cloudSyncNow:      () => cloudSyncEngineRef.current.sync(),
+    // The way out of a server file that cannot be read (#2409): it reads once
+    // more and replaces the file only if that read is unreadable too.
+    cloudSyncReplaceRemote: () => cloudSyncEngineRef.current.replaceUnreadableRemote(),
     // For the iCloud diagnostics dry-run merge (ICloudDiagnostics.jsx): the same
     // payload and retention the real cycles use, read through the engine
     // callbacks ref so they are current whenever the check runs.

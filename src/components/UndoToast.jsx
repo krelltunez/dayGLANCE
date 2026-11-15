@@ -8,7 +8,9 @@ import { AlertTriangle } from 'lucide-react';
 //
 // `kind: 'warning'` is for something that went wrong or needs the user: it is
 // amber, carries an icon and is announced at once; everything else is
-// announced politely.
+// announced politely. `kind: 'error'` is the same in red, for something that
+// has stopped and stays stopped until the user acts (a sync file on the server
+// that cannot be read, #2409).
 //
 // Layering: above the dialogs (z-[60] up to the JOBO panels at z-[100]), so an
 // action taken inside one, or a Cmd+Z pressed over one, reports where it can
@@ -17,11 +19,14 @@ import { AlertTriangle } from 'lucide-react';
 // which sits in the same place.
 export default function UndoToast({ toast, setToast, darkMode, isMobile, onUndo, onRedo, onFollowUp }) {
   const { t } = useTranslation();
-  const warning = toast.kind === 'warning';
+  const error = toast.kind === 'error';
+  const warning = toast.kind === 'warning' || error;
   // A toast with a button, or a warning someone may need to hold to read,
   // takes the pointer; a passive note lets clicks through.
   const interactive = toast.actionable || toast.redoable || toast.followUp || warning;
-  const tone = warning
+  const tone = error
+    ? (darkMode ? 'bg-red-900 text-red-100' : 'bg-red-700 text-white')
+    : warning
     ? (darkMode ? 'bg-amber-900 text-amber-100' : 'bg-amber-700 text-white')
     : (darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-white');
   const hold = (held) => setToast(prev => (prev ? { ...prev, held } : prev));
@@ -33,7 +38,7 @@ export default function UndoToast({ toast, setToast, darkMode, isMobile, onUndo,
     >
       <div
         data-undo-toast
-        data-toast-kind={warning ? 'warning' : undefined}
+        data-toast-kind={error ? 'error' : warning ? 'warning' : undefined}
         role={warning ? 'alert' : 'status'}
         aria-live={warning ? 'assertive' : 'polite'}
         // Pointer or focus on the toast holds it (hooks/useUndo.js).

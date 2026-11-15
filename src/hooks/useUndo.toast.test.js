@@ -80,6 +80,7 @@ describe('toastDelay', () => {
     expect(toastDelay({ message: 'Undone', redoable: true })).toBe(4000);
     expect(toastDelay({ message: 'Task completed', actionable: true })).toBe(4000);
     expect(toastDelay({ message: 'Saved', kind: 'warning' })).toBe(8000);
+    expect(toastDelay({ message: 'Stopped', kind: 'error' })).toBe(8000);
     expect(toastDelay({ message: 'Done', actionable: true, followUp: {} })).toBe(10000);
   });
 

@@ -11,7 +11,7 @@ import { describeUndoLabel } from '../utils/undoLabels.js';
 // (about 200 words a minute), up to 15s.
 export function toastDelay(toast) {
   const floor = toast.followUp ? 10000
-    : toast.kind === 'warning' ? 8000
+    : toast.kind === 'warning' || toast.kind === 'error' ? 8000
       : toast.actionable || toast.redoable ? 4000 : 2000;
   const reading = 1000 + 60 * String(toast.message ?? '').length;
   return Math.max(floor, Math.min(reading, 15000));

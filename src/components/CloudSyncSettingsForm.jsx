@@ -15,9 +15,10 @@ import { classifyVaultUrl } from '../sync/vaultUrlPolicy.js';
 import { classifyWebdavUrl } from '../sync/webdavUrlPolicy.js';
 import { normalizeSyncFolder } from '../utils/syncFolder.js';
 import { useTranslation } from 'react-i18next';
+import SyncUnreadableRemoteNotice from './SyncUnreadableRemoteNotice.jsx';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
-const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncNow, provider, currentProvider, afterChannels, afterProxy, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, vaultSkipped, onSyncKeyReady }) => {
+const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncNow, provider, currentProvider, afterChannels, afterProxy, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, cloudSyncRemoteUnreadable, cloudSyncReplaceRemote, vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, vaultSkipped, onSyncKeyReady }) => {
   const { t } = useTranslation();
   // The WebDAV fields as saved; also what the WebDAV card's Cancel puts back.
   const savedFormData = () => {
@@ -767,6 +768,11 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
               {t('common.lastSynced')}: {new Date(cloudSyncLastSynced).toLocaleString()}
             </p>
           ) : null}
+          {/* Held from the first unreadable read until a sync succeeds, so the
+              button does not come and go with the error text above (#2409). */}
+          {cloudSyncRemoteUnreadable && cloudSyncReplaceRemote && (
+            <SyncUnreadableRemoteNotice onReplace={cloudSyncReplaceRemote} darkMode={darkMode} />
+          )}
 
           {migrationOldPath && (
             <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 space-y-1">

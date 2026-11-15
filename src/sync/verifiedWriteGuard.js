@@ -39,6 +39,13 @@
  *   mode 'unverified'  nothing to authorize it: REFUSED. The refusal is
  *                      reported, never silent — a write that quietly did not
  *                      happen would otherwise be stamped "synced".
+ *   mode 'replace'     the user asked for the server copy to be replaced, and a
+ *                      read made for that request, moments ago, found the file
+ *                      there but unreadable (unreadableRemote.js, #2409). No
+ *                      validator exists for a file that cannot be read, so none
+ *                      is sent. Both halves are required and both are one-shot:
+ *                      the request alone authorizes nothing, and neither does
+ *                      an unreadable read nobody asked to act on.
  *
  * A server that sends no ETag is the one honest gap: a cycle write may still go
  * out unvalidated (refusing it would stop syncing entirely), while a write with
@@ -100,6 +107,10 @@ export function createVerifiedWriteGuard({
   // upload (a payload build that threw) would otherwise leave the absence
   // standing, and a later unbacked write would ride it out unvalidated.
   let cycleAbsentAt = null;
+  // When the last read found a file it could not read, and when the user last
+  // asked for such a file to be replaced. A 'replace' write needs both, fresh.
+  let cycleUnreadableAt = null;
+  let replaceAuthorizedAt = null;
 
   const currentTarget = () => {
     try { return targetKey() || null; } catch { return null; }
@@ -118,6 +129,8 @@ export function createVerifiedWriteGuard({
      */
     observeRead(result) {
       seedGuard.observeRead(result);
+      // The read resolved, so whatever was unreadable no longer is.
+      cycleUnreadableAt = null;
       if (!result) {
         cycleRead = null;
         cycleAbsentAt = now();
@@ -133,6 +146,36 @@ export function createVerifiedWriteGuard({
     },
 
     /**
+     * A read found the remote file there but unreadable. It is no read of the
+     * target and no absence: nothing a write could stand on, except the one the
+     * user asks for.
+     */
+    observeUnreadable() {
+      cycleRead = null;
+      cycleAbsentAt = null;
+      cycleUnreadableAt = now();
+    },
+
+    /**
+     * The user asked for an unreadable server copy to be replaced. Arms ONE
+     * upload decision, and only when a read has just found the file unreadable.
+     * @returns {boolean} whether there is an unreadable read to act on
+     */
+    authorizeReplace() {
+      if (cycleUnreadableAt == null || now() - cycleUnreadableAt > cycleReadTtlMs) {
+        replaceAuthorizedAt = null;
+        return false;
+      }
+      replaceAuthorizedAt = now();
+      return true;
+    },
+
+    /** The upload a replace was armed for did not reach its decision. */
+    cancelReplace() {
+      replaceAuthorizedAt = null;
+    },
+
+    /**
      * May the upload the engine is about to make proceed, and with which
      * validator? Called once per upload from `validateUploadPayload`.
      *
@@ -140,6 +183,23 @@ export function createVerifiedWriteGuard({
      *            code?:string, reason?:string}}
      */
     decideWrite() {
+      // One-shot whatever the outcome: a request that was not used by the
+      // upload it was made for must not authorize a later one.
+      const replaceAt = replaceAuthorizedAt;
+      const unreadableAt = cycleUnreadableAt;
+      replaceAuthorizedAt = null;
+      if (replaceAt != null) {
+        cycleUnreadableAt = null;
+        if (unreadableAt != null && now() - unreadableAt <= cycleReadTtlMs && now() - replaceAt <= cycleReadTtlMs) {
+          // The seed rule's pending absence, if any, is about an earlier read.
+          seedGuard.decideUpload();
+          cycleRead = null;
+          cycleAbsentAt = null;
+          pendingWrite = { mode: 'replace', etag: null };
+          return { allowed: true, mode: 'replace' };
+        }
+      }
+
       const seed = seedGuard.decideUpload();
 
       if (seed.absence) {
@@ -210,7 +270,7 @@ export function createVerifiedWriteGuard({
     },
 
     /** For diagnostics and tests. */
-    state: () => ({ cycleRead, cycleAbsentAt, pendingWrite }),
+    state: () => ({ cycleRead, cycleAbsentAt, cycleUnreadableAt, replaceAuthorizedAt, pendingWrite }),
   };
 }
 
@@ -244,6 +304,8 @@ export function installVerifiedWriteGuard(providers, guard) {
       // Consume the plan whatever happens: a plan is about THIS upload only.
       const plan = guard.consumeWritePlan();
       let effective = etag || null;
+      // A 'replace' plan is an unconditional PUT on purpose: the file it
+      // replaces could not be read, so there is no ETag to hold it to.
       if (!effective && plan && plan.mode === 'conditional') effective = plan.etag || null;
       if (!effective && !plan) {
         // No plan means the engine called upload() without validating first.

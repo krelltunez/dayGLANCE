@@ -21,6 +21,7 @@ export default function useSyncTopic() {
   const {
     cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncLastSynced,
     cloudSyncStatus, cloudSyncError, cloudSyncNow, vaultSyncNow,
+    cloudSyncRemoteUnreadable, cloudSyncReplaceRemote,
     vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, vaultSkipped,
     setSyncKeyReady, vaultEnabled,
   } = useSyncCtx();
@@ -57,6 +58,8 @@ export default function useSyncTopic() {
                 cloudSyncLastSynced={cloudSyncLastSynced}
                 cloudSyncStatus={cloudSyncStatus}
                 cloudSyncError={cloudSyncError}
+                cloudSyncRemoteUnreadable={cloudSyncRemoteUnreadable}
+                cloudSyncReplaceRemote={cloudSyncReplaceRemote}
                 cloudSyncNow={cloudSyncNow}
                 vaultSyncNow={vaultSyncNow}
                 vaultBootstrapSync={vaultBootstrapSync}

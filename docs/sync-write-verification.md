@@ -79,6 +79,39 @@ has to be checked.
    `cloudSyncError` is non-null. Gating it on `status === 'error'` hid it, because
    the engine settles the status back to `idle` on the next line.
 
+## An unreadable remote file (#2409)
+
+A remote file can be there and still not be readable: an upload that was cut
+off leaves half a JSON document, some servers answer 200 with a page for a path
+that does not exist, and a proxy's error page is a 200 too. The engine reported
+all of these as `NETWORK_ERROR` on every cycle, and nothing ended it: the file is
+there, so nothing seeds, and it cannot be read, so nothing merges.
+
+- **Unreadable is not absent, and authorizes nothing.** The automatic cycle
+  writes nothing, as before. A captive portal looks exactly like this, and a
+  snapshot written over the real file on that evidence is the loss the rules
+  above exist to prevent. JSON that is not a sync file is no longer recorded as
+  a verified read of the target either (`sync/unreadableRemote.js` sits inside
+  the read wrapper).
+- **It has its own code.** `REMOTE_UNREADABLE`: what was seen, that nothing was
+  written, that the local copy is safe. The app says it once per outage in a red
+  toast and keeps the text in the sync settings.
+- **The user can end it.** "Replace the server copy", shown in the sync settings
+  while the file stays unreadable, reads the file once more and uploads this
+  device's data only if that read is unreadable too (`replaceUnreadableRemote`
+  in `sync/adapter.js`; mode `replace` in the write guard). The request and the
+  unreadable read are both required, both fresh, and both one-shot. A file that
+  reads normally, or is missing, is never replaced by it: that runs an ordinary
+  cycle. The empty-payload refusal still applies.
+- **The desktop read is not served from the HTTP cache.** `proxy-fetch` sends
+  `cache: 'no-store'` and a `Cache-Control: no-cache` request header
+  (`electron/proxyFetchInit.ts`). A truncated file was served from Chromium's
+  cache after the server copy had been repaired.
+
+Not done: the upload is still a single PUT to the final path, so an interrupted
+one can still truncate the file. Writing to a temporary name and renaming would
+prevent it, and needs a seam in `@glance-apps/sync`.
+
 ## Not covered here
 
 - **The Test Connection button is a reachability probe, by design.** The providers
