@@ -35,6 +35,11 @@ export const isTextEntryTarget = (target) => {
   return !NON_TEXT_INPUT_TYPES.has(String(target.type || 'text').toLowerCase());
 };
 
+// Cmd+B on a Mac, Ctrl+B elsewhere, and nothing else held: with Shift or Alt
+// the keys are someone else's (the browser's bookmarks bar, for one).
+export const isSidePanelToggleKey = (e) =>
+  (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && typeof e.key === 'string' && e.key.toLowerCase() === 'b';
+
 // The shortcuts that only make sense with the calendar on screen: date
 // navigation (arrows, 't'), the MONTH cursor and its popup ('m', Space, Up,
 // Down, Enter), the view cycler and its direct jumps (1–6, 'c'), focus mode
@@ -89,6 +94,8 @@ export default function useKeyboardShortcuts({
   setShowBackupMenu,
   // panel tabs (',', '.')
   isMobile, tabletActiveTab, setTabletActiveTab,
+  // side panel, shown or hidden (Cmd/Ctrl+B); desktop only
+  sidePanelCollapsible, toggleSidePanel,
   // voice input ('v')
   aiConfig, setShowVoiceInput,
   // habits ('h')
@@ -150,15 +157,27 @@ export default function useKeyboardShortcuts({
         return;
       }
 
+      // Don't trigger shortcuts when a modal is open (except Escape and ? handled above)
+      // An open PLANNER is modal too: it takes its own keys (ProjectPlanner),
+      // and nothing behind it, the calendar or the project list, moves.
+      const modalOpen = !!(showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview || showVoiceInput || showHabitModal || showFramesModal || frameAdjustModal || showRescheduleModal || showBucketList || showDayDial || plannerProjectId || showTagManager);
+
+      // Cmd+B / Ctrl+B: show or hide the side panel (#2407), in either space.
+      // It works from a text field, where the keys mean nothing else and where
+      // the cursor usually is (the Inbox's own field sits in the panel), but
+      // not in rich text, where they mean bold, and not behind a modal.
+      if (isSidePanelToggleKey(e) && sidePanelCollapsible && !modalOpen && !e.target.isContentEditable) {
+        e.preventDefault();
+        toggleSidePanel();
+        return;
+      }
+
       // Don't trigger if typing in an input or textarea
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
         return;
       }
 
-      // Don't trigger shortcuts when a modal is open (except Escape and ? handled above)
-      // An open PLANNER is modal too: it takes its own keys (ProjectPlanner),
-      // and nothing behind it, the calendar or the project list, moves.
-      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview || showVoiceInput || showHabitModal || showFramesModal || frameAdjustModal || showRescheduleModal || showBucketList || showDayDial || plannerProjectId || showTagManager) {
+      if (modalOpen) {
         return;
       }
       // The Goals & Projects space is not a modal: it swaps the sidebar and the
@@ -459,5 +478,5 @@ export default function useKeyboardShortcuts({
     // action callbacks (changeDate/goToToday/performUndo/performRedo/playUISound),
     // all stable or read through refs — listing them would needlessly re-bind.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthViewActive, selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, showBucketList, showDayDial, plannerProjectId, showTagManager, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler, schedOnlyCycler, effectiveViewMode, hiddenViews]);
+  }, [monthViewActive, selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, showBucketList, showDayDial, plannerProjectId, showTagManager, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, sidePanelCollapsible, toggleSidePanel, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler, schedOnlyCycler, effectiveViewMode, hiddenViews]);
 }

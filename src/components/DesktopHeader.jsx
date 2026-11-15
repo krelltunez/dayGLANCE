@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   BookOpen, ChevronLeft, ChevronRight, Cloud,
-  HelpCircle, Moon, RefreshCw, Settings, Sun,
+  HelpCircle, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings, Sun,
 } from 'lucide-react';
 import { dateToString, formatDateRange } from '../utils/taskUtils.js';
 import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
@@ -36,6 +36,7 @@ const DesktopHeader = () => {
     changeDate, goToToday, goToDate, changeViewedMonth,
     getDateIndicators, getMonthDays,
     weekStartDay,
+    sidePanelCollapsible, sidePanelCollapsed, toggleSidePanel,
   } = useDayPlannerCtx();
   const {
     calSyncStatus, calSyncLastSynced, calSyncConfigured,
@@ -91,11 +92,32 @@ const DesktopHeader = () => {
     ? formatDateRange(weekViewDates, t, locale)
     : formatDateRange(visibleDates, t, locale);
 
+  const sidePanelKeys = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘B' : 'Ctrl+B';
+
   return (
     <>
       <div className={`${cardBg} border-b ${borderClass} px-4 py-2 grid grid-cols-[minmax(max-content,1fr)_minmax(0,auto)_minmax(max-content,1fr)] items-center gap-3 relative`} style={{ height: '80px' }}>
         {/* Left: space switcher, then Weather + Daily Content */}
         <div className="flex items-center gap-4 min-w-0">
+          {/* The side panel, shown or hidden (#2407): GLANCE and the Inbox
+              here, Goals and Projects in their space. Always in this corner,
+              because once the panel is hidden nothing inside it can bring it
+              back. */}
+          {sidePanelCollapsible && (
+            <button
+              type="button"
+              data-side-panel-toggle
+              onClick={toggleSidePanel}
+              aria-expanded={!sidePanelCollapsed}
+              aria-label={sidePanelCollapsed ? t('shortcuts.sidePanelShow') : t('shortcuts.sidePanelHide')}
+              title={`${sidePanelCollapsed ? t('shortcuts.sidePanelShow') : t('shortcuts.sidePanelHide')} (${sidePanelKeys})`}
+              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} flex-shrink-0`}
+            >
+              {sidePanelCollapsed
+                ? <PanelLeftOpen size={18} className={textSecondary} />
+                : <PanelLeftClose size={18} className={textSecondary} />}
+            </button>
+          )}
           <SpaceSwitcher />
           {weather && weatherEnabled && (
             <>

@@ -9,7 +9,7 @@ vi.mock('react', () => ({
 }));
 vi.mock('../components/month/MonthDaySheet.jsx', () => ({ isMonthDaySheetOpen: () => false }));
 
-const { default: useKeyboardShortcuts, isCalendarOnlyShortcut, isTextEntryTarget } = await import('./useKeyboardShortcuts.js');
+const { default: useKeyboardShortcuts, isCalendarOnlyShortcut, isTextEntryTarget, isSidePanelToggleKey } = await import('./useKeyboardShortcuts.js');
 
 const listeners = [];
 const fakeDocument = {
@@ -306,5 +306,83 @@ describe('useKeyboardShortcuts — the # key', () => {
     const behind = useMounted({ setShowTagManager: vi.fn(), showSettings: true });
     press('#');
     expect(behind.setShowTagManager).not.toHaveBeenCalled();
+  });
+});
+
+// #2407: Cmd/Ctrl+B shows or hides the desktop side panel.
+describe('useKeyboardShortcuts — the side panel', () => {
+  const useMountedPanel = (overrides = {}) => useMounted({ sidePanelCollapsible: true, toggleSidePanel: vi.fn(), ...overrides });
+
+  it('toggles on Ctrl+B and on Cmd+B, and takes the key', () => {
+    const p = useMountedPanel();
+    const ctrl = press('b', { ctrlKey: true });
+    const cmd = press('b', { metaKey: true });
+    expect(p.toggleSidePanel).toHaveBeenCalledTimes(2);
+    expect(ctrl.preventDefault).toHaveBeenCalled();
+    expect(cmd.preventDefault).toHaveBeenCalled();
+    // The plain key is still the backup menu, and only that.
+    expect(p.setShowBackupMenu).not.toHaveBeenCalled();
+  });
+
+  it('leaves plain b to the backup menu', () => {
+    const p = useMountedPanel();
+    press('b');
+    expect(p.toggleSidePanel).not.toHaveBeenCalled();
+    expect(p.setShowBackupMenu).toHaveBeenCalledTimes(1);
+  });
+
+  it('works in the Goals space too', () => {
+    const p = useMountedPanel({ showGoalsDashboard: true });
+    press('b', { ctrlKey: true });
+    expect(p.toggleSidePanel).toHaveBeenCalledTimes(1);
+  });
+
+  it('works from a text field, where the cursor usually is', () => {
+    const p = useMountedPanel();
+    press('b', { ctrlKey: true, target: { tagName: 'INPUT' } });
+    press('b', { metaKey: true, target: { tagName: 'TEXTAREA' } });
+    expect(p.toggleSidePanel).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves the keys to rich text, where they mean bold', () => {
+    const p = useMountedPanel();
+    const e = press('b', { ctrlKey: true, target: { tagName: 'DIV', isContentEditable: true } });
+    expect(p.toggleSidePanel).not.toHaveBeenCalled();
+    expect(e.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it.each(['showSettings', 'showAddTask', 'showFocusMode', 'showSpotlight', 'plannerProjectId'])('does nothing behind a modal (%s)', (modal) => {
+    const p = useMountedPanel({ [modal]: true });
+    const e = press('b', { ctrlKey: true });
+    expect(p.toggleSidePanel).not.toHaveBeenCalled();
+    expect(e.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('is not there on a tablet or a phone, and does not take the key from the browser', () => {
+    const p = useMountedPanel({ sidePanelCollapsible: false });
+    const e = press('b', { ctrlKey: true });
+    expect(p.toggleSidePanel).not.toHaveBeenCalled();
+    expect(e.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('is Cmd or Ctrl with B and nothing else held', () => {
+    const key = (extra) => ({ key: 'b', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...extra });
+    expect(isSidePanelToggleKey(key({ ctrlKey: true }))).toBe(true);
+    expect(isSidePanelToggleKey(key({ metaKey: true }))).toBe(true);
+    expect(isSidePanelToggleKey(key({ ctrlKey: true, key: 'B' }))).toBe(true);
+    expect(isSidePanelToggleKey(key({}))).toBe(false);
+    expect(isSidePanelToggleKey(key({ ctrlKey: true, shiftKey: true }))).toBe(false);
+    expect(isSidePanelToggleKey(key({ ctrlKey: true, altKey: true }))).toBe(false);
+    expect(isSidePanelToggleKey(key({ ctrlKey: true, key: 'k' }))).toBe(false);
+    expect(isSidePanelToggleKey({ ctrlKey: true })).toBe(false);
+  });
+
+  it('still lets a modal block the other shortcuts, and a text field block them too', () => {
+    const p = useMountedPanel({ showSettings: true });
+    press('g');
+    expect(p.toggleDesktopSpace).not.toHaveBeenCalled();
+    const q = useMountedPanel();
+    press('g', { target: { tagName: 'INPUT' } });
+    expect(q.toggleDesktopSpace).not.toHaveBeenCalled();
   });
 });
