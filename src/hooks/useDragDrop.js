@@ -3,7 +3,7 @@ import { dateToString } from '../utils/taskUtils.js';
 import { TASK_COLORS } from '../utils/colorUtils.js';
 import { nativeUpdateEvent, triggerHaptic } from '../native.js';
 import { describeObstacle } from '../utils/dayOccupancy.js';
-import { anchorDragImageAtTop, dropClampMinutes } from '../utils/dragUtils.js';
+import { holdDragImage, isTimelineBlock, dragTopPoint, dropClampMinutes } from '../utils/dragUtils.js';
 import { nativeEventEndString } from '../utils/nativeCalendar.js';
 import { pixelsToSnappedMinutes, resizeBlockByPixels } from '../utils/taskResize.js';
 import { timelinePosition } from '../utils/timelinePosition.js';
@@ -75,6 +75,10 @@ export default function useDragDrop({
   const [mobileDragOverTrash, setMobileDragOverTrash] = useState(false);
 
   const autoScrollInterval = useRef(null); // For drag auto-scroll
+  // How far below its top edge the dragged card is held, px (#2419). A ref: it
+  // is set once at drag start and read by every dragover, none of which should
+  // wait for a render.
+  const dragGrabOffsetRef = useRef(0);
   const frameResizingRef = useRef(false); // Suppress click-to-add-task after frame resize drag
   const stickyHeaderRef = useRef(null); // For measuring sticky header height during drag
 
@@ -246,12 +250,18 @@ export default function useDragDrop({
     setDragPreviewTime(null);
     setExpandedNotesTaskId(null); // Close notes panel when dragging
     e.dataTransfer.effectAllowed = 'move';
-    // The cursor's time becomes the new start, so the card floats from its
-    // top edge, on the drop preview block (#2277).
-    anchorDragImageAtTop(e);
+    // A block on the grid stays under the pointer where it was grabbed, and
+    // its top edge is read as the new start (#2419); anything else is held by
+    // its top edge, so the pointer's time is the start (#2277).
+    dragGrabOffsetRef.current = holdDragImage(e, { atGrabPoint: isTimelineBlock(task, source) });
   };
 
+  // Where a drag's time is read: the dragged card's top edge. Pass the result
+  // to a time helper in the event's place.
+  const dragStartPoint = (e) => dragTopPoint(e, dragGrabOffsetRef.current);
+
   const handleDragEnd = () => {
+    dragGrabOffsetRef.current = 0;
     setDraggedTask(null);
     setDragSource(null);
     setDragPreviewTime(null);
@@ -344,7 +354,7 @@ export default function useDragDrop({
     if (draggedTask && calendarRef.current) {
       // As the drop computes it: a task may run past midnight (#2278); a
       // routine (today only) still ends by midnight.
-      const time = getTimeFromCursorPosition(e, {
+      const time = getTimeFromCursorPosition(dragStartPoint(e), {
         maxMinutes: 24 * 60,
         taskDuration: dragSource === 'routine' ? draggedTask.duration : dropClampMinutes(draggedTask.duration)
       });
@@ -407,15 +417,16 @@ export default function useDragDrop({
         setDraggedTask(null); setDragSource(null); setDragPreviewTime(null); setDragPreviewDate(null);
         return;
       }
-      const startTime = overrideTime || getTimeFromCursorPosition(e, { maxMinutes: 24 * 60, taskDuration: draggedTask.duration });
+      const startTime = overrideTime || getTimeFromCursorPosition(dragStartPoint(e), { maxMinutes: 24 * 60, taskDuration: draggedTask.duration });
       setTodayRoutines(prev => prev.map(r => r.id === draggedTask.id ? { ...r, startTime, isAllDay: false, lastModified: new Date().toISOString() } : r));
       setDraggedTask(null); setDragSource(null); setDragPreviewTime(null); setDragPreviewDate(null);
       return;
     }
 
-    // The cursor's quarter-hour is the new start, as late as 23:45: a task
-    // that then runs past midnight carries on the next date (#2278).
-    const requestedStartTime = overrideTime || getTimeFromCursorPosition(e, {
+    // The quarter-hour at the dragged card's top edge is the new start, as late
+    // as 23:45: a task that then runs past midnight carries on the next date
+    // (#2278).
+    const requestedStartTime = overrideTime || getTimeFromCursorPosition(dragStartPoint(e), {
       maxMinutes: 24 * 60,
       taskDuration: dropClampMinutes(draggedTask.duration)
     });
@@ -1657,6 +1668,7 @@ export default function useDragDrop({
     // desktop drag start/end + auto-scroll
     handleDragStart,
     handleDragEnd,
+    dragStartPoint,
     updateDragAutoScroll,
     // desktop drag-over handlers
     handleDragOver,

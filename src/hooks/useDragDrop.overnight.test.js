@@ -269,3 +269,60 @@ describe('on the phone, the continuation\'s tab drags the whole task from 00:00'
     expect(state.tasks).toEqual([expect.objectContaining({ date: WED, startTime: '01:00', duration: 120 })]);
   });
 });
+
+// #2419: a block grabbed part-way down stays under the pointer, and the drop
+// reads the time at its top edge, not at the pointer.
+describe('a block dragged by its middle lands by its top edge', () => {
+  // The card as MULTI draws a 2-hour task at 09:00, grabbed an hour down it.
+  const cardAt = (startHHMM, minutes) => ({ getBoundingClientRect: () => ({ left: 0, top: atTime(startHHMM), width: 200, height: (minutes / 60) * ROW }) });
+  const grab = (el, clientY) => ({ preventDefault() {}, clientX: 50, clientY, currentTarget: el, target: el, dataTransfer: { setDragImage: vi.fn() } });
+  const over = (clientY) => ({ preventDefault() {}, clientX: 50, clientY, dataTransfer: {} });
+  const morning = () => ({ id: 't1', title: 'Workshop', date: WED, startTime: '09:00', duration: 120 });
+
+  it('a drag that goes nowhere leaves the task where it was', () => {
+    const { state, render } = setup({ tasks: [morning()] });
+    render().handleDragStart(state.tasks[0], 'calendar', grab(cardAt('09:00', 120), atTime('10:00')));
+    render().handleDropOnCalendar(over(atTime('10:00')), new Date(`${WED}T12:00:00`));
+    expect(state.tasks[0]).toMatchObject({ date: WED, startTime: '09:00', duration: 120 });
+  });
+
+  it('moves the start by as far as the pointer travelled', () => {
+    const { state, render } = setup({ tasks: [morning()] });
+    render().handleDragStart(state.tasks[0], 'calendar', grab(cardAt('09:00', 120), atTime('10:00')));
+    // The pointer goes from 10:00 to 13:30: the start goes from 09:00 to 12:30.
+    render().handleDropOnCalendar(over(atTime('13:30')), new Date(`${WED}T12:00:00`));
+    expect(state.tasks[0]).toMatchObject({ date: WED, startTime: '12:30', duration: 120 });
+  });
+
+  it('the preview block is where the drop will land', () => {
+    const { state, render } = setup({ tasks: [morning()] });
+    render().handleDragStart(state.tasks[0], 'calendar', grab(cardAt('09:00', 120), atTime('10:00')));
+    render().handleDragOver(over(atTime('13:30')), new Date(`${WED}T12:00:00`));
+    expect(render().dragPreviewTime).toBe('12:30');
+  });
+
+  it('a top edge above the grid is midnight', () => {
+    const { state, render } = setup({ tasks: [morning()] });
+    render().handleDragStart(state.tasks[0], 'calendar', grab(cardAt('09:00', 120), atTime('10:30')));
+    render().handleDropOnCalendar(over(atTime('00:30')), new Date(`${WED}T12:00:00`));
+    expect(state.tasks[0].startTime).toBe('00:00');
+  });
+
+  it('grabbed by its top edge, the pointer\'s time is the start, as before', () => {
+    const { state, render } = setup({ tasks: [morning()] });
+    render().handleDragStart(state.tasks[0], 'calendar', grab(cardAt('09:00', 120), atTime('09:00')));
+    render().handleDropOnCalendar(over(atTime('13:30')), new Date(`${WED}T12:00:00`));
+    expect(state.tasks[0].startTime).toBe('13:30');
+  });
+
+  it('the next drag does not inherit the offset', () => {
+    const { state, render } = setup({ tasks: [morning()] });
+    render().handleDragStart(state.tasks[0], 'calendar', grab(cardAt('09:00', 120), atTime('10:00')));
+    render().handleDragEnd();
+    // An Inbox row: held by its top edge, the pointer's time is the start.
+    const row = { getBoundingClientRect: () => ({ left: 0, top: 400, width: 200, height: 44 }) };
+    render().handleDragStart({ id: 't1', title: 'Workshop', duration: 120 }, 'inbox', grab(row, 430));
+    render().handleDragOver(over(atTime('13:30')), new Date(`${WED}T12:00:00`));
+    expect(render().dragPreviewTime).toBe('13:30');
+  });
+});

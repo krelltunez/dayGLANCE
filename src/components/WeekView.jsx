@@ -120,7 +120,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
     draggedTask,
     dragPreviewTime, dragPreviewDate,
     setDragPreviewTime, setDragPreviewDate,
-    handleDragStart, handleDragEnd, handleDropOnCalendar,
+    handleDragStart, handleDragEnd, dragStartPoint, handleDropOnCalendar,
     formatTime,
     setNewTask, setShowAddTask,
   } = useDayPlannerCtx();
@@ -174,16 +174,16 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
     if (!draggedTask) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    // The cursor's time is the start; a task may run on past the window's end,
-    // and past midnight onto the next date (#2278).
-    const t = timeFromEvent(e, { taskDuration: dropClampMinutes(draggedTask.duration) });
+    // The time at the dragged chip's top edge is the start (#2419); a task may
+    // run on past the window's end, and past midnight onto the next date (#2278).
+    const t = timeFromEvent(dragStartPoint(e), { taskDuration: dropClampMinutes(draggedTask.duration) });
     setDragPreviewTime(t);
     setDragPreviewDate(date);
   };
 
   const onColDrop = (e) => {
     if (!draggedTask) return;
-    const t = timeFromEvent(e, { taskDuration: dropClampMinutes(draggedTask.duration) });
+    const t = timeFromEvent(dragStartPoint(e), { taskDuration: dropClampMinutes(draggedTask.duration) });
     handleDropOnCalendar(e, date, t);
   };
 

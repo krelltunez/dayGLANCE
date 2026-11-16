@@ -75,14 +75,39 @@ describe('drop-zone highlight', () => {
   });
 });
 
-// #2277: the cursor's time becomes the dropped task's start, so the drag image
-// is held by the card's top edge, where the drop preview block starts.
+// #2277: the dragged card's top edge is read as the dropped task's start, so
+// the floating card sits on the drop preview block.
 describe('drag image', () => {
-  it('a task drag holds its card by the top edge, at the point it was grabbed across', () => {
-    const card = { getBoundingClientRect: () => ({ left: 40, top: 200, width: 300, height: 120 }) };
-    const e = { currentTarget: card, target: card, clientX: 100, clientY: 260, dataTransfer: { setDragImage: vi.fn() } };
-    useRender().handleDragStart({ id: 't1', title: 'Scheduled one', duration: 60 }, 'calendar', e);
+  const card = { getBoundingClientRect: () => ({ left: 40, top: 200, width: 300, height: 120 }) };
+  const dragStart = () => ({ currentTarget: card, target: card, clientX: 100, clientY: 260, dataTransfer: { setDragImage: vi.fn() } });
+
+  it('an Inbox row is held by its top edge, at the point it was grabbed across', () => {
+    const e = dragStart();
+    const dd = useRender();
+    dd.handleDragStart({ id: 't1', title: 'Inbox one', duration: 60 }, 'inbox', e);
     expect(e.dataTransfer.setDragImage).toHaveBeenCalledWith(card, 60, 0);
     expect(e.dataTransfer.effectAllowed).toBe('move');
+    // The pointer's time is the start.
+    expect(dd.dragStartPoint({ clientX: 100, clientY: 500 })).toEqual({ clientX: 100, clientY: 500 });
+  });
+
+  // #2419: a block on the grid stays under the pointer where it was grabbed.
+  it('a timeline block is held where it was grabbed, and its top edge is read as the start', () => {
+    const e = dragStart();
+    let dd = useRender();
+    dd.handleDragStart({ id: 't1', title: 'Scheduled one', startTime: '09:00', duration: 60 }, 'calendar', e);
+    expect(e.dataTransfer.setDragImage).toHaveBeenCalledWith(card, 60, 60);
+    dd = useRender();
+    expect(dd.dragStartPoint({ clientX: 100, clientY: 500 })).toEqual({ clientX: 100, clientY: 440 });
+
+    // The offset belongs to that drag alone.
+    dd.handleDragEnd();
+    expect(useRender().dragStartPoint({ clientX: 100, clientY: 500 })).toEqual({ clientX: 100, clientY: 500 });
+  });
+
+  it('an all-day card is held by its top edge, though it is a calendar task', () => {
+    const e = dragStart();
+    useRender().handleDragStart({ id: 't1', title: 'All day', isAllDay: true }, 'calendar', e);
+    expect(e.dataTransfer.setDragImage).toHaveBeenCalledWith(card, 60, 0);
   });
 });
