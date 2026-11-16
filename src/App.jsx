@@ -1776,7 +1776,7 @@ const DayPlanner = () => {
   const openGoalsTargetRef = useRef(null);
   const openGoalsTarget = useCallback((action, id) => openGoalsTargetRef.current?.(action, id), []);
 
-  const { changeDate, goToToday, goToDate, handleSpotlightSelect } = useNavigation({
+  const { changeDate, goToToday, goToDate, handleSpotlightSelect, goToOverdueTask } = useNavigation({
     visibleDays,
     effectiveViewMode,
     monthViewActive,
@@ -6327,6 +6327,7 @@ const DayPlanner = () => {
     postponeTask,
     goalsProjectsEnabled,
     goToDate,
+    goToOverdueTask,
     scrollToHour,
     activeReminders,
     snoozeReminder,
@@ -7304,7 +7305,7 @@ const DayPlanner = () => {
     toggleSection, toggleSettingsSection,
 
     // ── Functions – navigation ────────────────────────────────────────────────
-    changeDate, goToToday, goToDate, changeViewedMonth,
+    changeDate, goToToday, goToDate, goToOverdueTask, changeViewedMonth,
     scrollToCurrentHour, scrollToHour,
 
     // ── Functions – task CRUD ─────────────────────────────────────────────────

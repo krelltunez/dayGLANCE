@@ -99,6 +99,7 @@ export default function useElectronBridge({
   postponeTask,
   goalsProjectsEnabled,
   goToDate,
+  goToOverdueTask,
   scrollToHour,
   // Reminders
   activeReminders,
@@ -141,6 +142,8 @@ export default function useElectronBridge({
   const clearDeadlineRef = useRef(clearDeadline);
   const postponeTaskRef = useRef(postponeTask);
   const scrollToHourRef = useRef(scrollToHour);
+  const goToOverdueTaskRef = useRef(goToOverdueTask);
+  const unscheduledTasksRef = useRef(unscheduledTasks);
   const setHabitCountRef = useRef(setHabitCount);
   const snoozeReminderRef = useRef(snoozeReminder);
   const dismissReminderRef = useRef(dismissReminder);
@@ -175,6 +178,8 @@ export default function useElectronBridge({
   clearDeadlineRef.current = clearDeadline;
   postponeTaskRef.current = postponeTask;
   scrollToHourRef.current = scrollToHour;
+  goToOverdueTaskRef.current = goToOverdueTask;
+  unscheduledTasksRef.current = unscheduledTasks;
   setHabitCountRef.current = setHabitCount;
   snoozeReminderRef.current = snoozeReminder;
   dismissReminderRef.current = dismissReminder;
@@ -270,6 +275,11 @@ export default function useElectronBridge({
         if (payload.startTime) {
           setTimeout(() => scrollToHourRef.current?.(payload.startTime, true), 350);
         }
+      } else if (action === 'goto-inbox-task') {
+        // The tray's Overdue row for an Inbox task whose deadline has passed
+        // (#2418): it has no date or time to go to, so it is shown in the Inbox.
+        const task = (unscheduledTasksRef.current || []).find(t => String(t.id) === String(payload.taskId));
+        if (task) goToOverdueTaskRef.current?.({ ...task, _overdueType: 'deadline' });
       } else if (action === 'focus-mode') {
         enterFocusModeRef.current?.();
       } else if (action === 'hyperglance') {

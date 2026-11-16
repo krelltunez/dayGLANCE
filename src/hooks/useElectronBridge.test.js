@@ -106,6 +106,32 @@ describe('background-action listener (the tray ack relay endpoint)', () => {
   });
 });
 
+// #2418: the tray's Overdue row for an Inbox task whose deadline has passed
+// has no date or time for goto-task to go to; the main window shows it in the
+// Inbox instead.
+describe('tray navigate: goto-inbox-task', () => {
+  it('hands the live Inbox task to goToOverdueTask as a deadline row', () => {
+    api.onTrayNavigate = vi.fn(() => () => {});
+    const goToOverdueTask = vi.fn();
+    const goToDate = vi.fn();
+    useBridge({
+      goToOverdueTask, goToDate, currentTime: new Date(),
+      unscheduledTasks: [{ id: 41, title: 'File taxes', deadline: '2026-11-15' }],
+    });
+    const navigate = api.onTrayNavigate.mock.calls[0][0];
+
+    // The id crosses IPC and may arrive as a string.
+    navigate({ action: 'goto-inbox-task', taskId: '41' });
+    expect(goToOverdueTask).toHaveBeenCalledWith({ id: 41, title: 'File taxes', deadline: '2026-11-15', _overdueType: 'deadline' });
+    expect(goToDate).not.toHaveBeenCalled();
+
+    // A task that has gone since the tray drew its row is not an error.
+    goToOverdueTask.mockClear();
+    navigate({ action: 'goto-inbox-task', taskId: 'gone' });
+    expect(goToOverdueTask).not.toHaveBeenCalled();
+  });
+});
+
 describe('push effect dependencies', () => {
   it('re-pushes when the data slices the payload reads change identity', () => {
     const tasks = [{ id: 't1' }];
