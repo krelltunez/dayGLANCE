@@ -95,7 +95,8 @@ const MobileGlanceSection = () => {
     moveToRecycleBin,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
     tagFilterBtnRef,
-    goToDate, scrollToHour,
+    goToDate, goToOverdueTask, scrollToHour,
+    openMobileEditTask,
     glancePage, setGlancePage,
     mobileViewMode,
     setShowBucketList,
@@ -683,23 +684,15 @@ const MobileGlanceSection = () => {
                   {task.completed && <Check size={12} strokeWidth={3} className="text-white" />}
                 </button>
                 <div
-                  className={`flex-1 min-w-0 ${task._overdueType === 'scheduled' ? 'cursor-pointer' : ''}`}
-                  onClick={() => {
-                    if (task._overdueType !== 'scheduled') return;
-                    if (task.date) setSelectedDate(new Date(task.date + 'T12:00:00'));
-                    setMobileActiveTab('timeline');
-                    setTimeout(() => {
-                      const el = document.querySelector(`[data-task-id="${task.id}"]`);
-                      if (el && calendarRef.current) {
-                        const container = calendarRef.current;
-                        const elTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
-                        const scrollTarget = Math.max(0, elTop - container.clientHeight / 2 + el.offsetHeight / 2);
-                        container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
-                        el.classList.add('ring-2', 'ring-blue-400');
-                        setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
-                      }
-                    }, 200);
-                  }}
+                  className="flex-1 min-w-0 cursor-pointer"
+                  data-overdue-open={task.id}
+                  // A tap finds the task (#2418): a scheduled one on the
+                  // timeline, an Inbox one with a passed deadline in the
+                  // Inbox, or in its editor where the Inbox filters it out.
+                  onClick={() => goToOverdueTask(
+                    task,
+                    task._overdueType === 'deadline' ? { onMissing: () => openMobileEditTask(task, true) } : undefined,
+                  )}
                 >
                   <div className={`text-sm font-medium truncate ${task.completed ? 'line-through opacity-50' : textPrimary}`}>
                     {renderTitle(task.title)}

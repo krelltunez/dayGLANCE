@@ -83,6 +83,73 @@ export default function useNavigation({
     setShowMonthView(false);
   }, [setSelectedDate, setShowMonthView]);
 
+  // Scroll a task's card or row into view and ring it for two seconds.
+  //
+  // A card inside the calendar's scroll container is centred in it. Anything
+  // else is scrolled in whatever list holds it: an Inbox row (`ownScroller`,
+  // which the calendar's container left far down the Inbox off screen), an
+  // all-day card in the header, an agenda card. `onMissing` runs when nothing
+  // matches once the delay is up (the row is filtered out of its list, say),
+  // so a click that asked for a task is never a click that does nothing.
+  const scrollAndHighlight = useCallback((selector, delay = 300, { ownScroller = false, onMissing } = {}) => {
+    setTimeout(() => {
+      const el = document.querySelector(selector);
+      if (!el) { onMissing?.(); return; }
+      const container = calendarRef.current;
+      if (ownScroller || !container?.contains?.(el)) {
+        el.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      } else {
+        const elTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+        const scrollTarget = Math.max(0, elTop - container.clientHeight / 2 + el.offsetHeight / 2);
+        container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+      }
+      el.classList.add('ring-2', 'ring-blue-400');
+      setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
+    }, delay);
+  }, [calendarRef]);
+
+  // Show an Inbox task's row: the Inbox tab, the project filter that lists it,
+  // the part of the list that holds it, then scroll and ring. An archived task
+  // is in the Archived bar under the list instead.
+  const goToInboxTask = useCallback((task, { onMissing } = {}) => {
+    if (isMobile) {
+      setMobileActiveTab('inbox');
+    } else {
+      setTabletActiveTab('inbox');
+    }
+    if (task.archived) {
+      setInboxArchivedExpanded(true);
+      scrollAndHighlight(`[data-task-id="${task.id}"]`, 500, { onMissing });
+      return;
+    }
+    // Apply project filter for project tasks; clear it for plain inbox tasks
+    setInboxProjectFilter(task.projectId ? [task.projectId] : []);
+    // The Inbox renders a part at a time: make sure this row is rendered.
+    revealTask(task.id);
+    scrollAndHighlight(`[data-task-id="${task.id}"]`, 300, { ownScroller: true, onMissing });
+  }, [isMobile, setMobileActiveTab, setTabletActiveTab, setInboxProjectFilter, setInboxArchivedExpanded, scrollAndHighlight]);
+
+  // A row of the Overdue list (#2418). A scheduled task is found on the
+  // timeline, in every view: on the date it is on, scrolled to and ringed. An
+  // Inbox task whose deadline has passed has no place on the timeline, and its
+  // row did nothing at all; it is found in the Inbox.
+  const goToOverdueTask = useCallback((task, { onMissing } = {}) => {
+    if (!task) return;
+    if (task._overdueType === 'deadline') {
+      setDesktopSpace('calendar');
+      goToInboxTask(task, { onMissing });
+      return;
+    }
+    // The timeline's card, or the agenda's (SCHED lists a task, it has no grid).
+    const selector = `[data-task-id="${task.id}"], [data-sched-task="${task.id}"]`;
+    if (isMobile) setMobileActiveTab('timeline');
+    // A card already on screen is ringed where it is; changing the date for it
+    // would only shift the columns under the user.
+    const shown = !isMobile && !!document.querySelector(selector);
+    if (!shown && task.date) goToDate(task.date);
+    scrollAndHighlight(selector, shown ? 0 : 300, { onMissing });
+  }, [isMobile, setMobileActiveTab, setDesktopSpace, goToDate, goToInboxTask, scrollAndHighlight]);
+
   const handleSpotlightSelect = useCallback((result) => {
     setShowSpotlight(false);
     // Every result navigates somewhere the Project Planner's overlay would
@@ -94,27 +161,6 @@ export default function useNavigation({
     // (#2231). A no-op on a phone, which has a tab instead.
     if (source !== 'goal' && source !== 'project' && source !== 'area') setDesktopSpace('calendar');
 
-    // `ownScroller`: the row is not on the calendar (an Inbox task), so it is
-    // scrolled into view in whatever list holds it, not the calendar's
-    // container (which left a task far down the Inbox off screen).
-    const scrollAndHighlight = (selector, delay = 300, { ownScroller = false } = {}) => {
-      setTimeout(() => {
-        const el = document.querySelector(selector);
-        if (el && ownScroller) {
-          el.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-          el.classList.add('ring-2', 'ring-blue-400');
-          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
-        } else if (el && calendarRef.current) {
-          const container = calendarRef.current;
-          const elTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
-          const scrollTarget = Math.max(0, elTop - container.clientHeight / 2 + el.offsetHeight / 2);
-          container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
-          el.classList.add('ring-2', 'ring-blue-400');
-          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
-        }
-      }, delay);
-    };
-
     if (source === 'scheduled' || source === 'event') {
       if (isMobile) {
         setMobileActiveTab('timeline');
@@ -123,25 +169,10 @@ export default function useNavigation({
       // Native calendar events are fetched per-date, so the card may not exist
       // until the timeline re-fetches the target day — give it a little longer.
       scrollAndHighlight(`[data-task-id="${task.id}"]`, source === 'event' ? 600 : 300);
-    } else if (source === 'inbox') {
-      if (isMobile) {
-        setMobileActiveTab('inbox');
-      } else {
-        setTabletActiveTab('inbox');
-      }
-      // Apply project filter for project tasks; clear it for plain inbox tasks
-      setInboxProjectFilter(task.projectId ? [task.projectId] : []);
-      // The Inbox renders a part at a time: make sure this row is rendered.
-      revealTask(task.id);
-      scrollAndHighlight(`[data-task-id="${task.id}"]`, 300, { ownScroller: true });
-    } else if (source === 'archived') {
-      if (isMobile) {
-        setMobileActiveTab('inbox');
-      } else {
-        setTabletActiveTab('inbox');
-      }
-      setInboxArchivedExpanded(true);
-      scrollAndHighlight(`[data-task-id="${task.id}"]`, 500);
+    } else if (source === 'inbox' || source === 'archived') {
+      // An archived task (`task.archived`, the 'archived' source) is in the
+      // Archived bar; goToInboxTask opens that instead of the list.
+      goToInboxTask(source === 'archived' ? { ...task, archived: true } : task);
     } else if (source === 'recurring') {
       const date = getNextOccurrence(task) || task.recurrence?.startDate || dateToString(new Date());
       if (isMobile) {
@@ -163,7 +194,7 @@ export default function useNavigation({
       // launcher's links open it (#2131).
       openGoalsTarget(source, task.id);
     }
-  }, [setShowSpotlight, isMobile, setMobileActiveTab, setTabletActiveTab, setInboxProjectFilter, setInboxArchivedExpanded, setDailyNotesModalDate, calendarRef, goToDate, closePlanner, openGoalsTarget, setDesktopSpace]);
+  }, [setShowSpotlight, isMobile, setMobileActiveTab, setDailyNotesModalDate, goToDate, closePlanner, openGoalsTarget, setDesktopSpace, goToInboxTask, scrollAndHighlight]);
 
-  return { changeDate, goToToday, goToDate, handleSpotlightSelect };
+  return { changeDate, goToToday, goToDate, handleSpotlightSelect, goToOverdueTask };
 }

@@ -78,7 +78,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     moveToRecycleBin,
     setInboxProjectFilter, setInboxPriorityFilter, setHideCompletedInbox,
     setHideProjectTasksInbox, setHideStandaloneTasksInbox,
-    goToDate, scrollToHour, effectiveViewMode,
+    goToDate, goToOverdueTask, scrollToHour, effectiveViewMode,
     glancePage, setGlancePage,
     setShowBucketList,
   } = useDayPlannerCtx();
@@ -796,24 +796,28 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                   {task.completed && <Check size={12} strokeWidth={3} className="text-white" />}
                 </button>
                 <div
-                  className={`flex-1 min-w-0 ${task._overdueType === 'scheduled' ? 'cursor-pointer' : ''}`}
+                  className="flex-1 min-w-0 cursor-pointer"
+                  data-overdue-open={task.id}
+                  // A click finds the task (#2418): a scheduled one on the
+                  // timeline, an Inbox one with a passed deadline in the
+                  // Inbox. Where its row is filtered out of the Inbox, the
+                  // editor opens instead, so the click always shows the task.
                   onClick={() => {
-                    if (task._overdueType !== 'scheduled') return;
-                    const el = document.querySelector(`[data-task-id="${task.id}"]`);
-                    const applyRing = () => {
-                      const target = document.querySelector(`[data-task-id="${task.id}"]`);
-                      if (!target) return;
-                      if (effectiveViewMode === 'multi' && calendarRef.current) {
-                        const container = calendarRef.current;
-                        const elTop = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
-                        container.scrollTo({ top: Math.max(0, elTop - container.clientHeight / 2 + target.offsetHeight / 2), behavior: 'smooth' });
-                      }
-                      target.classList.add('ring-2', 'ring-blue-400');
-                      setTimeout(() => target.classList.remove('ring-2', 'ring-blue-400'), 2000);
-                    };
-                    if (isTray) { openMainAt({ action: 'goto-task', taskId: task.id, date: task.date, startTime: task.startTime }); return; }
-                    if (el) { applyRing(); } else if (task.date) { goToDate(task.date); setTimeout(applyRing, 200); }
+                    const isInbox = task._overdueType === 'deadline';
+                    if (isTray) {
+                      openMainAt(isInbox
+                        ? { action: 'goto-inbox-task', taskId: task.id }
+                        : { action: 'goto-task', taskId: task.id, date: task.date, startTime: task.startTime });
+                      return;
+                    }
+                    goToOverdueTask(task, isInbox ? { onMissing: () => openMobileEditTask(task, true) } : undefined);
                   }}
+                  // A double-click opens the editor, as on a timeline card and
+                  // an agenda row (#2263). Desktop only, never in the tray.
+                  onDoubleClick={isTray ? undefined : cardDoubleClickHandler({
+                    task, isImported: !!task.imported, isTablet: !isDesktop,
+                    open: (target) => openMobileEditTask(target, target._overdueType === 'deadline'),
+                  })}
                 >
                   <div className={`text-sm font-medium truncate ${task.completed ? 'line-through opacity-50' : textPrimary}`}>
                     {renderTitle(task.title)}
