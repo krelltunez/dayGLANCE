@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
-  columnTimeFromEvent, dragBlockRange, anchorDragImageAtTop, DRAG_BLOCK_FALLBACK_MINUTES,
+  columnTimeFromEvent, dragBlockRange, holdDragImage, isTimelineBlock, dragTopPoint, DRAG_BLOCK_FALLBACK_MINUTES,
   dropClampMinutes,
 } from './dragUtils.js';
 
@@ -80,37 +80,92 @@ describe('dragBlockRange', () => {
   });
 });
 
-describe('anchorDragImageAtTop', () => {
+describe('holdDragImage', () => {
   const card = () => ({ getBoundingClientRect: () => ({ left: 100, top: 300, width: 200, height: 80 }) });
   const dragStart = (el, over = {}) => ({
     currentTarget: el, target: el, clientX: 160, clientY: 340,
     dataTransfer: { setDragImage: vi.fn() }, ...over,
   });
 
-  it('holds the card by its top edge, at the point it was grabbed across', () => {
+  // #2277: a row or chip with no time of its own.
+  it('holds a card by its top edge, at the point it was grabbed across', () => {
     const el = card();
     const e = dragStart(el);
-    expect(anchorDragImageAtTop(e)).toBe(true);
+    expect(holdDragImage(e)).toBe(0);
     expect(e.dataTransfer.setDragImage).toHaveBeenCalledWith(el, 60, 0);
   });
 
-  it('keeps the horizontal offset inside the card', () => {
+  // #2419: a block on the grid does not jump under the pointer.
+  it('holds a timeline block where it was grabbed, and reports how far down that is', () => {
     const el = card();
-    const e = dragStart(el, { clientX: 500 });
-    anchorDragImageAtTop(e);
-    expect(e.dataTransfer.setDragImage).toHaveBeenCalledWith(el, 200, 0);
+    const e = dragStart(el);
+    expect(holdDragImage(e, { atGrabPoint: true })).toBe(40);
+    expect(e.dataTransfer.setDragImage).toHaveBeenCalledWith(el, 60, 40);
+  });
+
+  it('keeps both offsets inside the card', () => {
+    const el = card();
+    const e = dragStart(el, { clientX: 500, clientY: 900 });
+    expect(holdDragImage(e, { atGrabPoint: true })).toBe(80);
+    expect(e.dataTransfer.setDragImage).toHaveBeenCalledWith(el, 200, 80);
+
+    const above = dragStart(el, { clientX: 0, clientY: 100 });
+    expect(holdDragImage(above, { atGrabPoint: true })).toBe(0);
+    expect(above.dataTransfer.setDragImage).toHaveBeenCalledWith(el, 0, 0);
   });
 
   it('leaves a drag of something inside the card (a link, a nested draggable) alone', () => {
     const e = dragStart(card(), { target: { tagName: 'A' } });
-    expect(anchorDragImageAtTop(e)).toBe(false);
+    // The browser's image is the link, not the card: the pointer is the start.
+    expect(holdDragImage(e, { atGrabPoint: true })).toBe(0);
     expect(e.dataTransfer.setDragImage).not.toHaveBeenCalled();
   });
 
-  it('is harmless without a real event or drag image support', () => {
-    expect(anchorDragImageAtTop({ dataTransfer: {} })).toBe(false);
-    expect(anchorDragImageAtTop(undefined)).toBe(false);
+  it('is harmless without a real event, and still measures without drag image support', () => {
+    expect(holdDragImage({ dataTransfer: {} })).toBe(0);
+    expect(holdDragImage(undefined, { atGrabPoint: true })).toBe(0);
+    // The browser's own image is the card held where it was grabbed.
     const el = card();
-    expect(anchorDragImageAtTop({ currentTarget: el, target: el, dataTransfer: {} })).toBe(false);
+    expect(holdDragImage({ currentTarget: el, target: el, clientX: 160, clientY: 340, dataTransfer: {} }, { atGrabPoint: true })).toBe(40);
+    expect(holdDragImage({ currentTarget: el, target: el, clientX: 160, clientY: 340, dataTransfer: {} })).toBe(0);
+  });
+});
+
+describe('isTimelineBlock', () => {
+  it('is a timed task or routine drawn on the grid', () => {
+    expect(isTimelineBlock({ startTime: '09:00', duration: 60 }, 'calendar')).toBe(true);
+    expect(isTimelineBlock({ startTime: '09:00', duration: 15 }, 'routine')).toBe(true);
+  });
+
+  it('is not an Inbox row, an all-day card or an unplaced routine chip', () => {
+    expect(isTimelineBlock({ title: 'Inbox task' }, 'inbox')).toBe(false);
+    // A deadline task in the all-day row is dragged as an Inbox task.
+    expect(isTimelineBlock({ startTime: '09:00' }, 'inbox')).toBe(false);
+    expect(isTimelineBlock({ isAllDay: true, startTime: '09:00' }, 'calendar')).toBe(false);
+    expect(isTimelineBlock({ isAllDay: true }, 'calendar')).toBe(false);
+    expect(isTimelineBlock({ duration: 15 }, 'routine')).toBe(false);
+    expect(isTimelineBlock(null, 'calendar')).toBe(false);
+  });
+});
+
+describe('dragTopPoint', () => {
+  it('raises the pointer by the grab offset, and leaves it across', () => {
+    expect(dragTopPoint({ clientX: 160, clientY: 340 }, 40)).toEqual({ clientX: 160, clientY: 300 });
+  });
+
+  it('is the pointer itself with no offset', () => {
+    expect(dragTopPoint({ clientX: 160, clientY: 340 })).toEqual({ clientX: 160, clientY: 340 });
+    expect(dragTopPoint({ clientX: 160, clientY: 340 }, NaN)).toEqual({ clientX: 160, clientY: 340 });
+  });
+
+  // The whole point: grabbed an hour down a card, the card's top is the start.
+  it('reads a column time at the card\'s top edge', () => {
+    const col = { getBoundingClientRect: () => ({ top: 100 }) };
+    const opts = { startMinute: 0, hourHeight: 60, maxMinute: 24 * 60 };
+    const e = { clientX: 0, clientY: 100 + 10 * 60 }; // the pointer is at 10:00
+    expect(columnTimeFromEvent(e, col, opts)).toBe('10:00');
+    expect(columnTimeFromEvent(dragTopPoint(e, 60), col, opts)).toBe('09:00');
+    // A top edge above the column is the column's first minute, never before it.
+    expect(columnTimeFromEvent(dragTopPoint({ clientX: 0, clientY: 110 }, 60), col, opts)).toBe('00:00');
   });
 });

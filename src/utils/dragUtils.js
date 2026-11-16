@@ -99,21 +99,53 @@ export const dragBlockRange = (startMinute, duration, { minMinute = 0, maxMinute
   };
 };
 
-// Hold a dragged card's drag image by its top edge, at the horizontal point
-// where it was grabbed. The cursor's time becomes the new start, so a card
-// floating from its middle told a different story than the drop; anchored at
-// the top it sits on the preview block. Drop semantics are unchanged.
+// ── What a drag holds a card by (#2277, #2419) ───────────────────────────────
+
+// A block drawn on the time grid: its top edge is its start, and its height its
+// length. An Inbox row, an all-day card and a routine chip are not; they have
+// no time of their own for a grab point to be measured against.
+export const isTimelineBlock = (task, source) => (
+  source !== 'inbox' && !!task && !task.isAllDay && !!task.startTime
+);
+
+// Hold a dragged card's drag image, and say how far below the card's top edge
+// the pointer is holding it (px).
 //
-// Only when the card itself is what is being dragged: a link, image or
-// nested draggable inside it keeps the image the browser gives it. Returns
-// whether the image was set.
-export const anchorDragImageAtTop = (e) => {
+// A drop reads the card's TOP EDGE as the new start (dragTopPoint), so the
+// floating card always sits on the preview block.
+//
+// - `atGrabPoint` (a timeline block, #2419): the card stays under the pointer
+//   where it was grabbed, and the offset is returned for the drop to subtract.
+//   Jumping a long card up to its title moved it a long way before the drag
+//   had gone anywhere. This is what the phone's drag has always done (it moves
+//   the start by the finger's travel).
+// - otherwise (#2277): the image is held by its top edge, at the horizontal
+//   point where it was grabbed, and the offset is 0: the pointer's time is the
+//   start, as the phone reads a drag out of the all-day row.
+//
+// Only when the card itself is what is being dragged: a link, image or nested
+// draggable inside it keeps the image the browser gives it, and the pointer's
+// time is the start (offset 0).
+export const holdDragImage = (e, { atGrabPoint = false } = {}) => {
   const el = e?.currentTarget;
   const dt = e?.dataTransfer;
-  if (!el || e.target !== el) return false;
-  if (typeof dt?.setDragImage !== 'function' || typeof el.getBoundingClientRect !== 'function') return false;
+  if (!el || e.target !== el || typeof el.getBoundingClientRect !== 'function') return 0;
   const rect = el.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  dt.setDragImage(el, Number.isFinite(x) ? Math.max(0, Math.min(rect.width, x)) : 0, 0);
-  return true;
+  const within = (v, max) => (Number.isFinite(v) && Number.isFinite(max) ? Math.max(0, Math.min(max, v)) : 0);
+  const x = within(e.clientX - rect.left, rect.width);
+  const y = atGrabPoint ? within(e.clientY - rect.top, rect.height) : 0;
+  // Without setDragImage the browser's own image is the card held where it was
+  // grabbed, so the offset is still the truth for a block.
+  if (typeof dt?.setDragImage === 'function') dt.setDragImage(el, x, y);
+  return y;
 };
+
+// The point a drag's time is read at: the dragged card's top edge, which is
+// the pointer raised by the grab offset. Shaped like the event the time
+// helpers read (columnTimeFromEvent, the MULTI grid's helper), so it is passed
+// in the event's place. Which column, drop zone and auto-scroll edge the drag
+// is over still come from the pointer itself.
+export const dragTopPoint = (e, grabOffsetY = 0) => ({
+  clientX: e.clientX,
+  clientY: e.clientY - (Number.isFinite(grabOffsetY) ? grabOffsetY : 0),
+});

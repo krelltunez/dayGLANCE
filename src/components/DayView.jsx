@@ -80,7 +80,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
     hoverPreviewTime, hoverPreviewDate,
     setDragPreviewTime, setDragPreviewDate,
     setHoverPreviewTime, setHoverPreviewDate,
-    handleDragStart, handleDragEnd, handleDropOnCalendar,
+    handleDragStart, handleDragEnd, dragStartPoint, handleDropOnCalendar,
     handleResizeStart, handleTouchResizeStart,
     isResizing, resizePreview,
     minutesToTime,
@@ -181,17 +181,17 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
     if (!draggedTask) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    // The cursor's time is the start, as late as a quarter-hour before the
-    // column's end: the rest runs into the next column, or past midnight
-    // onto the next date (#2278).
-    const t = timeFromEvent(e, { taskDuration: dropClampMinutes(draggedTask.duration) });
+    // The time at the dragged card's top edge is the start (#2419), as late
+    // as a quarter-hour before the column's end: the rest runs into the next
+    // column, or past midnight onto the next date (#2278).
+    const t = timeFromEvent(dragStartPoint(e), { taskDuration: dropClampMinutes(draggedTask.duration) });
     setDragPreviewTime(t);
     setDragPreviewDate(col.date);
   };
 
   const onColDrop = (e) => {
     if (!draggedTask) return;
-    const t = timeFromEvent(e, { taskDuration: dropClampMinutes(draggedTask.duration) });
+    const t = timeFromEvent(dragStartPoint(e), { taskDuration: dropClampMinutes(draggedTask.duration) });
     handleDropOnCalendar(e, col.date, t);
   };
 

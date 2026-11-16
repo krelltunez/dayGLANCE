@@ -3528,6 +3528,7 @@ const DayPlanner = () => {
     // desktop drag start/end + auto-scroll
     handleDragStart,
     handleDragEnd,
+    dragStartPoint,
     updateDragAutoScroll,
     // desktop drag-over handlers
     handleDragOver,
@@ -7348,7 +7349,7 @@ const DayPlanner = () => {
 
     // ── Functions – drag / drop ───────────────────────────────────────────────
     handleCalendarMouseMove, handleCalendarMouseLeave,
-    handleDragStart, handleDragEnd, updateDragAutoScroll,
+    handleDragStart, handleDragEnd, dragStartPoint, updateDragAutoScroll,
     handleDragOver, handleDragOverInbox, handleDragOverRecycleBin,
     handleDropOnCalendar, handleDropOnDateHeader,
     handleDropOnInbox, handleDropOnRecycleBin,
