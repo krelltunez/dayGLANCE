@@ -63,7 +63,7 @@ class ObsidianRepository(private val context: Context) {
 
     // ── Note URI index ───────────────────────────────────────────────────────
     //
-    // SAF recursive search (DocumentFile.listFiles + findFile) is expensive:
+    // SAF recursive search is expensive even with the batched listing:
     // every call involves IPC with Android's content provider. For a vault
     // with hundreds of notes, a full tree walk on every wikilink tap can
     // take several seconds.
@@ -95,13 +95,13 @@ class ObsidianRepository(private val context: Context) {
         // on every sync via getAllDailyNotes and on cache misses): any note
         // stranded in a temp anywhere in the tree is healed before indexing.
         recoverStrayTemps(dir)
-        for (file in dir.listFiles()) {
-            val name = file.name ?: continue
+        for (entry in dir.children()) {
+            val name = entry.name
             if (name.startsWith('.')) continue // skip hidden files/dirs (.obsidian/, .trash/, etc.)
-            if (file.isFile && name.endsWith(".md")) {
-                index[name.removeSuffix(".md").lowercase()] = file.uri
-            } else if (file.isDirectory) {
-                indexDirectory(file, index)
+            if (entry.isFile && name.endsWith(".md")) {
+                index[name.removeSuffix(".md").lowercase()] = entry.file.uri
+            } else if (entry.isDirectory) {
+                indexDirectory(entry.file, index)
             }
         }
     }
@@ -125,6 +125,13 @@ class ObsidianRepository(private val context: Context) {
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────
+
+    // Listing and lookup by name in a fixed number of provider calls per
+    // directory, whatever its size (SafChildren.kt). DocumentFile.findFile and
+    // the per-child .name/.isFile/.lastModified() reads cost one binder round
+    // trip per child, on the JS thread for every synchronous bridge call.
+    private fun DocumentFile.children(): List<SafChild> = childrenOf(context.contentResolver, this)
+    private fun DocumentFile.child(name: String): DocumentFile? = findChild(context.contentResolver, this, name)
 
     private fun vaultRoot(): DocumentFile? {
         val uriString = dataStore.vaultPath ?: return null
@@ -157,7 +164,7 @@ class ObsidianRepository(private val context: Context) {
         if (relativePath.isBlank()) return this
         var current: DocumentFile = this
         for (segment in relativePath.split("/").filter { it.isNotBlank() }) {
-            current = current.findFile(segment) ?: return null
+            current = current.child(segment) ?: return null
         }
         return current
     }
@@ -169,7 +176,7 @@ class ObsidianRepository(private val context: Context) {
         if (relativePath.isBlank()) return this
         var current: DocumentFile = this
         for (segment in relativePath.split("/").filter { it.isNotBlank() }) {
-            current = current.findFile(segment)
+            current = current.child(segment)
                 ?: current.createDirectory(segment)
                 ?: return null
         }
@@ -230,7 +237,7 @@ class ObsidianRepository(private val context: Context) {
     // rewrites the file — the temp dance runs exactly where recovery can see.
 
     private inner class SafDir(private val dir: DocumentFile) : SafeReplace.Dir {
-        override fun exists(name: String) = dir.findFile(name) != null
+        override fun exists(name: String) = dir.child(name) != null
         override fun createAndWrite(name: String, text: String): Boolean {
             // octet-stream for the temp: providers only append an extension
             // when the MIME maps to one, so the exact display name survives.
@@ -244,12 +251,12 @@ class ObsidianRepository(private val context: Context) {
             }
             return writeText(created, text, announce = false)
         }
-        override fun delete(name: String) = dir.findFile(name)?.delete() ?: true
+        override fun delete(name: String) = dir.child(name)?.delete() ?: true
         override fun rename(from: String, to: String): Boolean {
-            val f = dir.findFile(from) ?: return false
+            val f = dir.child(from) ?: return false
             return try { f.renameTo(to) && f.name == to } catch (e: Exception) { false }
         }
-        override fun read(name: String): String? = dir.findFile(name)?.let { readText(it) }
+        override fun read(name: String): String? = dir.child(name)?.let { readText(it) }
     }
 
     /**
@@ -298,8 +305,8 @@ class ObsidianRepository(private val context: Context) {
      */
     private fun recoverStrayTemps(dir: DocumentFile): Boolean {
         var recovered = false
-        for (file in dir.listFiles()) {
-            val name = file.name ?: continue
+        for (entry in dir.children()) {
+            val name = entry.name
             if (!SafeReplace.isTempName(name)) continue
             if (recoverIn(dir, SafeReplace.originalNameOf(name)) != SafeReplace.Recovery.NONE) recovered = true
         }
@@ -362,7 +369,7 @@ class ObsidianRepository(private val context: Context) {
         // window reads as "note gone" — which the deletion detector upstream
         // would treat as a real vault deletion.
         recoverIn(dir, fileName)
-        val file = dir.findFile(fileName) ?: return ""
+        val file = dir.child(fileName) ?: return ""
         return readText(file)
     }
 
@@ -375,12 +382,12 @@ class ObsidianRepository(private val context: Context) {
      * unconfigured, or the read failed). The JS side defaults to the
      * Dataview field format on "" and keeps its last known answer on null.
      * SAF lists dot-named children normally — only our own note indexing
-     * skips them — so findFile reaches .obsidian directly.
+     * skips them — so child() reaches .obsidian directly.
      */
     fun getCommunityPlugins(): String? {
         val root = vaultRoot() ?: return null
-        val dir = root.findFile(".obsidian") ?: return ""
-        val file = dir.findFile("community-plugins.json") ?: return ""
+        val dir = root.child(".obsidian") ?: return ""
+        val file = dir.child("community-plugins.json") ?: return ""
         return readText(file)
     }
 
@@ -393,8 +400,8 @@ class ObsidianRepository(private val context: Context) {
      */
     fun getHeartbeat(): String? {
         val root = vaultRoot() ?: return null
-        val dir = root.findFile(".dayglance") ?: return ""
-        val file = dir.findFile("heartbeat") ?: return ""
+        val dir = root.child(".dayglance") ?: return ""
+        val file = dir.child("heartbeat") ?: return ""
         return readText(file)
     }
 
@@ -434,13 +441,13 @@ class ObsidianRepository(private val context: Context) {
         val arr = JSONArray()
         fun collect(d: DocumentFile, pathPrefix: String) {
             recoverStrayTemps(d)
-            for (file in d.listFiles()) {
-                val name = file.name ?: continue
+            for (entry in d.children()) {
+                val name = entry.name
                 if (name.startsWith('.')) continue
-                if (file.isFile && name.endsWith(".md")) {
+                if (entry.isFile && name.endsWith(".md")) {
                     arr.put(pathPrefix + name)
-                } else if (file.isDirectory) {
-                    collect(file, "$pathPrefix$name/")
+                } else if (entry.isDirectory) {
+                    collect(entry.file, "$pathPrefix$name/")
                 }
             }
         }
@@ -470,7 +477,7 @@ class ObsidianRepository(private val context: Context) {
         // A FAILED read of an existing note must abort the append: treating
         // it as "" would rewrite the note as just the appended line — erasing
         // its content. An absent file is genuinely "" (fresh note).
-        val existingFile = dir.findFile(fileName)
+        val existingFile = dir.child(fileName)
         val existing = if (existingFile != null) (readText(existingFile) ?: return false) else ""
         // Ensure a newline separator before the new content
         val separator = if (existing.isNotEmpty() && !existing.endsWith("\n")) "\n" else ""
@@ -572,19 +579,19 @@ class ObsidianRepository(private val context: Context) {
         // post-delete window would otherwise be missing from this scan, and
         // the deletion detector would read that as a vault deletion.
         recoverStrayTemps(dir)
-        val files = dir.listFiles()
+        val files = dir.children()
         if (files.isEmpty() && vaultGrantRevoked()) {
             throw SecurityException("Vault access has been revoked — re-select the vault folder in Settings")
         }
         val arr = JSONArray()
         files
-            .filter { it.isFile && it.name?.endsWith(".md") == true }
-            .forEach { file ->
-                val name = file.name ?: return@forEach
+            .filter { it.isFile && it.name.endsWith(".md") }
+            .forEach { entry ->
+                val name = entry.name
                 val dateStr = name.removeSuffix(".md")
                 if (!dateStr.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) return@forEach
                 if (cutoff.isNotBlank() && dateStr < cutoff) return@forEach
-                val text = readText(file)
+                val text = readText(entry.file)
                     ?: throw java.io.IOException("Could not read daily note $name from the vault")
                 arr.put(JSONObject().apply {
                     put("date", dateStr)
@@ -592,7 +599,7 @@ class ObsidianRepository(private val context: Context) {
                     // The file's REAL modification time, so the web frontend's merge
                     // uses a truthful last-writer-wins timestamp instead of stamping
                     // every scanned note as "now". Mirrors getNote() below.
-                    put("lastModified", Instant.ofEpochMilli(file.lastModified()).toString())
+                    put("lastModified", Instant.ofEpochMilli(entry.lastModified).toString())
                 })
             }
         // Pre-warm the note URI index on the same sync pass so bare-name
@@ -623,7 +630,7 @@ class ObsidianRepository(private val context: Context) {
             val folderPath = segments.dropLast(1).joinToString("/")
             val dir = root.navigateTo(folderPath) ?: return ""
             recoverIn(dir, fileName)
-            dir.findFile(fileName) ?: return ""
+            dir.child(fileName) ?: return ""
         } else {
             // Bare name — use the in-memory index for O(1) lookup
             val uri = findNoteUri(segments[0]) ?: return ""
@@ -686,7 +693,7 @@ class ObsidianRepository(private val context: Context) {
         // Keep the index truthful: the replace changes the document id on
         // providers with path-based ids (delete + rename mints a new one),
         // and a brand-new note was never indexed at all.
-        dir.findFile(fileName)?.let { noteUriIndex[noteName.lowercase()] = it.uri }
+        dir.child(fileName)?.let { noteUriIndex[noteName.lowercase()] = it.uri }
         true
     }.getOrDefault(false)
 
@@ -699,7 +706,7 @@ class ObsidianRepository(private val context: Context) {
         val folderPath = segments.dropLast(1).joinToString("/")
         val dir = if (folderPath.isBlank()) root else (root.navigateTo(folderPath) ?: return "[]")
         recoverIn(dir, fileName)
-        val file = dir.findFile(fileName) ?: return "[]"
+        val file = dir.child(fileName) ?: return "[]"
 
         // Failed read → error envelope (object, not array); the JS wrapper
         // maps it to null so no caller mistakes "unreadable" for "no tasks".
