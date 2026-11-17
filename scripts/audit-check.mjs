@@ -114,6 +114,14 @@ const ACK = {
     reason: 'Some patterns expand into a costly number of glob parts. Only eslint and the build tools match, against our own config and file globs on a dev or build machine, never outside input. Fixed in 11.0.1, a major above the 3, 5, 9 and 10 their parents depend on.',
     review: '2026-12-31',
   },
+  // Build/dev-only (`npm ls picomatch --omit=dev` finds none), and there is no
+  // patched release at all yet: the advisory covers every version up to the
+  // latest, 4.0.7. Revisit when a fixed picomatch ships.
+  'GHSA-fc5q-39xc-vjpf': {
+    disposition: 'accept', pkg: 'picomatch (via vite, vitest, @rollup/pluginutils, tinyglobby, chokidar/anymatch/readdirp, micromatch)',
+    reason: 'A pattern with a single-branch repeated extglob can backtrack for a long time. Only the bundler, the test runner and the file watchers match, against our own config and file globs on a dev or build machine, never outside input. No fixed version exists (<=4.0.7, the latest, is affected).',
+    review: '2026-12-31',
+  },
 };
 
 const res = spawnSync('npm', ['audit', '--json'], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
