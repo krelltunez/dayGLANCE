@@ -2887,7 +2887,10 @@
     "peekDeleted": "En la papelera",
     "peekGone": "Esta tarea ya no está en dayGLANCE.",
     "peekSaveAndShow": "Guardar e ir a la tarea",
-    "peekShow": "Ir a la tarea"
+    "peekShow": "Ir a la tarea",
+    "destination": "Añadir el seguimiento a",
+    "toInbox": "Bandeja de entrada",
+    "toSchedule": "Programar"
   },
   "tagManager": {
     "manage": "Gestionar etiquetas…",

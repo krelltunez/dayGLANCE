@@ -2887,7 +2887,10 @@
     "peekDeleted": "Im Papierkorb",
     "peekGone": "Diese Aufgabe gibt es in dayGLANCE nicht mehr.",
     "peekSaveAndShow": "Speichern und zur Aufgabe",
-    "peekShow": "Zur Aufgabe"
+    "peekShow": "Zur Aufgabe",
+    "destination": "Folgeaufgabe hinzufügen zu",
+    "toInbox": "Posteingang",
+    "toSchedule": "Planen"
   },
   "tagManager": {
     "manage": "Tags verwalten…",

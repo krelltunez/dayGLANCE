@@ -2889,7 +2889,10 @@
     "peekDeleted": "Nel cestino",
     "peekGone": "Questa attività non è più in dayGLANCE.",
     "peekSaveAndShow": "Salva e vai all'attività",
-    "peekShow": "Vai all'attività"
+    "peekShow": "Vai all'attività",
+    "destination": "Aggiungi il follow-up a",
+    "toInbox": "In arrivo",
+    "toSchedule": "Pianifica"
   },
   "tagManager": {
     "manage": "Gestisci tag…",

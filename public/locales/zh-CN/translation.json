@@ -2881,7 +2881,10 @@
     "peekDeleted": "在回收站中",
     "peekGone": "此任务已不在 dayGLANCE 中。",
     "peekSaveAndShow": "保存并前往任务",
-    "peekShow": "前往任务"
+    "peekShow": "前往任务",
+    "destination": "后续任务添加到",
+    "toInbox": "收件箱",
+    "toSchedule": "日程"
   },
   "tagManager": {
     "manage": "管理标签…",

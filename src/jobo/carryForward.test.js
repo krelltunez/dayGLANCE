@@ -195,7 +195,7 @@ describe('followUpDraft', () => {
   it('starts in the Inbox without a project', () => {
     const { projectId: _, ...loose } = done;
     expect(followUpDraft(loose, { projects })).toEqual({
-      title: ' #Report #launch', cursor: 0, color: 'bg-green-500', openInInbox: true, deadline: null, priority: 0,
+      title: ' #Report #launch', cursor: 0, color: 'bg-green-500', openInInbox: true, followUp: true, deadline: null, priority: 0,
     });
   });
   it.each([['archived', 'p2'], ['completed', 'p3'], ['gone', 'p9']])('starts in the Inbox when the project is %s', (_, projectId) => {

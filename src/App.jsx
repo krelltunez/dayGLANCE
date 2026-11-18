@@ -2071,6 +2071,7 @@ const DayPlanner = () => {
     applySuggestionForNewTask,
     dismissNlChip,
     editNewTaskTitle,
+    switchFollowUpDestination,
   } = useNewTaskInput({ allTags, showAddTask, t, language: i18n.resolvedLanguage || i18n.language, use24HourClock, isEditing: !!(mobileEditingTask || mobileEditingNativeEvent) });
 
   // Show all 24 hours (full day) - scrollable
@@ -3892,7 +3893,8 @@ const DayPlanner = () => {
   // "Schedule follow-up task" from a finished task (the completion toast, the
   // context menu): the new-task form, in the Inbox, pre-filled by
   // utils/followUp.js with a note that links back. The prefix is selected so
-  // what is typed replaces it.
+  // what is typed replaces it. The form's switch (FollowUpDestination, #2422)
+  // sends it to the timeline instead, on the day and start time given here.
   const openFollowUp = (task) => {
     if (!canFollowUp(task)) return;
     const done = doneDateOf(task, dateToString(new Date()));
@@ -7321,7 +7323,7 @@ const DayPlanner = () => {
     startEditingTask, saveTaskTitle, cancelEditingTask,
     applySuggestionForEdit, handleEditKeyDown, handleEditInputChange,
     handleNewTaskInputChange, handleNewTaskInputKeyDown, applySuggestionForNewTask,
-    dismissNlChip, editNewTaskTitle,
+    dismissNlChip, editNewTaskTitle, switchFollowUpDestination,
     buildSuggestions,
     manuallyScheduleTask, scheduleTaskAtNextSlot, scheduleDeadlineTaskAt, scheduleRoutineAt,
     openNewTaskAtTime, openNewTaskForm, openNewAllDayTask, openNewInboxTask,

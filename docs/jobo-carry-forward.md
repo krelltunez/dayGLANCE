@@ -95,7 +95,10 @@ Not its time, notes, subtasks or priority. Those belong to the finished work.
   the rest of that project's work;
 - without one, in the Inbox.
 
-The form can still set a day before saving. This changes one point from the
+The form can still set a day before saving: a project task by unticking
+"Unscheduled", an Inbox one by the follow-up form's Inbox / Schedule switch
+(#2422, shared with "Schedule follow-up task" on a completed task). This
+changes one point from the
 proposal on #1726, which defaulted both actions to a later day. Unscheduled
 fits better for follow-ups, which are usually discovered rather than ready to
 book.

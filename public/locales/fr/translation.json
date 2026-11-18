@@ -2887,7 +2887,10 @@
     "peekDeleted": "Dans la corbeille",
     "peekGone": "Cette tâche n’est plus dans dayGLANCE.",
     "peekSaveAndShow": "Enregistrer et aller à la tâche",
-    "peekShow": "Aller à la tâche"
+    "peekShow": "Aller à la tâche",
+    "destination": "Ajouter le suivi à",
+    "toInbox": "Boîte de réception",
+    "toSchedule": "Planifier"
   },
   "tagManager": {
     "manage": "Gérer les étiquettes…",

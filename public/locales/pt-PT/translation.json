@@ -2887,7 +2887,10 @@
     "peekDeleted": "Na reciclagem",
     "peekGone": "Esta tarefa já não está no dayGLANCE.",
     "peekSaveAndShow": "Guardar e ir para a tarefa",
-    "peekShow": "Ir para a tarefa"
+    "peekShow": "Ir para a tarefa",
+    "destination": "Adicionar o acompanhamento a",
+    "toInbox": "Caixa de entrada",
+    "toSchedule": "Agendar"
   },
   "tagManager": {
     "manage": "Gerir etiquetas…",

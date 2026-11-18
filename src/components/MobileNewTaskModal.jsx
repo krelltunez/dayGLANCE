@@ -14,6 +14,7 @@ import TaskModalNotes from './TaskModalNotes.jsx';
 import { DurationField, EndTimeField } from './TaskTimeFields.jsx';
 import TaskMetadataLine from './TaskMetadataLine.jsx';
 import TaskDeadlineField from './TaskDeadlineField.jsx';
+import FollowUpDestination from './FollowUpDestination.jsx';
 import { extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { formatTaskDuration } from '../utils/formatDuration.js';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
@@ -104,6 +105,8 @@ const MobileNewTaskModal = () => {
                 }
               }}
             >
+              {/* A follow-up: the Inbox or the timeline (#2422). */}
+              <FollowUpDestination />
               {/* Source attribution — shown when editing a task created via lastGLANCE */}
               {mobileEditingTask?.source_app === SOURCE_APPS.LASTGLANCE && (
                 <div className={`flex items-center gap-1.5 text-xs ${textSecondary}`}>
@@ -360,8 +363,9 @@ const MobileNewTaskModal = () => {
                       scheduled task carries no deadline, so the control
                       renders nothing for one. */}
                   <TaskDeadlineField newTask={newTask} setNewTask={setNewTask} openUpward />
-                  {/* Unscheduled — only shown when a project is selected */}
-                  {newTask.projectId && (
+                  {/* Unscheduled — only shown when a project is selected; a
+                      follow-up's form has the switch at its top instead. */}
+                  {newTask.projectId && !newTask.followUp && (
                     <div className="col-span-2">
                       <label
                         className="flex items-center gap-2 cursor-pointer py-1"

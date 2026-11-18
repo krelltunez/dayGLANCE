@@ -3004,7 +3004,10 @@
     "peekDeleted": "У кошику",
     "peekGone": "Цього завдання вже немає в dayGLANCE.",
     "peekSaveAndShow": "Зберегти й перейти до завдання",
-    "peekShow": "Перейти до завдання"
+    "peekShow": "Перейти до завдання",
+    "destination": "Додати наступне завдання до",
+    "toInbox": "Вхідні",
+    "toSchedule": "Розклад"
   },
   "tagManager": {
     "manage": "Керувати тегами…",

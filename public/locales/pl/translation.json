@@ -2998,7 +2998,10 @@
     "peekDeleted": "W koszu",
     "peekGone": "Tego zadania nie ma już w dayGLANCE.",
     "peekSaveAndShow": "Zapisz i przejdź do zadania",
-    "peekShow": "Przejdź do zadania"
+    "peekShow": "Przejdź do zadania",
+    "destination": "Dodaj zadanie następcze do",
+    "toInbox": "Skrzynka",
+    "toSchedule": "Harmonogram"
   },
   "tagManager": {
     "manage": "Zarządzaj tagami…",
