@@ -10,6 +10,7 @@ import { formatDuration } from '../utils/formatDuration.js';
 import { parseQuickAdd, spanSignature } from '../utils/quickAddParser.js';
 import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 import { acceptsSuggestion } from '../utils/suggestionKeys.js';
+import { withFollowUpDestination } from '../utils/followUp.js';
 
 // Deep-enough equality for NL-applied values (strings, numbers, small
 // recurrence objects). Used to detect whether the user manually changed a
@@ -234,6 +235,16 @@ export default function useNewTaskInput({ allTags, showAddTask, t, language, use
     });
   };
 
+  // The follow-up form's switch (#2422): the Inbox or the timeline. The NL
+  // layer re-reads the title for the form now showing, since a date typed in
+  // it is a deadline in the Inbox and the day on the timeline.
+  const switchFollowUpDestination = (toInbox) => {
+    setNewTask(prev => {
+      const next = withFollowUpDestination(prev, toInbox);
+      return next === prev ? prev : applyNlLayer(next, next.title ?? '');
+    });
+  };
+
   // Chip tap = undo that parse. Non-tag chips: remember the dismissal (the
   // phrase stays plain text) and revert the field. Tag chips: delete the #tag
   // token from the title itself.
@@ -425,5 +436,6 @@ export default function useNewTaskInput({ allTags, showAddTask, t, language, use
     applySuggestionForNewTask,
     dismissNlChip,
     editNewTaskTitle,
+    switchFollowUpDestination,
   };
 }

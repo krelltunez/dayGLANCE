@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  normalizeFollowUpTag, taskLink, findTaskLinks, doneDateOf, canFollowUp,
-  completionFollowUpDraft, resolveTaskRef, peekNavigationTarget, plainTitle, taskLinksAsLabels,
-} from './followUp.js';
+import { normalizeFollowUpTag, taskLink, findTaskLinks, doneDateOf, canFollowUp, completionFollowUpDraft, resolveTaskRef, peekNavigationTarget, plainTitle, taskLinksAsLabels, withFollowUpDestination } from './followUp.js';
 
 const projects = [
   { id: 'p1', status: 'active' },
@@ -96,7 +93,7 @@ describe('completionFollowUpDraft', () => {
 
   it('in the Inbox with no deadline, priority, time, subtasks or old notes', () => {
     const draft = completionFollowUpDraft(task, { projects, prefix: 'Follow up:' });
-    expect(draft).toMatchObject({ openInInbox: true, deadline: null, priority: 0, color: 'bg-rose-500', projectId: 'p1' });
+    expect(draft).toMatchObject({ openInInbox: true, followUp: true, deadline: null, priority: 0, color: 'bg-rose-500', projectId: 'p1' });
     expect(draft).not.toHaveProperty('startTime');
     expect(draft).not.toHaveProperty('subtasks');
     expect(draft).not.toHaveProperty('keepUnscheduled');
@@ -117,6 +114,26 @@ describe('completionFollowUpDraft', () => {
     const draft = completionFollowUpDraft({ id: 1, title: 'Ping Sam' }, {});
     expect(draft.title).toBe('Ping Sam');
     expect(draft.selection).toEqual([0, 0]);
+  });
+});
+
+describe('withFollowUpDestination (#2422)', () => {
+  const draft = { title: 'Follow up: Ping Sam', openInInbox: true, followUp: true, deadline: '2026-10-09', priority: 2, date: '2026-10-04', startTime: '09:00' };
+
+  it('to the timeline: scheduled outright, the Inbox fields kept for a switch back', () => {
+    expect(withFollowUpDestination(draft, false)).toEqual({ ...draft, openInInbox: false, keepUnscheduled: false });
+  });
+
+  it('to the Inbox: no repeat, not all-day', () => {
+    const scheduled = { ...draft, openInInbox: false, keepUnscheduled: false, recurrence: { type: 'daily' }, isAllDay: true };
+    expect(withFollowUpDestination(scheduled, true)).toEqual({ ...scheduled, openInInbox: true, recurrence: null, isAllDay: false });
+  });
+
+  it('the same draft back when it is already there, and switching twice is switching once', () => {
+    expect(withFollowUpDestination(draft, true)).toBe(draft);
+    const once = withFollowUpDestination(draft, false);
+    expect(withFollowUpDestination(once, false)).toBe(once);
+    expect(withFollowUpDestination(null, true)).toBeNull();
   });
 });
 

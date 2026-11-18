@@ -101,7 +101,9 @@ const openProject = (projects, id) => (Array.isArray(projects) ? projects : []).
  *
  * The tags sit after the cursor, so what the user types goes before them. The
  * follow-up starts unscheduled: in its project's list, or in the Inbox when
- * the project is gone or closed. The form can still give it a day.
+ * the project is gone or closed. The form can still give it a day: a project
+ * task by unticking "Unscheduled", an Inbox one by the follow-up form's switch
+ * (`followUp`, utils/followUp.js withFollowUpDestination).
  *
  * In a project, it is a new task there, so it takes the project's New task
  * defaults (#2336): their tags after the task's own, and their duration,
@@ -123,7 +125,7 @@ export function followUpDraft(task, { projects = [] } = {}) {
     ...(typeof task?.color === 'string' && task.color ? { color: task.color } : {}),
     ...(project
       ? { projectId: project.id, keepUnscheduled: true }
-      : { openInInbox: true, deadline: null, priority: 0 }),
+      : { openInInbox: true, followUp: true, deadline: null, priority: 0 }),
   };
 }
 

@@ -105,6 +105,8 @@ export function canFollowUp(task) {
  *   created there: their tags, duration, checklist and energy. `note` wins over
  *   their notes, which fill in only without one.
  * - The Inbox, with no deadline yet: the deadline is the follow-up date.
+ *   `followUp` marks the form as a follow-up's, so it offers the switch to
+ *   the timeline (withFollowUpDestination, #2422); the save never stores it.
  * - `note` as its notes: the line that links back.
  */
 export function completionFollowUpDraft(task, { projects = [], prefix = '', tag = '', note = '' } = {}) {
@@ -125,10 +127,31 @@ export function completionFollowUpDraft(task, { projects = [], prefix = '', tag 
     ...(base.subtasks ? { subtasks: base.subtasks } : {}),
     ...(base.energy ? { energy: base.energy } : {}),
     openInInbox: true,
+    followUp: true,
     deadline: null,
     priority: 0,
     notes: note || base.notes || '',
   };
+}
+
+/**
+ * A follow-up's draft, sent to the Inbox or to the timeline (#2422): the
+ * form's switch. The draft holds both forms' fields from the start (the
+ * opener gives it a day and a start time), so the switch only says which form
+ * shows and which list the save adds to. The same draft back when it is
+ * already there.
+ *
+ * - To the Inbox: no repeat and not all-day, which an Inbox task cannot be
+ *   (a repeat left on the draft would also hide the deadline field).
+ * - To the timeline: scheduled outright, so "Unscheduled" is off. The
+ *   deadline and priority stay on the draft for a switch back; the scheduled
+ *   save leaves them behind, as every path that schedules does.
+ */
+export function withFollowUpDestination(draft, toInbox) {
+  if (!draft || !!draft.openInInbox === !!toInbox) return draft;
+  return toInbox
+    ? { ...draft, openInInbox: true, isAllDay: false, recurrence: null }
+    : { ...draft, openInInbox: false, keepUnscheduled: false };
 }
 
 const occurrenceOf = (template, dateStr, id) => {

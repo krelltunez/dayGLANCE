@@ -12,6 +12,7 @@ import TaskTagPicker from './TaskTagPicker.jsx';
 import RecurrencePicker from './RecurrencePicker.jsx';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import TaskDeadlineField from './TaskDeadlineField.jsx';
+import FollowUpDestination from './FollowUpDestination.jsx';
 import TaskModalNotes from './TaskModalNotes.jsx';
 import { DurationField, EndTimeField } from './TaskTimeFields.jsx';
 import TaskMetadataLine from './TaskMetadataLine.jsx';
@@ -137,6 +138,8 @@ const DesktopNewTaskModal = () => {
               {mobileEditingTask ? t('task.editTask') : newTask.openInInbox ? t('task.newInbox') : t('task.newScheduled')}
             </h3>
             <div className="space-y-4">
+              {/* A follow-up: the Inbox or the timeline (#2422). */}
+              <FollowUpDestination />
               {/* Source attribution — shown when editing a task created via lastGLANCE */}
               {mobileEditingTask?.source_app === SOURCE_APPS.LASTGLANCE && (
                 <div className={`flex items-center gap-1.5 text-xs ${textSecondary}`}>
@@ -527,8 +530,9 @@ const DesktopNewTaskModal = () => {
                         <span className={`ml-2 text-sm ${textPrimary}`}>{t('task.allDay')}</span>
                       </div>
                     </div>
-                    {/* Unscheduled — only shown when a project is selected */}
-                    {newTask.projectId && (
+                    {/* Unscheduled — only shown when a project is selected; a
+                        follow-up's form has the switch at its top instead. */}
+                    {newTask.projectId && !newTask.followUp && (
                       <div className="col-span-full">
                         <div
                           className="flex items-center gap-2 cursor-pointer"

@@ -2887,7 +2887,10 @@
     "peekDeleted": "In the Recycle Bin",
     "peekGone": "This task is no longer in dayGLANCE.",
     "peekSaveAndShow": "Save and go to task",
-    "peekShow": "Go to task"
+    "peekShow": "Go to task",
+    "destination": "Add the follow-up to",
+    "toInbox": "Inbox",
+    "toSchedule": "Schedule"
   },
   "tagManager": {
     "manage": "Manage tags…",

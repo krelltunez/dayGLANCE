@@ -2881,7 +2881,10 @@
     "peekDeleted": "在資源回收筒中",
     "peekGone": "此待辦事項已不在 dayGLANCE 中。",
     "peekSaveAndShow": "儲存並前往待辦事項",
-    "peekShow": "前往待辦事項"
+    "peekShow": "前往待辦事項",
+    "destination": "後續待辦事項加入",
+    "toInbox": "收件匣",
+    "toSchedule": "排程"
   },
   "tagManager": {
     "manage": "管理標籤…",
