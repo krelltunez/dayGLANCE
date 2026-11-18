@@ -12,8 +12,8 @@ import { fileURLToPath } from 'node:url';
  */
 const IOS = join(dirname(fileURLToPath(import.meta.url)), '../dayglance-ios');
 const CATALOGS = ['DayGlanceWidget/Localizable.xcstrings', 'DayGlance/Localizable.xcstrings'];
-const IOS_LOCALE = { 'zh-CN': 'zh-Hans' };
-const LANGS = ['de', 'es', 'fr', 'it', 'pt-PT', 'pt-BR', 'zh-CN'];
+const IOS_LOCALE = { 'zh-CN': 'zh-Hans', 'zh-TW': 'zh-Hant' };
+const LANGS = ['de', 'es', 'fr', 'it', 'pt-PT', 'pt-BR', 'zh-CN', 'zh-TW'];
 const specifiers = (v) => (v.match(/%(lld|@|d|%)/g) ?? []).sort().join(',');
 
 describe.each(CATALOGS)('%s', (rel) => {

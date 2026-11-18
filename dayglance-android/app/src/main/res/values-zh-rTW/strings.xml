@@ -36,12 +36,12 @@
         <item quantity="other">%d 個待辦事項</item>
     </plurals>
     <plurals name="widget_count_events">
-        <item quantity="one">%d 個行程</item>
-        <item quantity="other">%d 個行程</item>
+        <item quantity="one">%d 個事件</item>
+        <item quantity="other">%d 個事件</item>
     </plurals>
     <plurals name="widget_count_deadlines">
-        <item quantity="one">%d 個截止日</item>
-        <item quantity="other">%d 個截止日</item>
+        <item quantity="one">%d 個期限</item>
+        <item quantity="other">%d 個期限</item>
     </plurals>
     <string name="widget_committed">已安排 %1$s</string>
     <string name="widget_goal_stats">%1$d%% · %2$d/%3$d 個待辦事項</string>
@@ -53,7 +53,7 @@
     <string name="widget_due_left">剩餘 %1$d 天</string>
     <string name="widget_untitled">未命名</string>
     <string name="widget_done_check">✓ 已完成</string>
-    <string name="widget_on_hold">已擱置</string>
+    <string name="widget_on_hold">暫緩</string>
     <plurals name="widget_more_projects">
         <item quantity="one">另有 %d 個專案</item>
         <item quantity="other">另有 %d 個專案</item>
@@ -101,11 +101,11 @@
     <string name="focus_action_stop">停止</string>
     <string name="share_backup">儲存備份</string>
     <string name="channel_reminders">提醒</string>
-    <string name="channel_reminders_desc">待辦事項與行程提醒</string>
+    <string name="channel_reminders_desc">待辦事項與事件提醒</string>
     <string name="channel_focus">專注模式</string>
     <string name="channel_focus_desc">番茄鐘與專注時段提醒</string>
-    <string name="channel_events">行程</string>
-    <string name="channel_events_desc">即將到來的行事曆行程通知</string>
+    <string name="channel_events">事件</string>
+    <string name="channel_events_desc">即將到來的行事曆事件通知</string>
     <string name="channel_up_next">接下來</string>
     <string name="channel_up_next_desc">顯示下一個排定待辦事項的常駐通知</string>
     <string name="pill_goal">目標</string>
@@ -181,7 +181,7 @@
     </plurals>
     <string name="widget_previous_day">前一天</string>
     <string name="widget_next_day">後一天</string>
-    <string name="widget_day_dial_label">日轉盤</string>
+    <string name="widget_day_dial_label">日晷盤</string>
     <string name="widget_day_dial_description">以轉盤呈現您的一天</string>
     <string name="day_dial_until">至 %1$s</string>
     <string name="day_dial_left">剩餘 %1$s</string>

@@ -49,8 +49,8 @@ const androidLocaleFor = (tag) => ANDROID_LOCALE_NAME[tag] ?? tag;
  * actually land.
  */
 const NATIVE_TRANSLATION_PENDING = {
-  android: { 'zh-TW': 'web bundle first; native strings follow in a separate change' },
-  ios: { 'zh-TW': 'web bundle first; native strings follow in a separate change' },
+  android: {},
+  ios: {},
 };
 
 const iosCatalogs = ['dayglance-ios/DayGlance/Localizable.xcstrings', 'dayglance-ios/DayGlanceWidget/Localizable.xcstrings']

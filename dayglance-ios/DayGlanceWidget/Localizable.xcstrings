@@ -1296,7 +1296,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "日轉盤"
+            "value" : "日晷盤"
           }
         }
       }
@@ -2466,7 +2466,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已擱置"
+            "value" : "暫緩"
           }
         }
       }
