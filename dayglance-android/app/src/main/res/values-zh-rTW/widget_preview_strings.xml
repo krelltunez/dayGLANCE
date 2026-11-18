@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_preview_date">3月10日 週二</string>
+    <string name="widget_preview_updated">上午 8:42</string>
+    <string name="widget_preview_today_allday_title">媽媽的生日</string>
+    <string name="widget_preview_today_frame_name">專注工作</string>
+    <string name="widget_preview_today_frame_times">上午 9:00 – 11:30</string>
+    <string name="widget_preview_today_frame_free">空閒 30 分鐘</string>
+    <string name="widget_preview_today_task1_title">審閱 pull request</string>
+    <string name="widget_preview_today_task1_time">上午 9:00 – 10:00  #工作</string>
+    <string name="widget_preview_today_task2_title">撰寫專案簡介</string>
+    <string name="widget_preview_today_task2_project">網站改版</string>
+    <string name="widget_preview_today_task2_time">上午 10:00 – 11:00</string>
+    <string name="widget_preview_today_task3_title">與 Sam 共進午餐</string>
+    <string name="widget_preview_today_task3_time">下午 12:30 – 1:30</string>
+    <string name="widget_preview_upnext_title">準備季度報告</string>
+    <string name="widget_preview_upnext_time">下午 2:00 – 3:30</string>
+    <string name="widget_preview_upnext_time_until">25 分鐘後</string>
+    <string name="widget_preview_upnext_project">財務</string>
+    <string name="widget_preview_upnext_tags">#工作  #專注</string>
+    <string name="widget_preview_upnext_sub1">彙整銷售數據</string>
+    <string name="widget_preview_upnext_sub2">撰寫摘要簡報</string>
+    <string name="widget_preview_project_goal">新家</string>
+    <string name="widget_preview_project_title">廚房整修</string>
+    <string name="widget_preview_project_task1">挑選櫥櫃面材</string>
+    <string name="widget_preview_project_task2">預約水電師傅</string>
+    <string name="widget_preview_project_task3">丈量廚房尺寸</string>
+    <string name="widget_preview_project_task4">訂定預算</string>
+    <string name="widget_preview_goal_title">跑完半程馬拉松</string>
+    <string name="widget_preview_goal_due">剩餘 42 天</string>
+    <string name="widget_preview_goal_project1">逐步提高每週里程</string>
+    <string name="widget_preview_goal_project2">報名一場賽事</string>
+    <string name="widget_preview_goal_project3">購買跑鞋</string>
+</resources>
