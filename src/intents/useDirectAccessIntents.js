@@ -9,6 +9,7 @@ import { getDeviceId } from '../sync/deviceId.js';
 import { directAccessEncryptsWrites } from '../sync/directAccessTransport.js';
 import { resolveDirectAccessIntentsKey } from './directAccessIntentsKey.js';
 import { getSyncPassphrase } from '../utils/crypto.js';
+import { timeAsync } from '../utils/perfTrace.js';
 
 /**
  * Polls the Direct Access event set (intents/folderIntents.js) on the
@@ -42,7 +43,8 @@ export function useDirectAccessIntents(context, { transport = directAccessTransp
     let keyChecked = false;
     let state = { lastWriteAt: 0, pendingWrite: null };
 
-    const run = async () => {
+    const run = () => timeAsync('folder intents cycle', runInner);
+    const runInner = async () => {
       if (destroyed || running) return;
       if (!intentDrainAllowed()) return;
       if (!transport.isAvailable()) return;

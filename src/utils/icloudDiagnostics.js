@@ -38,6 +38,7 @@ import { isICloudSyncEnabled } from './icloudSyncPref.js';
 import { explainSnapshotMerge } from '../sync/snapshotMergeExplain.js';
 import { mergeSyncData } from '../mergeSync.js';
 import { stripHealthSourcedLogs } from './healthLogFilter.js';
+import { perfSnapshot, formatPerfLines } from './perfTrace.js';
 
 /** Shape returned when a probe cannot run on this platform. */
 const UNSUPPORTED = 'unsupported';
@@ -444,6 +445,9 @@ export async function collectICloudDiagnostics(deps = defaultDeps()) {
     syncEnabled: isICloudSyncEnabled(deps.localStorage),
     local: readLocalState(deps),
     transports: readSyncTransports(deps),
+    // What held the page and when (utils/perfTrace.js). Only in the copied
+    // report: it is for whoever reads the report, not a panel row.
+    perf: (deps.perfSnapshot ?? perfSnapshot)(),
   };
 }
 
@@ -498,7 +502,7 @@ const vaultLines = (v, none) => {
   return lines;
 };
 
-export function formatDiagnosticsReport({ platform, icloud, available, snapshot, local, transports, syncEnabled, merge, directAccess }) {
+export function formatDiagnosticsReport({ platform, icloud, available, snapshot, local, transports, syncEnabled, merge, directAccess, perf }) {
   const none = '(none)';
   const lines = [
     'dayGLANCE sync diagnostics',
@@ -564,5 +568,6 @@ export function formatDiagnosticsReport({ platform, icloud, available, snapshot,
     }
     lines.push(...mergeLines(da.merge, '  ', none));
   }
+  if (perf) lines.push(...formatPerfLines(perf));
   return lines.join('\n');
 }

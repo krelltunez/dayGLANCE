@@ -93,6 +93,7 @@ import { recordOwnWriteSeq } from '@glance-apps/dayglance-vault';
 // already reported the incident once.
 import { createVaultClient } from '@glance-apps/sync';
 import { nativeHttpRequest } from '../native.js';
+import { timeAsync } from '../utils/perfTrace.js';
 
 // Module-level lock: prevents React StrictMode's double-mount from running two
 // concurrent polls, which would both read the same cursor and double-process.
@@ -545,7 +546,11 @@ async function poll(context, opts) {
  * receive cursor; it does not reimplement any intents logic. No-ops when DB
  * intents isn't enabled.
  */
-export async function drainDbIntents(context, opts) {
+export function drainDbIntents(context, opts) {
+  return timeAsync('vault intents drain', () => drainDbIntentsInner(context, opts));
+}
+
+async function drainDbIntentsInner(context, opts) {
   if (!isDbIntentsEnabled()) return;
   await poll(context, opts);
 }

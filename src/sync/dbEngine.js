@@ -62,6 +62,7 @@ import { ghostSuccessorId, persistDerivedGhostRetirements } from '../utils/obsid
 import { createIdbKeyValue } from '../utils/idbKeyValue.js';
 import { cycleErrorCode } from './syncErrors.js';
 import { nativeHttpRequest } from '../native.js';
+import { timeAsync, timeSync } from '../utils/perfTrace.js';
 
 const APP_ID = 'dayglance';
 const CRYPTO_DB_NAME = 'dayglance-db-crypto';
@@ -823,7 +824,8 @@ export function createDbEngine(callbacks = {}) {
   // from pullRemoteChanges/pushDirtyRows anyway to get commit-only-on-success
   // (the engine's own dbSyncCycle swallows errors, which would let a failed
   // cycle commit a partial mirror).
-  const dbSyncCycle = async () => {
+  const dbSyncCycle = () => timeAsync('vault sync cycle', dbSyncCycleInner);
+  const dbSyncCycleInner = async () => {
     if (disposed) return;
     if (typeof callbacks.getData !== 'function') return;
     // Not a completed cycle, and says so: `skipped` on a result is a row count.
@@ -858,7 +860,7 @@ export function createDbEngine(callbacks = {}) {
     // ever left behind by a death between here and one of them.
     writePullMark(preCycleHwm);
     try {
-      mirror = clone(callbacks.getData()) || {};
+      mirror = timeSync('vault: read app state', () => clone(callbacks.getData()) || {});
 
       // Seed the dirty set: full snapshot on first-ever sync, else the diff.
       const pushDbg = debugPushEnabled();
@@ -880,7 +882,7 @@ export function createDbEngine(callbacks = {}) {
       // entityId → hash of the state as of cycle START. Reused three ways: the
       // dirty diff below, the mid-cycle-edit detection in the commit merge, and
       // (via the HWM=0 branch) the full seed.
-      const baseHashes = shredHashes(mirror);
+      const baseHashes = timeSync('vault: hash rows', () => shredHashes(mirror));
       // Snapshot entries of a collection kind the payload OMITS (its key is
       // undefined, not []): unknown this cycle, not empty. The diff carries
       // them forward untouched and the saved snapshot keeps them, so a device
@@ -1321,7 +1323,7 @@ export function createDbEngine(callbacks = {}) {
       // window at all in which a replace could race a concurrent write).
       const mergedHashes = (survivors.length || honoredDeletes.length) ? shredHashes(mirror) : vaultSnapshot;
       const commitIsNoop = (pull?.applied ?? 0) === 0 && hashMapsEqual(mergedHashes, liveHashes);
-      if (!commitIsNoop) callbacks.commitData?.(clone(mirror));
+      if (!commitIsNoop) timeSync('vault: apply to app', () => callbacks.commitData?.(clone(mirror)));
 
       // A cycle with UNRESOLVED glitch-skips is poisoned: saving its snapshot
       // would drop the vanished rows from the diff baseline, silencing the guard
