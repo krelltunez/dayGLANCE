@@ -263,6 +263,52 @@ export const nativeGetDailyNote = (date) => {
   return bridge.getDailyNote(date);
 };
 
+// The most a background vault listing may take before the caller gives up on
+// it (no suggestions this time, the next resume tries again).
+const LIST_NOTES_TIMEOUT_MS = 30_000;
+
+/**
+ * The vault's note paths without holding the JS thread: Android walks the
+ * vault on a background thread (listNotesAsync) and answers through
+ * window.__obsidianDispatch. Elsewhere, or on a shell without the method, the
+ * synchronous listNotes, deferred past the next paint. Resolves null when the
+ * listing failed or did not answer in time. Android only for the async path:
+ * the iOS bridge answers ANY method name, so a presence check alone would wait
+ * there for a callback that never comes.
+ */
+export const nativeListNotesAsync = (folder) => {
+  const bridge = obsidianBridge();
+  if (!bridge) return Promise.resolve(null);
+  if (!(isNativeAndroid() && typeof bridge.listNotesAsync === 'function')) {
+    return new Promise((resolve) => {
+      const run = () => resolve(nativeListNotes(folder));
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(run, 0));
+      else setTimeout(run, 0);
+    });
+  }
+  return new Promise((resolve) => {
+    if (!window.__obsidianCbs) window.__obsidianCbs = {};
+    const id = Math.random().toString(36).slice(2, 18).replace(/[^a-z0-9]/g, 'x');
+    const timer = setTimeout(() => {
+      if (!window.__obsidianCbs?.[id]) return;
+      delete window.__obsidianCbs[id];
+      resolve(null);
+    }, LIST_NOTES_TIMEOUT_MS);
+    window.__obsidianCbs[id] = (result, error) => {
+      clearTimeout(timer);
+      if (error) { resolve(null); return; }
+      try { resolve(JSON.parse(result)); } catch { resolve(null); }
+    };
+    try {
+      bridge.listNotesAsync(folder, id);
+    } catch {
+      clearTimeout(timer);
+      delete window.__obsidianCbs[id];
+      resolve(null);
+    }
+  });
+};
+
 export const nativeListNotes = (folder) => {
   const bridge = obsidianBridge();
   if (!bridge?.listNotes) return null;

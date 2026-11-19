@@ -14,7 +14,7 @@ import {
 import {
   isNativeAndroid, isNativeApp,
   nativeGetVaultConfig, nativeGetNote, nativeWriteNote, nativeOpenNote,
-  nativeListNotes, nativeSetVaultSettings, nativeSetLaunchOnWrite,
+  nativeListNotesAsync, nativeSetVaultSettings, nativeSetLaunchOnWrite,
 } from '../native.js';
 import { effectiveLaunchOnWrite } from '../utils/obsidianLaunchOnWrite.js';
 import { validateWikiNoteName } from '../utils/obsidianFilename.js';
@@ -927,15 +927,34 @@ export default function useObsidianSync({
       // keeps a missed gate from telling a user who never chose Obsidian
       // that their vault is unreachable (v5.4.2, the visibility handler).
       if (!obsidianConfig?.enabled) return;
-      try {
-        const handle = await getVaultAccess();
-        if (!handle) { noteVaultAccess('lost'); sayVaultLost(); return; }
-        obsidianVaultHandleRef.current = handle;
-        scanVaultNotes(handle).then(({ names, unportable }) => { setWikilinkCandidates(names); setUnportableVaultFiles?.(unportable); }).catch(() => {});
-      } catch {
-        noteVaultAccess('lost');
-        sayVaultLost();
-        return;
+      if (isNativeApp()) {
+        // A native shell holds the vault in its bridge (Android's SAF URI,
+        // iOS's bookmark), never in a browser handle: getVaultAccess() below
+        // is the web/desktop restore and always answers null here, so asking
+        // it marked a configured phone's vault "lost". That happened whenever
+        // a cycle ran before the mount effect named the handle (the poll, a
+        // nudge, Sync Now), and the stale answer could land after a real
+        // cycle had already marked the vault reachable. Ask the bridge.
+        let cfg = null;
+        try { cfg = nativeGetVaultConfig(); } catch { cfg = null; }
+        if (!cfg?.configured) { noteVaultAccess('lost'); sayVaultLost(); return; }
+        obsidianVaultHandleRef.current = 'native';
+      } else {
+        try {
+          const handle = await getVaultAccess();
+          // A handle set while the restore was pending (the folder was just
+          // picked, or a native-style startup named it) is the answer; this
+          // stale null must not overwrite it with "lost".
+          if (!handle) {
+            if (!obsidianVaultHandleRef.current) { noteVaultAccess('lost'); sayVaultLost(); }
+            return;
+          }
+          obsidianVaultHandleRef.current = handle;
+          scanVaultNotes(handle).then(({ names, unportable }) => { setWikilinkCandidates(names); setUnportableVaultFiles?.(unportable); }).catch(() => {});
+        } catch {
+          if (!obsidianVaultHandleRef.current) { noteVaultAccess('lost'); sayVaultLost(); }
+          return;
+        }
       }
     }
     // Whether the vault is really reachable, before the cycle reports
@@ -1731,6 +1750,18 @@ export default function useObsidianSync({
     st.timer = setTimeout(() => { st.timer = null; void runNudgedObservationCycle(); }, wait);
   };
 
+  // Wikilink suggestions and the unportable-name check from the native vault
+  // listing. One run at a time: a resume during a slow walk joins it.
+  const nativeNoteListRef = useRef(null);
+  const applyNativeNoteList = () => {
+    if (nativeNoteListRef.current) return;
+    nativeNoteListRef.current = nativeListNotesAsync('').then((notes) => {
+      if (!notes) return;
+      setWikilinkCandidates(notes.map(p => p.split('/').pop().replace(/\.md$/i, '')).sort((a, b) => a.localeCompare(b)));
+      setUnportableVaultFiles?.(classifyVaultPaths(notes));
+    }).catch(() => {}).finally(() => { nativeNoteListRef.current = null; });
+  };
+
   // Obsidian sync: restore vault handle on mount and do initial sync
   useEffect(() => {
     if (isTrayMode || !dataLoaded) return;
@@ -1745,14 +1776,9 @@ export default function useObsidianSync({
           }
           // notifyNativeReady() is called in performObsidianSync's finally block
           performObsidianSync();
-          // Populate wikilink autocomplete candidates from the vault index
-          try {
-            const notes = nativeListNotes('');
-            if (notes) {
-              setWikilinkCandidates(notes.map(p => p.split('/').pop().replace(/\.md$/i, '')).sort((a, b) => a.localeCompare(b)));
-              setUnportableVaultFiles?.(classifyVaultPaths(notes));
-            }
-          } catch {}
+          // Populate wikilink autocomplete candidates from the vault index,
+          // off the JS thread (a whole-vault walk; see nativeListNotesAsync).
+          applyNativeNoteList();
         } else {
           // No Obsidian configured — release the splash immediately
           notifyNativeReady();
@@ -1805,19 +1831,11 @@ export default function useObsidianSync({
               setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '', newNotesFolder: cfg.newNotesFolder || 'dayGLANCE', dailyNotePattern: cfg.pattern || 'yyyy-MM-dd' });
             }
             performObsidianSync();
-            // Defer the blocking vault scan to after the next paint so the JS thread
-            // isn't blocked mid-render (which causes a blank screen on resume).
-            // rAF → setTimeout(0) guarantees the browser paints the current frame
-            // before nativeListNotes runs.
-            requestAnimationFrame(() => setTimeout(() => {
-              try {
-                const notes = nativeListNotes('');
-                if (notes) {
-              setWikilinkCandidates(notes.map(p => p.split('/').pop().replace(/\.md$/i, '')).sort((a, b) => a.localeCompare(b)));
-              setUnportableVaultFiles?.(classifyVaultPaths(notes));
-            }
-              } catch {}
-            }, 0));
+            // The vault listing for wikilink suggestions, on every return to
+            // the app: off the JS thread on Android, after the next paint
+            // elsewhere (a blocking walk mid-render blanked the screen on
+            // resume, and on a large vault held every tap that followed).
+            applyNativeNoteList();
           }
         } catch {}
         return;

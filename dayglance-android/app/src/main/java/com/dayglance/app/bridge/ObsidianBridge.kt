@@ -245,14 +245,35 @@ class ObsidianBridge(private val context: Context, private val webView: android.
      * [callbackId] must be alphanumeric + underscore, max 32 chars — validated before use.
      */
     @JavascriptInterface
-    fun getAllDailyNotesAsync(folder: String, cutoff: String, callbackId: String) {
+    fun getAllDailyNotesAsync(folder: String, cutoff: String, callbackId: String) =
+        runAsync(callbackId) { repository.getAllDailyNotes(folder, cutoff) }
+
+    /**
+     * Non-blocking version of listNotes: the whole-vault walk runs on a
+     * background thread and the JSON array comes back through
+     * window.__obsidianDispatch(callbackId, json, error). The web app lists the
+     * vault for wikilink suggestions at launch and on every return to the app;
+     * synchronously, that walk held the JS thread (taps, scrolling, rendering)
+     * for as long as the vault took to list.
+     */
+    @JavascriptInterface
+    fun listNotesAsync(folder: String, callbackId: String) =
+        runAsync(callbackId) { repository.listNotes(folder) }
+
+    /**
+     * Runs [work] on a background thread and dispatches its JSON result (or
+     * error) back to JS via window.__obsidianDispatch(callbackId, json, error).
+     * [callbackId] must be alphanumeric + underscore, max 32 chars — validated
+     * before use, since it is interpolated into the evaluated script.
+     */
+    private fun runAsync(callbackId: String, work: () -> String) {
         // Validate callbackId to prevent JS injection via the interpolated eval string.
         if (callbackId.length > 32 || !callbackId.matches(Regex("[a-z0-9_]+"))) {
             return
         }
         Thread {
             try {
-                val json = repository.getAllDailyNotes(folder, cutoff)
+                val json = work()
                 // Escape backslashes and backticks that could break the JS template literal.
                 // The result is a JSON string so only ` and \ need escaping before eval.
                 val safe = json.replace("\\", "\\\\").replace("`", "\\`")

@@ -18,10 +18,11 @@ const writeTaskStateToFile = vi.fn();
 const syncObsidianVault = vi.fn(async () => ({ dailyNotes: {}, scheduledTasks: [], inboxTasks: [] }));
 const readVaultHeartbeat = vi.fn(async () => null);
 const probeVaultAccess = vi.fn(async () => 'ok');
+const getVaultAccess = vi.fn(async () => null);
 vi.mock('../obsidian.js', () => ({
   tryRestoreVaultAccess: vi.fn(async () => null),
   probeVaultAccess: (...a) => probeVaultAccess(...a),
-  getVaultAccess: vi.fn(async () => null),
+  getVaultAccess: (...a) => getVaultAccess(...a),
   syncObsidianVault: (...a) => syncObsidianVault(...a),
   syncObsidianVaultNative: vi.fn(async () => null),
   writeTaskStateToFile: (...a) => writeTaskStateToFile(...a),
@@ -46,14 +47,17 @@ vi.mock('../obsidian.js', () => ({
   obsidianWindowCutoffDate: vi.fn(() => null),
 }));
 const nativeAndroid = { value: false };
+const nativeApp = { value: false };
+const nativeGetVaultConfig = vi.fn(() => null);
 vi.mock('../native.js', () => ({
   isNativeAndroid: () => nativeAndroid.value,
-  isNativeApp: () => false,
-  nativeGetVaultConfig: vi.fn(() => null),
+  isNativeApp: () => nativeApp.value,
+  nativeGetVaultConfig: (...a) => nativeGetVaultConfig(...a),
   nativeGetNote: vi.fn(() => null),
   nativeWriteNote: vi.fn(),
   nativeOpenNote: vi.fn(),
   nativeListNotes: vi.fn(() => []),
+  nativeListNotesAsync: async () => null,
   nativeSetVaultSettings: vi.fn(),
   nativeSetLaunchOnWrite: vi.fn(),
 }));
@@ -98,7 +102,7 @@ const setObsidianSyncError = vi.fn();
 const setObsidianSyncStatus = vi.fn();
 const setObsidianVaultAccess = vi.fn();
 
-function useMountedHook({ authoritative, defaultTaskHeading, taskHeading }) {
+function useMountedHook({ authoritative, defaultTaskHeading, taskHeading, handleRef = { current: {} } }) {
   effects.length = 0;
   vi.stubGlobal('setTimeout', (cb, ms) => { if (!ms || ms < 3000) cb(); return 1; });
   vi.stubGlobal('setInterval', () => 1);
@@ -125,7 +129,7 @@ function useMountedHook({ authoritative, defaultTaskHeading, taskHeading }) {
     obsidianSyncError: null,
     setObsidianSyncStatus, setObsidianSyncError, setObsidianLastSynced: vi.fn(),
     setObsidianSyncNotice: vi.fn(), setObsidianVaultAccess,
-    obsidianVaultHandleRef: { current: {} },
+    obsidianVaultHandleRef: handleRef,
     obsidianSyncInProgressRef: { current: false },
     obsidianPrevTaskStateRef: prevRef,
     obsidianTasksRef: { current: tasks }, obsidianInboxRef: { current: [] },
@@ -153,7 +157,11 @@ beforeEach(() => {
   probeVaultAccess.mockReset(); probeVaultAccess.mockResolvedValue('ok');
   setObsidianSyncStatus.mockClear(); setObsidianVaultAccess.mockClear();
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); nativeAndroid.value = false; });
+afterEach(() => {
+  vi.unstubAllGlobals(); vi.restoreAllMocks(); nativeAndroid.value = false; nativeApp.value = false;
+  getVaultAccess.mockReset(); getVaultAccess.mockResolvedValue(null);
+  nativeGetVaultConfig.mockReset(); nativeGetVaultConfig.mockReturnValue(null);
+});
 
 // The Android splash is held until the startup sync's work is done. The cycle
 // then waits out a 2 s floor for the Sync button's spinner, and the splash
@@ -311,5 +319,52 @@ describe('a vault this device cannot reach', () => {
     await api.performObsidianSync();
     expect(setObsidianVaultAccess).toHaveBeenLastCalledWith('ok');
     expect(statuses()).toContain('success');
+  });
+});
+
+// The Pixel (2026-11-18): a phone whose vault the shell holds showed "Can't
+// reach your Obsidian vault on this device" while the folder was fine. A
+// cycle that ran before the startup effect named the handle asked the WEB
+// restore (getVaultAccess), which is always null on a native shell.
+describe('a native shell with no handle named yet', () => {
+  const statuses = () => setObsidianSyncStatus.mock.calls.map(([s]) => (typeof s === 'function' ? s('syncing') : s));
+
+  // MUTATION: route native through getVaultAccess again and this fails.
+  it('asks the bridge, names the native handle and runs the cycle instead of reporting the vault lost', async () => {
+    nativeApp.value = true;
+    nativeGetVaultConfig.mockReturnValue({ configured: true, folder: '' });
+    const handleRef = { current: null };
+    const { api } = useMountedHook({ authoritative: false, handleRef });
+    await api.performObsidianSync();
+    expect(getVaultAccess).not.toHaveBeenCalled();
+    expect(handleRef.current).toBe('native');
+    expect(setObsidianVaultAccess).not.toHaveBeenCalledWith('lost');
+    expect(setObsidianVaultAccess).toHaveBeenCalledWith('ok');
+    expect(setObsidianSyncError).not.toHaveBeenCalledWith(expect.stringContaining("Can't reach your Obsidian vault"));
+  });
+
+  it('a shell with no vault configured is still reported lost, once', async () => {
+    nativeApp.value = true;
+    nativeGetVaultConfig.mockReturnValue({ configured: false });
+    const handleRef = { current: null };
+    const { api } = useMountedHook({ authoritative: false, handleRef });
+    await api.performObsidianSync();
+    expect(getVaultAccess).not.toHaveBeenCalled();
+    expect(handleRef.current).toBe(null);
+    expect(setObsidianVaultAccess).toHaveBeenLastCalledWith('lost');
+    expect(statuses()).toContain('error');
+  });
+});
+
+describe('a web restore that answers after the handle was named', () => {
+  // MUTATION: drop the "handle set meanwhile" guard and the stale null
+  // overwrites the reachable vault with "lost".
+  it('does not overwrite the named handle with "lost"', async () => {
+    const handleRef = { current: null };
+    getVaultAccess.mockImplementation(async () => { handleRef.current = { named: true }; return null; });
+    const { api } = useMountedHook({ authoritative: false, handleRef });
+    await api.performObsidianSync();
+    expect(setObsidianVaultAccess).not.toHaveBeenCalledWith('lost');
+    expect(setObsidianSyncError).not.toHaveBeenCalledWith(expect.stringContaining("Can't reach your Obsidian vault"));
   });
 });
