@@ -927,15 +927,34 @@ export default function useObsidianSync({
       // keeps a missed gate from telling a user who never chose Obsidian
       // that their vault is unreachable (v5.4.2, the visibility handler).
       if (!obsidianConfig?.enabled) return;
-      try {
-        const handle = await getVaultAccess();
-        if (!handle) { noteVaultAccess('lost'); sayVaultLost(); return; }
-        obsidianVaultHandleRef.current = handle;
-        scanVaultNotes(handle).then(({ names, unportable }) => { setWikilinkCandidates(names); setUnportableVaultFiles?.(unportable); }).catch(() => {});
-      } catch {
-        noteVaultAccess('lost');
-        sayVaultLost();
-        return;
+      if (isNativeApp()) {
+        // A native shell holds the vault in its bridge (Android's SAF URI,
+        // iOS's bookmark), never in a browser handle: getVaultAccess() below
+        // is the web/desktop restore and always answers null here, so asking
+        // it marked a configured phone's vault "lost". That happened whenever
+        // a cycle ran before the mount effect named the handle (the poll, a
+        // nudge, Sync Now), and the stale answer could land after a real
+        // cycle had already marked the vault reachable. Ask the bridge.
+        let cfg = null;
+        try { cfg = nativeGetVaultConfig(); } catch { cfg = null; }
+        if (!cfg?.configured) { noteVaultAccess('lost'); sayVaultLost(); return; }
+        obsidianVaultHandleRef.current = 'native';
+      } else {
+        try {
+          const handle = await getVaultAccess();
+          // A handle set while the restore was pending (the folder was just
+          // picked, or a native-style startup named it) is the answer; this
+          // stale null must not overwrite it with "lost".
+          if (!handle) {
+            if (!obsidianVaultHandleRef.current) { noteVaultAccess('lost'); sayVaultLost(); }
+            return;
+          }
+          obsidianVaultHandleRef.current = handle;
+          scanVaultNotes(handle).then(({ names, unportable }) => { setWikilinkCandidates(names); setUnportableVaultFiles?.(unportable); }).catch(() => {});
+        } catch {
+          if (!obsidianVaultHandleRef.current) { noteVaultAccess('lost'); sayVaultLost(); }
+          return;
+        }
       }
     }
     // Whether the vault is really reachable, before the cycle reports
