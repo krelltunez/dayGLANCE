@@ -5,7 +5,13 @@
  * (electronAPI.directAccess), so sync/directAccessTransport.js, the hook and
  * the cycle run unchanged on every platform.
  *
- * The native calls are synchronous and answer with JSON text. Android's
+ * The native calls are synchronous and answer with JSON text: the page's JS
+ * thread waits for each one, so a folder lookup that takes a moment holds
+ * taps and rendering for that moment, twice every 15-second poll (the
+ * snapshot and the intents file). Android's shell also offers
+ * `callAsync(method, argsJson, callbackId)`, which runs the same call on a
+ * worker thread and answers through `window.__dgDirectAccessDispatch`; the
+ * adapter uses it whenever it is there. Android's
  * JavascriptInterface returns real booleans; iOS answers every dgbridge:// call
  * as text, so its booleans arrive as the strings "true"/"false". The adapter
  * accepts both. The one asynchronous step is the folder picker: pickFolder()
@@ -22,6 +28,14 @@ export const isNativeDirectAccessAvailable = () =>
   typeof window !== 'undefined' && !!window.DayGlanceDirectAccess;
 
 const PICK_CALLBACK = '__dgDirectAccessPicked';
+const DISPATCH = '__dgDirectAccessDispatch';
+
+/**
+ * A call the shell has not answered in this long is given up as an error, the
+ * way a thrown synchronous call is. The shell's worker runs calls in order, so
+ * one still running when it is given up delays the next rather than racing it.
+ */
+export const ASYNC_CALL_TIMEOUT_MS = 60_000;
 
 /** iOS answers booleans as text; Android as booleans. */
 const truthy = (value) => value === true || value === 'true';
@@ -45,9 +59,50 @@ export function createNativeDirectAccessBridge({
     try { return JSON.parse(value); } catch { return null; }
   };
 
+  // The off-thread path: Android's shell only (the iOS bridge is a Proxy that
+  // answers any method name, so presence proves nothing there).
+  let nextId = 0;
+  const canCallAsync = () => {
+    if (platform !== 'android') return false;
+    try { return typeof native()?.callAsync === 'function'; } catch { return false; }
+  };
+  const callAsync = (method, args) => new Promise((resolve, reject) => {
+    const w = win();
+    const pending = w.__dgDirectAccessCbs || (w.__dgDirectAccessCbs = {});
+    if (typeof w[DISPATCH] !== 'function') {
+      w[DISPATCH] = (id, value, error) => {
+        const cb = w.__dgDirectAccessCbs?.[id];
+        if (cb) cb(value, error);
+      };
+    }
+    nextId = (nextId + 1) % 1e9;
+    const id = `da_${nextId}`;
+    const timer = setTimeout(() => {
+      delete pending[id];
+      reject(new Error(`direct access ${method} timed out`));
+    }, ASYNC_CALL_TIMEOUT_MS);
+    pending[id] = (value, error) => {
+      clearTimeout(timer);
+      delete pending[id];
+      if (error != null) reject(new Error(String(error)));
+      else resolve(value);
+    };
+    try {
+      native().callAsync(method, JSON.stringify(args), id);
+    } catch (err) {
+      clearTimeout(timer);
+      delete pending[id];
+      reject(err);
+    }
+  });
+  /** One folder call: off the JS thread where the shell can, else as before. */
+  const call = async (method, ...args) => (canCallAsync()
+    ? callAsync(method, args)
+    : native()[method](...args));
+
   return {
-    restore: async () => parse(native().status()),
-    status: async () => parse(native().status()),
+    restore: async () => parse(await call('status')),
+    status: async () => parse(await call('status')),
 
     // Resolves with the new status, or null when the picker was cancelled or
     // could not be launched. One pick at a time: a second call before the
@@ -62,9 +117,9 @@ export function createNativeDirectAccessBridge({
     createFile: (slot = 'snapshot') => launch('createFile', slot),
 
     disconnect: async () => truthy(native().disconnect()),
-    read: async () => parse(native().read()),
-    write: async (text) => truthy(native().write(text)),
-    deleteFile: async () => truthy(native().deleteSnapshot()),
+    read: async () => parse(await call('read')),
+    write: async (text) => truthy(await call('write', text)),
+    deleteFile: async () => truthy(await call('deleteSnapshot')),
 
     // Files by path, relative to the folder and confined to it in the shell
     // (DirectAccessPath.kt). Android only: docs/direct-access-sync.md, Phase 5.
@@ -87,11 +142,11 @@ export function createNativeDirectAccessBridge({
     } : {}),
     ...(platform === 'android' ? {
       paths: {
-        list: async (rel) => { const v = parse(native().listFiles(rel)); return Array.isArray(v) ? v : null; },
-        read: async (rel) => parse(native().readFile(rel)) ?? { kind: 'error', error: 'bad answer from the shell' },
-        write: async (rel, text) => truthy(native().writeFile(rel, text)),
-        remove: async (rel) => truthy(native().deleteFileAt(rel)),
-        makeDir: async (rel) => truthy(native().makeDir(rel)),
+        list: async (rel) => { const v = parse(await call('listFiles', rel)); return Array.isArray(v) ? v : null; },
+        read: async (rel) => parse(await call('readFile', rel)) ?? { kind: 'error', error: 'bad answer from the shell' },
+        write: async (rel, text) => truthy(await call('writeFile', rel, text)),
+        remove: async (rel) => truthy(await call('deleteFileAt', rel)),
+        makeDir: async (rel) => truthy(await call('makeDir', rel)),
       },
     } : {}),
   };
