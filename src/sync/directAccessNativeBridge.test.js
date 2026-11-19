@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createNativeDirectAccessBridge, isNativeDirectAccessAvailable } from './directAccessNativeBridge.js';
+import { createNativeDirectAccessBridge, isNativeDirectAccessAvailable, ASYNC_CALL_TIMEOUT_MS } from './directAccessNativeBridge.js';
 import { createDirectAccessTransport } from './directAccessTransport.js';
 import { classifySnapshotText } from './snapshotFileSync.js';
 
@@ -262,5 +262,113 @@ describe('the roster as its own bookmarked file (iOS)', () => {
     expect(await picked).toMatchObject({ slot: 'events' });
     native.readEvents = () => 'garbage';
     expect(await bridge.events.read()).toEqual({ kind: 'error', error: 'bad answer from the shell' });
+  });
+});
+
+// Android's shell runs folder calls off the JS thread through callAsync and
+// answers on window.__dgDirectAccessDispatch (DirectAccessBridge.kt). The fake
+// shell queues each call and answers when the test says, with the same text
+// the synchronous twin would return (booleans as "true"/"false").
+describe('the off-thread path (Android callAsync)', () => {
+  const makeAsyncShell = (platform = 'android') => {
+    const native = makeNative(platform);
+    const queue = [];
+    native.callAsync = vi.fn((method, argsJson, id) => { queue.push({ method, args: JSON.parse(argsJson), id }); });
+    const w = {};
+    const bridge = createNativeDirectAccessBridge({ native: () => native, win: () => w, platform });
+    const answerNext = ({ value, error = null } = {}) => {
+      const c = queue.shift();
+      let v = value;
+      if (v === undefined) {
+        const r = native[c.method](...c.args);
+        v = typeof r === 'boolean' ? String(r) : r;
+      }
+      w.__dgDirectAccessDispatch(c.id, v, error);
+      return c;
+    };
+    return { bridge, native, w, queue, answerNext };
+  };
+
+  it('never makes the synchronous call when the shell offers callAsync', async () => {
+    const { bridge, native, queue, answerNext } = makeAsyncShell();
+    native.status.mockClear();
+    const p = bridge.status();
+    await Promise.resolve();
+    expect(native.status).not.toHaveBeenCalled();
+    expect(queue).toHaveLength(1);
+    answerNext();
+    expect(await p).toEqual(native.folder);
+  });
+
+  it('carries arguments and parses each answer as the synchronous call would', async () => {
+    const { bridge, native, queue, answerNext } = makeAsyncShell();
+    native.file = { kind: 'text', text: '{"a":1}' };
+    const read = bridge.read();
+    const write = bridge.write('{"b":2}');
+    const list = bridge.paths.list('intents');
+    const readFile = bridge.paths.read('glance-users.json');
+    const writeFile = bridge.paths.write('a/b.json', 'x');
+    await Promise.resolve();
+    expect(queue.map((c) => [c.method, c.args])).toEqual([
+      ['read', []], ['write', ['{"b":2}']], ['listFiles', ['intents']],
+      ['readFile', ['glance-users.json']], ['writeFile', ['a/b.json', 'x']],
+    ]);
+    for (let i = 0; i < 5; i += 1) answerNext();
+    expect(await read).toEqual(native.file);
+    expect(await write).toBe(true);
+    expect(await list).toEqual(['glance-users.json']);
+    expect(await readFile).toEqual({ kind: 'text', text: '{"users":[]}' });
+    expect(await writeFile).toBe(true);
+    expect(native.writeFile).toHaveBeenCalledWith('a/b.json', 'x');
+  });
+
+  it('reads a "false" answer as a failed write', async () => {
+    const { bridge, queue, answerNext } = makeAsyncShell();
+    const p = bridge.write('x');
+    await Promise.resolve();
+    expect(queue).toHaveLength(1);
+    answerNext({ value: 'false' });
+    expect(await p).toBe(false);
+  });
+
+  it('rejects on a shell error, as a thrown synchronous call does', async () => {
+    const { bridge, answerNext } = makeAsyncShell();
+    const p = bridge.read();
+    await Promise.resolve();
+    answerNext({ value: null, error: 'boom' });
+    await expect(p).rejects.toThrow('boom');
+  });
+
+  it('gives up a call the shell never answers', async () => {
+    vi.useFakeTimers();
+    try {
+      const { bridge, w } = makeAsyncShell();
+      const p = bridge.read();
+      const settled = expect(p).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(ASYNC_CALL_TIMEOUT_MS);
+      await settled;
+      expect(Object.keys(w.__dgDirectAccessCbs)).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('settles each call by its own id when answers arrive out of order', async () => {
+    const { bridge, native, w, queue } = makeAsyncShell();
+    const a = bridge.status();
+    const b = bridge.read();
+    await Promise.resolve();
+    const [ca, cb] = queue;
+    w.__dgDirectAccessDispatch(cb.id, JSON.stringify({ kind: 'absent' }), null);
+    w.__dgDirectAccessDispatch(ca.id, JSON.stringify(native.folder), null);
+    expect(await a).toEqual(native.folder);
+    expect(await b).toEqual({ kind: 'absent' });
+  });
+
+  it('keeps iOS on the synchronous calls (its proxy answers any method name)', async () => {
+    const { bridge, native } = makeAsyncShell('ios');
+    expect(await bridge.status()).toEqual(native.folder);
+    expect(native.callAsync).not.toHaveBeenCalled();
+    expect(native.status).toHaveBeenCalled();
   });
 });

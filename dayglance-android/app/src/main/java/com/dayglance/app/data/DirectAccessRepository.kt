@@ -28,7 +28,8 @@ class DirectAccessRepository(private val context: Context) {
 
     private val dataStore = SharedDataStore(context)
 
-    private var cache: Cached? = null
+    // Read on the bridge's worker thread, cleared from the picker's (main) thread.
+    @Volatile private var cache: Cached? = null
     private data class Cached(val lastModified: Long, val length: Long, val text: String)
 
     // ── Folder ───────────────────────────────────────────────────────────────
@@ -131,7 +132,7 @@ class DirectAccessRepository(private val context: Context) {
         if (!folderReachable(root)) return false
         cache = null
         return try {
-            root.findFile(DirectAccessRead.SYNC_FILE)?.delete() ?: true
+            root.child(DirectAccessRead.SYNC_FILE)?.delete() ?: true
         } catch (e: Exception) {
             false
         }
@@ -140,7 +141,7 @@ class DirectAccessRepository(private val context: Context) {
     // ── Files by path (Phase 5: the household roster; Phase 7: intents) ──────
     //
     // Every path is relative to the folder and confined to it by
-    // DirectAccessPath; the walk is DocumentFile.findFile per segment, which
+    // DirectAccessPath; the walk is one child lookup per segment, which
     // never leaves the tree the grant covers. The snapshot calls above are
     // untouched.
 
@@ -148,7 +149,7 @@ class DirectAccessRepository(private val context: Context) {
     private fun dirAt(root: DocumentFile, segments: List<String>, create: Boolean): DocumentFile? {
         var dir = root
         for (seg in segments) {
-            val next = try { dir.findFile(seg) } catch (e: Exception) { null }
+            val next = try { dir.child(seg) } catch (e: Exception) { null }
             dir = when {
                 next != null && next.isDirectory -> next
                 next != null -> return null
@@ -166,7 +167,7 @@ class DirectAccessRepository(private val context: Context) {
         if (root == null || !folderReachable(root) || segments == null) return "null"
         val dir = dirAt(root, segments, create = false) ?: return "[]"
         return try {
-            org.json.JSONArray(dir.listFiles().filter { it.isFile }.mapNotNull { it.name }).toString()
+            org.json.JSONArray(dir.children().filter { it.isFile }.map { it.name }).toString()
         } catch (e: Exception) {
             "null"
         }
@@ -204,7 +205,7 @@ class DirectAccessRepository(private val context: Context) {
         val segments = DirectAccessPath.fileSegments(rel) ?: return false
         val parent = dirAt(root, segments.dropLast(1), create = false) ?: return true
         return try {
-            val f = parent.findFile(segments.last()) ?: return true
+            val f = parent.child(segments.last()) ?: return true
             if (f.isDirectory) false else f.delete()
         } catch (e: Exception) {
             false
@@ -239,6 +240,16 @@ class DirectAccessRepository(private val context: Context) {
 
     // ── SAF bindings ─────────────────────────────────────────────────────────
 
+    // Lookups in two provider calls whatever the folder holds (SafChildren.kt).
+    // DocumentFile.findFile and a listFiles() read of each child's name cost one
+    // query per file in the folder, and every call here runs while the page
+    // waits: the 15-second poll read the folder about four times per pass (the
+    // snapshot's crash-temp check and lookup, the intents file's path walk and
+    // lookup), so a folder of a few dozen files held the app for a noticeable
+    // moment every poll.
+    private fun DocumentFile.children(): List<SafChild> = childrenOf(context.contentResolver, this)
+    private fun DocumentFile.child(name: String): DocumentFile? = findChild(context.contentResolver, this, name)
+
     private fun readText(file: DocumentFile): String? =
         context.contentResolver.openInputStream(file.uri)?.use {
             it.bufferedReader().readText()
@@ -251,7 +262,7 @@ class DirectAccessRepository(private val context: Context) {
         private fun file(): DocumentFile? {
             if (!looked) {
                 looked = true
-                file = try { root?.findFile(DirectAccessRead.SYNC_FILE) } catch (e: Exception) { null }
+                file = try { root?.child(DirectAccessRead.SYNC_FILE) } catch (e: Exception) { null }
             }
             return file
         }
@@ -282,7 +293,7 @@ class DirectAccessRepository(private val context: Context) {
         private fun file(): DocumentFile? {
             if (!looked) {
                 looked = true
-                file = try { parent?.findFile(name) } catch (e: Exception) { null }
+                file = try { parent?.child(name) } catch (e: Exception) { null }
             }
             return file
         }
@@ -297,7 +308,7 @@ class DirectAccessRepository(private val context: Context) {
 
     /** The write-side seam for SafeReplace, mirroring ObsidianRepository.SafDir. */
     private inner class SafDir(private val dir: DocumentFile) : SafeReplace.Dir {
-        override fun exists(name: String) = dir.findFile(name) != null
+        override fun exists(name: String) = dir.child(name) != null
         override fun createAndWrite(name: String, text: String): Boolean {
             // octet-stream: providers only append an extension when the MIME
             // maps to one, so the exact display name survives.
@@ -314,12 +325,12 @@ class DirectAccessRepository(private val context: Context) {
             }
             return true
         }
-        override fun delete(name: String) = dir.findFile(name)?.delete() ?: true
+        override fun delete(name: String) = dir.child(name)?.delete() ?: true
         override fun rename(from: String, to: String): Boolean {
-            val f = dir.findFile(from) ?: return false
+            val f = dir.child(from) ?: return false
             return try { f.renameTo(to) && f.name == to } catch (e: Exception) { false }
         }
-        override fun read(name: String): String? = dir.findFile(name)?.let { readText(it) }
+        override fun read(name: String): String? = dir.child(name)?.let { readText(it) }
     }
 
     companion object {
