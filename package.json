@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@glance-apps/agenda-core": "file:packages/agenda-core",
-    "@glance-apps/billing": "0.2.2",
+    "@glance-apps/billing": "0.2.3",
     "@glance-apps/dayglance-mcp": "file:packages/dayglance-mcp",
     "@glance-apps/dayglance-vault": "file:packages/dayglance-vault",
     "@glance-apps/intents": "1.5.0",
