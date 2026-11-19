@@ -1886,7 +1886,7 @@ app.whenReady().then(async () => {
     logStartup('started at login: main window stays hidden');
     suppressNextMainShow = true;
   }
-  const win = createWindow();
+  createWindow();
   // Both local listeners are settings-gated (§6.2, Phase 5a): the Stream Deck
   // toggle is ON for upgraded installs via the migration above, and the MCP
   // listener binds only when a read tier was enabled through the consent flow
@@ -1921,7 +1921,8 @@ app.whenReady().then(async () => {
     });
   if (integrationsConfig.streamDeck.enabled) startStreamDeckListener();
   startMcpListener();
-  registerSubscriptionHandlers(win);
+  // The current window, not the first one: see subscription.ts.
+  registerSubscriptionHandlers(() => live(mainWindow));
   registerCalendarHandlers();
   registerStorefrontHandlers();
   registerICloudHandlers(() => live(mainWindow));
