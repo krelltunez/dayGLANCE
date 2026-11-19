@@ -44,7 +44,12 @@ class DirectAccessRepository(private val context: Context) {
     /** Forgets the folder and releases the grant; the file in it is left alone. */
     fun clearFolder() {
         val uriString = dataStore.directAccessPath
-        if (uriString != null) {
+        // A persisted grant belongs to the URI, not to the feature that took
+        // it: when the sync folder is the same tree as the Obsidian vault
+        // (one picker each, the same folder chosen in both), releasing it here
+        // would revoke the vault's access too, and the Obsidian card would
+        // report the vault unreachable with nothing left to fix but a re-pick.
+        if (uriString != null && !GrantSharing.stillInUse(uriString, dataStore.vaultPath)) {
             try {
                 context.contentResolver.releasePersistableUriPermission(
                     Uri.parse(uriString),

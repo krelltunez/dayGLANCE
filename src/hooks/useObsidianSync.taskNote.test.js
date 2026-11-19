@@ -43,6 +43,7 @@ vi.mock('../native.js', () => ({
   nativeWriteNote: vi.fn(),
   nativeOpenNote: vi.fn(),
   nativeListNotes: vi.fn(() => []),
+  nativeListNotesAsync: async () => null,
   nativeSetVaultSettings: vi.fn(),
   nativeSetLaunchOnWrite: vi.fn(),
 }));
