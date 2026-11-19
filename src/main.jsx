@@ -5,6 +5,12 @@ import { isHeadlessRefresh } from './headless/headlessMode.js'
 import i18n, { ready as i18nReady } from './i18n.js'
 import { buildApplicationMenuLabels } from './utils/applicationMenuLabels.js'
 import { installSubtleDigestShim } from './utils/sha256.js'
+import { markMilestone, startLongTaskObserver } from './utils/perfTrace.js'
+
+// The responsiveness trace (utils/perfTrace.js): watch for long tasks from
+// here, the buffered ones from before included, and note when the bundle ran.
+startLongTaskObserver()
+markMilestone('bundle')
 
 function syncApplicationMenuLabels() {
   const setLabels = window.electronAPI?.setApplicationMenuLabels

@@ -295,6 +295,22 @@ describe('readSyncTransports', () => {
     expect(t2).not.toMatch(/credential halt/);
   });
 
+  it('the copied report ends with the responsiveness trace when one is given (utils/perfTrace.js)', () => {
+    const base = {
+      platform: 'android', available: { value: null }, snapshot: { state: 'unsupported', bytes: 0 },
+      local: { taskCount: 0, inboxCount: 0 }, transports: { icloud: {}, webdav: {}, vault: {} }, syncEnabled: true, icloud: false,
+    };
+    const perf = {
+      observing: true, uptimeMs: 60_000, marks: { bundle: 400, 'data on screen': 7200 }, longCount: 3, longTotalMs: 5100,
+      long: [{ start: 1200, duration: 4800, during: ['vault: read app state', 'vault sync cycle (in flight)'] }],
+      phases: [{ name: 'vault: read app state', async: false, count: 2, totalMs: 4900, maxMs: 4800 }],
+    };
+    const text = formatDiagnosticsReport({ ...base, perf });
+    expect(text).toMatch(/responsiveness:\s+up 60\.0s/);
+    expect(text).toMatch(/at 1\.2s: 4800 ms during vault: read app state, vault sync cycle \(in flight\)/);
+    expect(formatDiagnosticsReport(base)).not.toMatch(/responsiveness/);
+  });
+
   it('survives corrupt config JSON and throwing storage', () => {
     expect(readSyncTransports({ localStorage: fakeLocalStorage({ 'dayglance-vault-config': '{oops' }) }).vault.configured).toBe(false);
     expect(readSyncTransports({ localStorage: { getItem: () => { throw new Error('denied'); } } }).webdav.configured).toBe(false);

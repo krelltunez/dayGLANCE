@@ -281,6 +281,7 @@ import { writeItem } from './utils/storageWrites.js';
 import { CARD_SUBTASKS_KEY, readShowCardSubtasks } from './utils/cardSubtasks.js';
 import { occurrenceSubtasks } from './utils/recurringSubtasks.js';
 import { readDefaultTaskDuration } from './utils/defaultTaskDuration.js';
+import { markMilestone } from './utils/perfTrace.js';
 
 
 
@@ -648,6 +649,10 @@ const DayPlanner = () => {
     setUnscheduledOrderTimestamp(new Date().toISOString());
   };
   const [dataLoaded, setDataLoaded] = useState(false); // Track if initial data has been loaded
+  // Responsiveness trace (utils/perfTrace.js): the first commit, and the
+  // first commit with the data on screen.
+  useEffect(() => { markMilestone('first render'); }, []);
+  useEffect(() => { if (dataLoaded) markMilestone('data on screen'); }, [dataLoaded]);
   const [recycleBin, setRecycleBin] = useState([]);
   const [recurringTasks, setRecurringTasks] = useState([]);
   const [showRecurrencePicker, setShowRecurrencePicker] = useState(false);

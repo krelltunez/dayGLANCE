@@ -4,6 +4,7 @@ import { mergeSyncData } from '../mergeSync.js';
 import { stripHealthSourcedLogs } from '../utils/healthLogFilter.js';
 import { decryptData, encryptData, isEncryptedEnvelope, hasEncryptionReady, getSyncPassphrase, initSessionKey } from '../utils/crypto.js';
 import { getDeviceId } from '../sync/deviceId.js';
+import { timeAsync } from '../utils/perfTrace.js';
 
 /**
  * Schedules snapshot-file sync (sync/snapshotFileSync.js) for one transport.
@@ -98,7 +99,8 @@ export default function useSnapshotFileSync({
   const firstRunPendingRef = useRef(false);
   const [firstRun, setFirstRun] = useState(null);
 
-  const runCycle = async (isRetry = false) => {
+  const runCycle = (isRetry = false) => timeAsync(`${transport.id} sync cycle`, () => runCycleInner(isRetry));
+  const runCycleInner = async (isRetry = false) => {
     if (!enabled) return;
     if (!dataLoadedRef.current) return;
     // A reset in flight has already deleted the snapshot (scope 'everywhere')

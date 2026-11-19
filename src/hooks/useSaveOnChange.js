@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { schedulePush as scheduleVaultPush } from '../sync/dirtyTracker.js';
 import { notifyTrayDataChanged } from '../utils/trayNotify.js';
+import { timeSync } from '../utils/perfTrace.js';
 
 // The tray popup must never write to localStorage — it holds a snapshot of
 // state as of the last reload and would overwrite fresher main-window data.
@@ -24,7 +25,7 @@ export default function useSaveOnChange({
 }) {
   useEffect(() => {
     if (isTrayMode || !dataLoaded || isResetInProgress()) return;
-    saveData();
+    timeSync('save to storage', saveData);
     // Tell the tray popup its snapshot is stale, now that saveData() has
     // committed every key it owns (it is synchronous, so storage is fresh on
     // return). Deliberately not mount-skipped: the dataLoaded gate above means
@@ -32,7 +33,7 @@ export default function useSaveOnChange({
     // rewrite the keys the tray reads, so one reload per main-window launch is
     // correct rather than spurious.
     notifyTrayDataChanged();
-    checkConflicts();
+    timeSync('conflict check', checkConflicts);
     // Push-on-write to the GLANCEvault DB transport (debounced 3 s, vault-only).
     // Off-safe no-op when the vault is disabled; skipped while applying remote
     // data (suppressCloudUpload) so a pulled change never bounces back as a push.

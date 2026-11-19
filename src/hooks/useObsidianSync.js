@@ -81,6 +81,7 @@ import {
   readPendingNoteDeletions, writePendingNoteDeletions, applyPendingContinuityGuard,
   PENDING_NOTE_DELETIONS_KEY,
 } from '../utils/obsidianNoteScopedDeletions.js';
+import { markMilestone, timeAsync, timeSync } from '../utils/perfTrace.js';
 
 /**
  * Obsidian vault sync — extracted from App.jsx (see "App.jsx — Ongoing
@@ -838,6 +839,7 @@ export default function useObsidianSync({
     if (!isNativeAndroid()) return;
     if (nativeReadyNotifiedRef.current) return;
     nativeReadyNotifiedRef.current = true;
+    markMilestone('splash released');
     try { window.DayGlanceNative?.notifyAppReady?.(); } catch {}
   }, []);
 
@@ -908,7 +910,8 @@ export default function useObsidianSync({
   };
 
   // Obsidian vault sync — reads daily notes + imports tasks
-  const performObsidianSync = async () => {
+  const performObsidianSync = () => timeAsync('obsidian cycle', performObsidianSyncInner);
+  const performObsidianSyncInner = async () => {
     if (obsidianSyncInProgressRef.current) return;
     // No vault handle — a failed startup restore (unmounted drive, sleeping
     // network share, stale macOS bookmark) or an expired browser permission.
@@ -1876,7 +1879,7 @@ export default function useObsidianSync({
   useEffect(() => { obsidianInboxRef.current = unscheduledTasks; }, [unscheduledTasks, obsidianInboxRef]);
 
   // Obsidian writeback: detect completion/scheduling/title changes and write back to vault
-  useEffect(() => {
+  useEffect(() => timeSync('obsidian writeback pass', () => {
     if (isTrayMode || !obsidianConfig?.enabled || !obsidianVaultHandleRef.current) return;
     // Skip writeback while a sync is replacing the task arrays — but leave a
     // marker so the cycle's finally re-runs this pass (audit fix M1): the
@@ -2672,7 +2675,7 @@ export default function useObsidianSync({
     // current obsidianConfig paths + dedup refs at that moment. Adding the config
     // paths would re-run a writeback on a mere settings change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, unscheduledTasks, obsidianConfig?.enabled]);
+  }), [tasks, unscheduledTasks, obsidianConfig?.enabled]);
 
   // Push the effective launch-on-write value to the platform layer that owns
   // the post-write debounce: Electron main (obsidian:set-launch-on-write) or
