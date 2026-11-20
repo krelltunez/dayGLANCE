@@ -112,38 +112,51 @@ describe('cold open: launch screen → behind the web view → app shell', () =>
       const dark = decodePng(`${ASSETS}/LaunchImage.imageset/${darkFile}`);
       const light = decodePng(`${ASSETS}/LaunchImage.imageset/${darkFile.replace(/\.png$/, '-light.png')}`);
       expect([light.width, light.height]).toEqual([dark.width, dark.height]);
+      // Plain loops that count, asserted once at the end: an expect() per pixel
+      // is over a million calls for the iPad image, and took the test past
+      // vitest's 5 s limit on CI.
+      const isNeutralLight = (r, g, b) => Math.max(r, g, b) - Math.min(r, g, b) < 40 && r > 150;
       let recoloured = 0;
       let lightGreyLeft = 0;
+      const mismatches = { alpha: 0, day: 0, other: 0 };
+      let first = null;
+      const counts = new Map(); // the dark images' opaque "day" colours
+      let solidDay = 0;
       for (let i = 0; i < dark.px.length; i += 4) {
-        expect(light.px[i + 3]).toBe(dark.px[i + 3]); // alpha: identical everywhere
-        if (dark.px[i + 3] === 0) continue;
-        const d = [dark.px[i], dark.px[i + 1], dark.px[i + 2]];
-        const l = [light.px[i], light.px[i + 1], light.px[i + 2]];
-        const isDay = Math.max(...d) - Math.min(...d) < 40 && d[0] > 150;
-        if (isDay) {
-          expect(l).toEqual(LIGHT_DAY);
-          recoloured++;
-        } else {
-          expect(l).toEqual(d);
+        const [dr, dg, db, da] = [dark.px[i], dark.px[i + 1], dark.px[i + 2], dark.px[i + 3]];
+        const [lr, lg, lb, la] = [light.px[i], light.px[i + 1], light.px[i + 2], light.px[i + 3]];
+        if (la !== da) { // alpha: identical everywhere
+          mismatches.alpha++;
+          first ??= `alpha at byte ${i}: ${la} vs ${da}`;
         }
-        if (Math.max(...l) - Math.min(...l) < 40 && l[0] > 150) lightGreyLeft++;
+        if (da === 0) continue;
+        if (isNeutralLight(dr, dg, db)) {
+          recoloured++;
+          if (lr !== LIGHT_DAY[0] || lg !== LIGHT_DAY[1] || lb !== LIGHT_DAY[2]) {
+            mismatches.day++;
+            first ??= `"day" at byte ${i}: ${hex([lr, lg, lb])}, expected ${hex(LIGHT_DAY)}`;
+          }
+        } else if (lr !== dr || lg !== dg || lb !== db) {
+          mismatches.other++;
+          first ??= `untouched pixel at byte ${i}: ${hex([lr, lg, lb])} vs ${hex([dr, dg, db])}`;
+        }
+        if (isNeutralLight(lr, lg, lb)) lightGreyLeft++;
+        if (da === 255 && Math.max(dr, dg, db) - Math.min(dr, dg, db) < 40) {
+          const c = hex([dr, dg, db]);
+          counts.set(c, (counts.get(c) ?? 0) + 1);
+          solidDay++;
+        }
       }
-      // The wordmark's "day" was really there, in the dark-mode colour, and none
-      // of it is left light on the light background.
+      expect(mismatches, first ?? 'no mismatch').toEqual({ alpha: 0, day: 0, other: 0 });
+      // The wordmark's "day" was really there, and none of it is left light on
+      // the light background.
       expect(recoloured).toBeGreaterThan(100);
       expect(lightGreyLeft).toBe(0);
-      const solidDay = [];
-      for (let i = 0; i < dark.px.length; i += 4) {
-        if (dark.px[i + 3] === 255 && Math.max(dark.px[i], dark.px[i + 1], dark.px[i + 2]) - Math.min(dark.px[i], dark.px[i + 1], dark.px[i + 2]) < 40) {
-          solidDay.push(hex([dark.px[i], dark.px[i + 1], dark.px[i + 2]]));
-        }
-      }
       // The dark images' opaque "day" is gray-200 (with a few near-white
       // neighbours from the original rendering): Wordmark.jsx's dark colour.
-      const counts = solidDay.reduce((m, c) => m.set(c, (m.get(c) ?? 0) + 1), new Map());
       const [top, topCount] = [...counts].sort((a, b) => b[1] - a[1])[0];
       expect(top).toBe(hex(DARK_DAY));
-      expect(topCount / solidDay.length).toBeGreaterThan(0.8);
+      expect(topCount / solidDay).toBeGreaterThan(0.8);
     });
   });
 });
