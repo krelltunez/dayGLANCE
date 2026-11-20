@@ -28,6 +28,15 @@ describe('stampPlanTrail', () => {
     expect(stampPlanTrail(next, prev, NOW, TODAY)[0].planTrail).toBeUndefined();
   });
 
+  // #2434: and a slip goes one way. A due task pulled earlier made no stop.
+  it('records a due task pushed later, not one pulled earlier', () => {
+    const prev = [task()];
+    const later = [task({ startTime: '11:00' })];
+    const earlier = [task({ startTime: '08:00' })];
+    expect(stampPlanTrail(later, prev, NOW, TODAY)[0].planTrail).toEqual([{ at: NOW.getTime(), date: TODAY, startTime: '11:00' }]);
+    expect(stampPlanTrail(earlier, prev, NOW, TODAY)).toBe(earlier);
+  });
+
   it('appends to an existing trail rather than replacing it', () => {
     const prev = [task({ date: '2026-09-18', startTime: '09:00', planTrail: [stop(1, '2026-09-18', '09:00')] })];
     const next = [task({ date: '2026-09-20', startTime: '14:00', planTrail: [stop(1, '2026-09-18', '09:00')] })];

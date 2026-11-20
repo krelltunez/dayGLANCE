@@ -12,7 +12,8 @@
 // distinction in both directions. Moving a 09:00 task at 09:30 is a slip even
 // though the day did not change; moving tomorrow's task to Friday is planning
 // even though it did. The line is whether the task had already COME DUE at the
-// moment you moved it.
+// moment you moved it. And a slip goes one way: only a move that makes the plan
+// LATER counts (movedLater, #2434). Pulling a due task earlier is not one.
 //
 // MONOTONIC ON PURPOSE
 // The count only ever rises, which is what lets two devices merge it by taking
@@ -67,16 +68,40 @@ export function placesAllDayWithinItsDay(prev, next) {
 }
 
 /**
+ * Did the edit from `prev` to `next` push the task LATER?
+ *
+ * A slip is a push back, so only a later plan counts (#2434): a later date, or
+ * a later start on the same date. Pulling a task earlier, by dragging it or by
+ * resizing its top edge up, is the opposite of slipping. The date decides
+ * first: an overdue task moved from yesterday to this morning was pushed back,
+ * whatever the clock times say.
+ *
+ * Making a timed task all-day on its own date counts as later. An all-day
+ * task is stored at 00:00, but its plan is the whole day, not midnight: a
+ * 09:00 task turned into "sometime today" has been loosened, not brought
+ * forward. (The reverse, giving an all-day task a time on its day, is
+ * placesAllDayWithinItsDay.)
+ */
+export function movedLater(prev, next) {
+  if (!prev?.date || !next?.date) return false;
+  if (next.date !== prev.date) return next.date > prev.date;
+  if (next.isAllDay && !prev.isAllDay) return true;
+  const before = startMinutes(prev.startTime);
+  const after = startMinutes(next.startTime);
+  return before !== null && after !== null && after > before;
+}
+
+/**
  * Did the edit from `prev` to `next` defer a task that had already come due?
  *
- * Requires the schedule to have actually moved. An edit to a due task's title
- * is not a deferral, and neither is completing it, nor is giving an all-day
- * task a time on its own day (placesAllDayWithinItsDay).
+ * Requires the schedule to have moved LATER (movedLater). An edit to a due
+ * task's title is not a deferral, and neither is completing it, pulling it
+ * earlier, nor giving an all-day task a time on its own day
+ * (placesAllDayWithinItsDay).
  */
 export function isDeferral(prev, next, now, todayStr) {
   if (!prev || !next) return false;
-  const moved = prev.date !== next.date || prev.startTime !== next.startTime;
-  return moved && !placesAllDayWithinItsDay(prev, next) && hasComeDue(prev, now, todayStr);
+  return movedLater(prev, next) && !placesAllDayWithinItsDay(prev, next) && hasComeDue(prev, now, todayStr);
 }
 
 /**
