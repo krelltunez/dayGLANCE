@@ -114,7 +114,8 @@ const PLAN_HISTORY_NOTE =
   'to tell: original_plan (date, start_time, duration_minutes as first planned, only when the plan ' +
   'has changed since; a task first planned all-day is { date, all_day: true, start_time: null } and ' +
   'counts as changed only once its day moves), deferrals (how many times the task slipped, meaning it ' +
-  'was moved after it had come due; moves made while planning ahead are not counted, and neither is ' +
+  'was moved later after it had come due; moves made while planning ahead are not counted, nor are ' +
+  'moves that make it earlier, nor is ' +
   'giving an all-day task a time on its own day), and plan_trail (the most recent slips, ' +
   'oldest first, at most 6, each with moved_at and where it moved the task to), with ' +
   'plan_trail_omitted counting the earlier slips the trail no longer lists.';

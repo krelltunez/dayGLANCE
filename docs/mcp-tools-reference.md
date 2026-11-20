@@ -153,8 +153,9 @@ none, so an absent field means "nothing recorded", never an error.
 
 Read them with their limits:
 
-- **`deferrals` counts slips, not moves.** A slip is a schedule change made after the task had
-  come due (its start had passed). Laying out tomorrow by dragging tasks around is planning and is
+- **`deferrals` counts slips, not moves.** A slip is a schedule change that makes the plan
+  **later** (a later date, or a later start on the same date), made after the task had come due
+  (its start had passed). Pulling a due task earlier is not a slip. Laying out tomorrow by dragging tasks around is planning and is
   not counted, so a task moved five times the evening before reads `0`. Giving an all-day task a
   time on the day it was already planned for is not a slip either: the day is the whole of an
   all-day plan, so a chore that arrives all-day and is then put at 14:00 has not slipped. (Counts

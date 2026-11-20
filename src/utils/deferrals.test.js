@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasComeDue, isDeferral, stampDeferrals, mergeDeferrals, placesAllDayWithinItsDay } from './deferrals.js';
+import { hasComeDue, isDeferral, movedLater, stampDeferrals, mergeDeferrals, placesAllDayWithinItsDay } from './deferrals.js';
 
 const TODAY = '2026-09-19';
 const at = (h, m = 0) => new Date(2026, 8, 19, h, m);
@@ -61,6 +61,41 @@ describe('isDeferral distinguishes a slip from planning', () => {
 
   it('is false for a task with no previous copy to compare against', () => {
     expect(isDeferral(undefined, task(), at(14, 0), TODAY)).toBe(false);
+  });
+});
+
+// #2434: a slip is a push back. Pulling a due task earlier is the opposite,
+// and counted as one it made the number say the reverse of what happened.
+describe('only a move that makes the plan later is a slip', () => {
+  it('does NOT count pulling a due task earlier on its day (a top-edge resize up)', () => {
+    expect(isDeferral(task(), task({ startTime: '08:00' }), at(14, 15), TODAY)).toBe(false);
+  });
+
+  it('does NOT count moving an overdue task to an earlier day', () => {
+    expect(isDeferral(task(), task({ date: '2026-09-18', startTime: '17:00' }), at(14, 15), TODAY)).toBe(false);
+  });
+
+  it('still counts an overdue task moved from yesterday to today, whatever the times', () => {
+    // Yesterday 15:00 to today 08:00: the clock time is earlier, the plan is later.
+    expect(isDeferral(task({ date: '2026-09-18', startTime: '15:00' }), task({ startTime: '08:00' }), at(14, 15), TODAY)).toBe(true);
+  });
+
+  it('compares times as times, not as text', () => {
+    expect(movedLater(task({ startTime: '9:00' }), task({ startTime: '10:00' }))).toBe(true);
+    expect(movedLater(task({ startTime: '10:00' }), task({ startTime: '9:00' }))).toBe(false);
+  });
+
+  it('is false without a date on either side', () => {
+    expect(movedLater(task({ date: null }), task())).toBe(false);
+    expect(movedLater(task(), task({ date: null }))).toBe(false);
+  });
+
+  it('adds no count and no trail stop for an earlier move', async () => {
+    const { stampPlanTrail } = await import('./planTrail.js');
+    const prev = [task()];
+    const next = [task({ startTime: '08:00' })];
+    expect(stampDeferrals(next, prev, at(14, 15), TODAY)).toBe(next);
+    expect(stampPlanTrail(next, prev, at(14, 15), TODAY)).toBe(next);
   });
 });
 
