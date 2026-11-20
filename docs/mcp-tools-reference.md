@@ -80,6 +80,14 @@ carries a `type`. All of them occupy the time they cover.
 
 Branch on `read_only` rather than on `type`: more than one type carries it, and more may later.
 
+**`end_date` and `end_time`: where a block ends.** Every block carries its planned end, derived from
+`date`, `start_time` and `duration_minutes`: `end_time` is local `"HH:MM"` and `end_date` the
+`YYYY-MM-DD` it falls on, which is the next date for a task running past midnight (see below). A
+block ending exactly at midnight ends at `"00:00"` on the next date. Both are `null` when the block
+has no span (all-day, or no start or no length). This is the **plan**, not when the task was done:
+completing a task never moves its block, so a task ticked off 14 minutes late still ends at
+`start_time + duration_minutes`, and the moment it was ticked off is `completed_at`.
+
 **`continues_from`: a task running past midnight.** A timed task belongs to the date it starts on,
 and its block there carries its full `duration_minutes` (up to 24 hours), so its end may lie on the
 next date. That next date's `blocks` then include the part after midnight as a block of its own,
@@ -92,6 +100,7 @@ marked with `continues_from`:
 | `date` | the date being read |
 | `start_time` | `"00:00"` |
 | `duration_minutes` | the minutes it still runs after midnight (never past this date's own midnight) |
+| `end_date`, `end_time` | the task's own end, the same as on its block on the date it started |
 
 Treat that time as busy: the task occupies it, and every frame's `available_slots` on that date is
 already net of it. Do not count it as another task on that date, and do not write to it as one: a
@@ -125,7 +134,8 @@ block (not events or routines). Each is `{ date, time }` on the machine's local 
 strict `YYYY-MM-DD`, `time` `HH:MM`, or `null` for an old completion recorded as a date only), or
 `null` when not known. `created_at` is null for tasks made before dayGLANCE recorded creation
 times; they are never backfilled. A recurring occurrence reports the series' creation and that
-date's completion. `completed_at` is null on an open task.
+date's completion. `completed_at` is null on an open task. It is not the block's end: a block
+ends where it was planned (`end_date`, `end_time`), whenever it was completed.
 
 **Plan history: `original_plan`, `deferrals`, `plan_trail`, `plan_trail_omitted`.** A task that
 was rescheduled carries where it was first planned, how often it slipped, and where its recent
