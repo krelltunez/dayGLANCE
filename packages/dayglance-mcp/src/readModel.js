@@ -37,6 +37,7 @@ import { expandRecurringForDate, rowsForDate } from './dayRows.js';
 import { recurrenceToWire } from './repeat.js';
 import { wireStamp } from './wireStamp.js';
 import { wirePlanHistory } from './planHistory.js';
+import { blockEnd } from './blockEnd.js';
 
 export { expandRecurringForDate };
 
@@ -192,6 +193,8 @@ export function toBlock(task, { timeZone } = {}) {
     all_day: !!task.isAllDay,
     completed: !!task.completed,
   };
+  // Its planned end, which may be on the next date (blockEnd.js, #2429).
+  Object.assign(block, blockEnd(block));
   if (task.projectId) block.project_id = task.projectId;
   // When a task was created and completed (#2135), as on inbox items. Not on
   // events or routines: they are not tasks dayGLANCE created or completes.
@@ -250,6 +253,8 @@ export function continuationBlock(continuation, date, { timeZone } = {}) {
     start_time: '00:00',
     duration_minutes: continuation.minutes,
     continues_from: continuation.fromDate,
+    // end_date and end_time are the task's own, from toBlock: the part after
+    // midnight ends where the whole task ends.
   };
 }
 
@@ -275,7 +280,7 @@ export function buildDayBlocks(state, params) {
   //
   // Not gated on include_native: a routine is dayGLANCE data the user created,
   // not device calendar data, so it rides the base read consent tier (§6.3).
-  const routines = buildRoutineBlocks(state, date);
+  const routines = buildRoutineBlocks(state, date).map((r) => ({ ...r, ...blockEnd(r) }));
 
   const toMinutes = (hhmm) => {
     const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm ?? '');

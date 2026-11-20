@@ -6,6 +6,7 @@ import { intermediatePlans, hiddenStops } from '../utils/planTrail.js';
 import { formatShortDate } from '../utils/taskUtils.js';
 import { formatDuration } from '../utils/formatDuration.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { taskMoments, formatStamp } from '../utils/taskMetadata.js';
 
 // Reveals what a task was ORIGINALLY planned for, next to where it sits now.
 //
@@ -31,7 +32,16 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 const isDateString = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 export function PlanHistoryPanel({ history, task, formatTime }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // When it was ticked off (#2429), the newest thing in the story, so it reads
+  // first. Shown only inside a history that is already here: a completion is
+  // not a plan change, and every finished task growing a badge for it would
+  // break the "nothing happened, no badge" rule above. The editor shows it
+  // for every task.
+  const recurringTasks = useDayPlannerCtx()?.recurringTasks ?? [];
+  const completed = formatStamp(taskMoments(task, { recurringTasks }).completedAt, {
+    formatTime, language: i18n?.resolvedLanguage || i18n?.language,
+  });
   const { plan, changed, allDay: planAllDay } = history ?? { plan: null, changed: {}, allDay: false };
   const deferrals = Number(task?.deferrals) || 0;
   // Reversed HERE rather than in the util: the data's order is chronological,
@@ -77,6 +87,11 @@ export function PlanHistoryPanel({ history, task, formatTime }) {
 
   return (
     <>
+      {completed && (
+        <div data-plan-history-completed className={history || deferrals > 0 ? 'mb-1.5' : ''}>
+          {t('task.completedOn', { when: completed })}
+        </div>
+      )}
       {/* NEWEST FIRST, top to bottom, which is what lets the panel hold three
           things at once: dates that descend without a break, stops labelled
           "recent" that really are the recent ones, and the count of what the cap

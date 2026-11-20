@@ -317,3 +317,41 @@ describe('a task first planned all-day', () => {
     expect(html.slice(html.indexOf('Originally planned'))).toContain('09:00');
   });
 });
+
+// #2429: when a task was ticked off reads at the top of its history, which is
+// where a late finish shows next to the plan it overran. It is not a reason
+// for the badge to appear: a completed task that never moved still has none.
+describe('PlanHistoryPanel: completion time', () => {
+  const renderPanel = async (task, value = ctx) => renderToStaticMarkup(
+    <I18nextProvider i18n={await i18n()}>
+      <DayPlannerContext.Provider value={value}>
+        <PlanHistoryPanel history={planHistory(task)} task={task} formatTime={(v) => v} />
+      </DayPlannerContext.Provider>
+    </I18nextProvider>,
+  );
+  const STRETCHED = { id: 't1', date: '2026-09-17', startTime: '15:32', duration: 65, originalPlan: { date: '2026-09-17', startTime: '15:32', duration: 20 } };
+
+  it('shows when a completed task was completed, before the plan', async () => {
+    const html = await renderPanel({ ...STRETCHED, completed: true, completedAt: '2026-09-17T16:51:00' });
+    expect(html).toContain('data-plan-history-completed');
+    expect(html).toContain('Completed');
+    expect(html).toContain('16:51');
+    expect(html.indexOf('16:51')).toBeLessThan(html.indexOf('Originally planned'));
+  });
+
+  it('shows nothing for an open task, or a completion with no stamp', async () => {
+    expect(await renderPanel(STRETCHED)).not.toContain('data-plan-history-completed');
+    expect(await renderPanel({ ...STRETCHED, completed: true })).not.toContain('data-plan-history-completed');
+  });
+
+  it("reads a recurring occurrence's completion from its series", async () => {
+    const occurrence = { ...STRETCHED, id: 'recurring-r1-2026-09-17', isRecurring: true, recurringTemplateId: 'r1', completed: true, deferrals: 1 };
+    const series = { id: 'r1', completedDatesTimestamps: { '2026-09-17': '2026-09-17T16:51:00' } };
+    expect(await renderPanel(occurrence, { ...ctx, recurringTasks: [series] })).toContain('16:51');
+  });
+
+  it('does not make the badge appear on a completed task that never moved', async () => {
+    const PLANNED_AT = { date: '2026-09-17', startTime: '15:32', duration: 20 };
+    expect(await render({ id: 't1', ...PLANNED_AT, originalPlan: PLANNED_AT, completed: true, completedAt: '2026-09-17T16:51:00' })).toBe('');
+  });
+});
