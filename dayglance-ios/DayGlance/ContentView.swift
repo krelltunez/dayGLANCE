@@ -15,6 +15,14 @@ struct ContentView: View {
     var body: some View {
         WebView()
             .ignoresSafeArea()
+            // The web view is transparent (WebView.swift), so until the page
+            // paints its first frame whatever is behind it shows. That was the
+            // window's systemBackground: white in light mode, a white flash
+            // between the launch screen and the app. LaunchBackground is the
+            // launch screen's own colour (project.yml, UILaunchScreen), light
+            // and dark, so the launch screen simply continues until the page
+            // appears.
+            .background(Color("LaunchBackground").ignoresSafeArea())
             .statusBarHidden(immersiveBridge.immersive)
             .persistentSystemOverlays(immersiveBridge.immersive ? .hidden : .automatic)
             .task {
