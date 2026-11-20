@@ -10,6 +10,7 @@ import { timelinePosition } from '../utils/timelinePosition.js';
 import { dragAutoScrollStep } from '../utils/dragAutoScroll.js';
 import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
 import { consumeSwallowedClick } from './useTimelineSelection.js';
+import { blockEdges, snapStart } from '../utils/magneticSnap.js';
 
 // Pure utilities used by position helpers
 const timeToMinutes = (time) => {
@@ -52,6 +53,7 @@ export default function useDragDrop({
   gtdFrames, setGtdFrames,
   unscheduledTasks, setMobileEditingTask,
   expandedRecurringTasksRef, moveToInboxRef, openMobileEditTaskRef, openMobileEditNativeEventRef,
+  getTasksForDate,
 }) {
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragSource, setDragSource] = useState(null);
@@ -193,15 +195,28 @@ export default function useDragDrop({
     return { top, height };
   };
 
-  // Helper: convert cursor Y position (mouse event) to a rounded time string
+  // The other blocks' starts and ends on a date, for a drag to stick to
+  // (#2430, utils/magneticSnap.js). The day as it holds them, unfiltered: a
+  // block the calendar filter hides still occupies its time.
+  const snapEdgesFor = (date, excludeId) => {
+    if (!getTasksForDate || !date) return [];
+    const day = typeof date === 'string' ? new Date(`${date}T12:00:00`) : date;
+    return blockEdges(getTasksForDate(day), excludeId);
+  };
+
+  // Helper: convert cursor Y position (mouse event) to a rounded time string.
+  // With `snap` ({ date, id, duration }) a dragged block sticks to the other
+  // blocks' edges on that date before it falls back to the grid.
   const getTimeFromCursorPosition = (e, options = {}) => {
-    const { roundTo = 15, maxMinutes = 23 * 60 + 45, taskDuration = 0 } = options;
+    const { roundTo = 15, maxMinutes = 23 * 60 + 45, taskDuration = 0, snap = null } = options;
     const rect = calendarRef.current.getBoundingClientRect();
     const scrollTop = calendarRef.current.scrollTop;
     const headerHeight = timeGridRef.current ? timeGridRef.current.offsetTop : 0;
     const y = Math.max(0, e.clientY - rect.top + scrollTop - headerHeight);
     const totalMinutesFromTop = positionToMinutes(y);
-    const totalMinutesRounded = Math.round(totalMinutesFromTop / roundTo) * roundTo;
+    const totalMinutesRounded = snap
+      ? snapStart(totalMinutesFromTop, snap.duration, snapEdgesFor(snap.date, snap.id), { grid: roundTo })
+      : Math.round(totalMinutesFromTop / roundTo) * roundTo;
     // firstHour is always 0 (calendar always starts at midnight)
     const hours = Math.floor(totalMinutesRounded / 60);
     const minutes = totalMinutesRounded % 60;
@@ -356,7 +371,8 @@ export default function useDragDrop({
       // routine (today only) still ends by midnight.
       const time = getTimeFromCursorPosition(dragStartPoint(e), {
         maxMinutes: 24 * 60,
-        taskDuration: dragSource === 'routine' ? draggedTask.duration : dropClampMinutes(draggedTask.duration)
+        taskDuration: dragSource === 'routine' ? draggedTask.duration : dropClampMinutes(draggedTask.duration),
+        snap: { date: targetDate || dragPreviewDate || selectedDate, id: draggedTask.id, duration: draggedTask.duration },
       });
       setDragPreviewTime(time);
 
@@ -417,7 +433,10 @@ export default function useDragDrop({
         setDraggedTask(null); setDragSource(null); setDragPreviewTime(null); setDragPreviewDate(null);
         return;
       }
-      const startTime = overrideTime || getTimeFromCursorPosition(dragStartPoint(e), { maxMinutes: 24 * 60, taskDuration: draggedTask.duration });
+      const startTime = overrideTime || getTimeFromCursorPosition(dragStartPoint(e), {
+        maxMinutes: 24 * 60, taskDuration: draggedTask.duration,
+        snap: { date: dropDate, id: draggedTask.id, duration: draggedTask.duration },
+      });
       setTodayRoutines(prev => prev.map(r => r.id === draggedTask.id ? { ...r, startTime, isAllDay: false, lastModified: new Date().toISOString() } : r));
       setDraggedTask(null); setDragSource(null); setDragPreviewTime(null); setDragPreviewDate(null);
       return;
@@ -426,14 +445,16 @@ export default function useDragDrop({
     // The quarter-hour at the dragged card's top edge is the new start, as late
     // as 23:45: a task that then runs past midnight carries on the next date
     // (#2278).
-    const requestedStartTime = overrideTime || getTimeFromCursorPosition(dragStartPoint(e), {
-      maxMinutes: 24 * 60,
-      taskDuration: dropClampMinutes(draggedTask.duration)
-    });
-
     // Use the target date from the column, falling back to dragPreviewDate or selectedDate
     const dropDate = targetDate || dragPreviewDate || selectedDate;
     const dropDateStr = dateToString(dropDate);
+
+    const requestedStartTime = overrideTime || getTimeFromCursorPosition(dragStartPoint(e), {
+      maxMinutes: 24 * 60,
+      taskDuration: dropClampMinutes(draggedTask.duration),
+      // The same edges the preview stuck to, so it lands where it showed.
+      snap: { date: dropDate, id: draggedTask.id, duration: draggedTask.duration },
+    });
 
     // Check for conflicts with imported calendar events and adjust if needed
     const { conflicted, adjustedStartTime, conflictingEvent } = getAdjustedTimeForImportedConflicts(
@@ -1031,6 +1052,14 @@ export default function useDragDrop({
   };
 
   // --- Mobile long-press drag helpers ---
+  // A finger drag's start, as the desktop's: stuck to another block's edge on
+  // the date under the finger when close, else the quarter hour (#2430).
+  const mobileSnapStart = (minutes) => {
+    const task = mobileDragOriginalTask.current;
+    const date = mobileDragPreviewDateRef.current || selectedDate;
+    return snapStart(minutes, task?.duration, snapEdgesFor(date, task?.id));
+  };
+
   const updateMobileDragPreview = () => {
     if (!calendarRef.current || !mobileDragOriginalTask.current) return;
     const touch = mobileDragLastTouch.current;
@@ -1073,7 +1102,7 @@ export default function useDragDrop({
       const headerHeight = timeGridRef.current.offsetTop;
       const y = Math.max(0, touch.clientY - calendarRect.top + scrollTop - headerHeight);
       const totalMinutes = positionToMinutes(y);
-      const roundedMinutes = Math.round(totalMinutes / 15) * 15;
+      const roundedMinutes = mobileSnapStart(totalMinutes);
       const clampedMinutes = Math.max(0, Math.min(23 * 60 + 45, roundedMinutes));
       const hrs = Math.floor(clampedMinutes / 60);
       const mins = clampedMinutes % 60;
@@ -1088,7 +1117,7 @@ export default function useDragDrop({
     const deltaMinutes = (deltaPixels / getHourHeight()) * 60;
     const originalMinutes = timeToMinutes(mobileDragAnchorRef.current?.startTime ?? mobileDragOriginalTask.current.startTime);
     const newMinutes = originalMinutes + deltaMinutes;
-    const roundedMinutes = Math.round(newMinutes / 15) * 15;
+    const roundedMinutes = mobileSnapStart(newMinutes);
     const clampedMinutes = Math.max(0, Math.min(23 * 60 + 45, roundedMinutes));
     const hrs = Math.floor(clampedMinutes / 60);
     const mins = clampedMinutes % 60;

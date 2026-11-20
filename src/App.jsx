@@ -3599,6 +3599,8 @@ const DayPlanner = () => {
     gtdFrames, setGtdFrames,
     unscheduledTasks, setMobileEditingTask,
     expandedRecurringTasksRef, moveToInboxRef, openMobileEditTaskRef, openMobileEditNativeEventRef,
+    // Declared further down; called only during a drag.
+    getTasksForDate: (...args) => getTasksForDate(...args),
   });
 
   const {
