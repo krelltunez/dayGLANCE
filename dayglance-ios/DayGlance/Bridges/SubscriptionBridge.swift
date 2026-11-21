@@ -1,6 +1,7 @@
 import Foundation
 import RevenueCat
 import WebKit
+import EntitlementRead
 
 /// Manages in-app subscription status via RevenueCat (StoreKit 2 backend).
 ///
@@ -88,8 +89,10 @@ final class SubscriptionBridge: NSObject, PurchasesDelegate {
         return "{\"active\":\(active),\"productId\":\(productJson)}"
     }
 
-    /// RevenueCat's most recent customer info: the newer, by requestDate, of its
-    /// cache and what it last reported to the delegate.
+    /// RevenueCat's most recent customer info: its cache, or, when the cache is
+    /// empty, what it last reported to the delegate. The rule and why it is
+    /// arrival order rather than a requestDate comparison are in the
+    /// EntitlementRead package (Packages/EntitlementRead), which tests it.
     ///
     /// The cache alone is not enough. RevenueCat writes it BEFORE it tells the
     /// delegate, so for server-verified info a read after a push always sees
@@ -107,9 +110,7 @@ final class SubscriptionBridge: NSObject, PurchasesDelegate {
         reportLock.lock()
         let reported = lastReported
         reportLock.unlock()
-        guard let reported else { return cached }
-        guard let cached else { return reported }
-        return reported.requestDate > cached.requestDate ? reported : cached
+        return EntitlementRead.newest(cached: cached, reported: reported)
     }
 
     // MARK: - RevenueCat's delegate

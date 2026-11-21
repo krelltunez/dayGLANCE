@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import i18next from 'i18next';
@@ -74,13 +75,17 @@ describe('SubscriptionBridge.swift', () => {
     expect(push).toContain('self?.webView?.evaluateJavaScript(');
   });
 
-  it("status reads see everything the delegate has seen: the newer of the cache and the delegate's copy", () => {
+  it("status reads see everything the delegate has seen: the cache, else the delegate's copy (EntitlementRead)", () => {
     expect(fn('getStatus')).toContain('let info = currentCustomerInfo()');
     expect(fn('getStatus')).not.toContain('cachedCustomerInfo');
     const current = fn('currentCustomerInfo');
     expect(current).toContain('let cached = Purchases.shared.cachedCustomerInfo');
     expect(current).toContain('let reported = lastReported');
-    expect(current).toContain('reported.requestDate > cached.requestDate ? reported : cached');
+    // The rule itself, and its behavioural tests, are the package's.
+    expect(current).toContain('return EntitlementRead.newest(cached: cached, reported: reported)');
+    expect(code).toMatch(/^import EntitlementRead$/m);
+    // No date comparison: the two copies' requestDates come from different clocks.
+    expect(code).not.toContain('requestDate');
   });
 
   it("emits 'success' only when the returned entitlement includes ours; otherwise pending/unconfirmed", () => {
@@ -363,5 +368,37 @@ describe('SubscriptionWall: something to show for every pending outcome', () => 
     for (const e of [ev('error', 6), ev('cancelled', -1, 'User cancelled'), ev('cancelled', 0, 'restore_complete'), ev('success', 0, 'ok')]) {
       expect(render(e).status).toEqual([]);
     }
+  });
+});
+
+// ── EntitlementRead: the read rule, as a package ────────────────────────────
+
+describe('EntitlementRead (dayglance-ios/Packages/EntitlementRead)', () => {
+  const PKG = 'dayglance-ios/Packages/EntitlementRead';
+  const FILES = [
+    'Package.swift',
+    'Sources/EntitlementRead/EntitlementRead.swift',
+    'Tests/EntitlementReadTests/EntitlementReadTests.swift',
+  ];
+
+  // Three byte-identical copies: dayGLANCE, lastGLANCE and lifeGLANCE. Each
+  // repo holds its copy to this one fingerprint, the same value in all three,
+  // so a change to one copy fails here until the other two match. Change all
+  // three together, then the value in all three.
+  const FINGERPRINT = '2b8744180996179a24dfc2a46733acb97cdda7361c7fcc1e42202e05f019d93b';
+
+  it('is the shared copy, byte for byte', () => {
+    const hash = crypto.createHash('sha256');
+    for (const f of FILES) hash.update(fs.readFileSync(path.join(root, PKG, f)));
+    expect(fs.readdirSync(path.join(root, PKG, 'Sources/EntitlementRead'))).toEqual(['EntitlementRead.swift']);
+    expect(fs.readdirSync(path.join(root, PKG, 'Tests/EntitlementReadTests'))).toEqual(['EntitlementReadTests.swift']);
+    expect(hash.digest('hex')).toBe(FINGERPRINT);
+  });
+
+  it('is linked into the app, and CI runs its tests', () => {
+    const yml = read('dayglance-ios/project.yml');
+    expect(yml).toMatch(/\n  EntitlementRead:\n    path: Packages\/EntitlementRead\n/);
+    expect(yml).toMatch(/- package: EntitlementRead\n\s+product: EntitlementRead/);
+    expect(read('.github/workflows/ios.yml')).toContain(`run: swift test --package-path ${PKG}`);
   });
 });
