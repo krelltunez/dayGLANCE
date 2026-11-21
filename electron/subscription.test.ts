@@ -47,10 +47,24 @@ describe('desktop billing registration', () => {
   it('uses a billing package that resolves the window on every push', () => {
     // 0.2.3 is the first version that accepts a getter. An older one would call
     // isDestroyed() on the function and throw on every result.
+    //
+    // This asserts that property, not a version string. It used to pin exactly
+    // '0.2.3', which failed every later bump for a reason unrelated to what it
+    // protects; the protection is the same: no older package (the floor), the
+    // installed copy is the pinned one, and the installed main-process code
+    // takes a getter.
+    const atLeast = (version: string, floor: string): boolean => {
+      const parse = (v: string) => (/^\d+\.\d+\.\d+$/.test(v) ? v.split('.').map(Number) : null);
+      const [a, b] = [parse(version), parse(floor)!];
+      if (!a) return false; // a range or tag is not an exact pin
+      for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i];
+      return true;
+    };
     const pkg = JSON.parse(read('package.json'));
-    expect(pkg.dependencies['@glance-apps/billing']).toBe('0.2.3');
+    const pinned = pkg.dependencies['@glance-apps/billing'];
+    expect(atLeast(pinned, '0.2.3'), `@glance-apps/billing ${pinned} must be an exact version, 0.2.3 or later`).toBe(true);
     const installed = JSON.parse(read('node_modules/@glance-apps/billing/package.json'));
-    expect(installed.version).toBe('0.2.3');
+    expect(installed.version).toBe(pinned);
     expect(read('node_modules/@glance-apps/billing/dist/electron-main/index.js')).toContain("typeof window === 'function'");
   });
 });
