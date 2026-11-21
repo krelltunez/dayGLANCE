@@ -74,6 +74,11 @@ jobs:
       - name: Run DayDialGeometry vector tests
         run: swift test --package-path dayglance-ios/Packages/DayDialGeometry
 
+      # The billing status read's rule (which copy of RevenueCat's customer
+      # info wins), with its behavioural tests, on the runner like the above.
+      - name: Run EntitlementRead tests
+        run: swift test --package-path dayglance-ios/Packages/EntitlementRead
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

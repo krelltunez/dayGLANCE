@@ -14,6 +14,12 @@ packages:
   # Packages/DayDialGeometry`, which ios.yml runs). Pure Foundation, no UI.
   DayDialGeometry:
     path: Packages/DayDialGeometry
+  # Which copy of RevenueCat's customer info a billing status read uses
+  # (SubscriptionBridge.currentCustomerInfo). Dependency-free, tested by its own
+  # target (`swift test --package-path Packages/EntitlementRead`, which ios.yml
+  # runs), and byte-identical to the copies in lastGLANCE and lifeGLANCE.
+  EntitlementRead:
+    path: Packages/EntitlementRead
 
 options:
   bundleIdPrefix: com.dayglance
@@ -50,6 +56,8 @@ targets:
     dependencies:
       - package: RevenueCat
         product: RevenueCat
+      - package: EntitlementRead
+        product: EntitlementRead
       - target: DayGlanceWidget
         embed: true
       - target: ShareExtension
