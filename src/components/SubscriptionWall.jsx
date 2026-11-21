@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Wordmark from './Wordmark';
 import { Check, Loader } from 'lucide-react';
 import { paywallErrorMessage } from '../utils/paywallErrorMessage.js';
+import { BILLING_CODE_PENDING } from '@glance-apps/billing';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -43,6 +44,9 @@ export default function SubscriptionWall({
 
   const [pending, setPending]         = useState(null);
   const [errorMsg, setErrorMsg]       = useState(null);
+  // A purchase that ended neither failed nor confirmed: not an error, so not
+  // the red box.
+  const [noticeMsg, setNoticeMsg]     = useState(null);
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [codeValue, setCodeValue]     = useState('');
   const [codeError, setCodeError]     = useState(false);
@@ -51,7 +55,18 @@ export default function SubscriptionWall({
   useEffect(() => {
     if (!billingEvent) return;
     setPending(null);
-    if (billingEvent.status === 'error') {
+    setNoticeMsg(null);
+    if (billingEvent.status === 'pending') {
+      // @glance-apps/billing 0.2.4. Deferred: waiting for someone's approval
+      // (Ask to Buy). Otherwise unconfirmed: the store completed it but the
+      // entitlement has not appeared. Either way the app unlocks on its own
+      // when it does, from RevenueCat's update, so this points at waiting, or
+      // at support, and never at Restore, which would find nothing yet.
+      setErrorMsg(null);
+      setNoticeMsg(billingEvent.code === BILLING_CODE_PENDING
+        ? t('subscription.purchasePendingApproval')
+        : t('subscription.purchaseUnconfirmed'));
+    } else if (billingEvent.status === 'error') {
       // isAndroid: this wall only renders on the three native platforms, and
       // isIOSApp covers both Apple ones — so !isIOSApp here means Android.
       const fallback = paywallErrorMessage(billingEvent, {
@@ -81,12 +96,14 @@ export default function SubscriptionWall({
 
   const handleSubscribe = (label, cb) => {
     setErrorMsg(null);
+    setNoticeMsg(null);
     setPending(label);
     cb?.();
   };
 
   const handleRestore = () => {
     setErrorMsg(null);
+    setNoticeMsg(null);
     setPending('restore');
     onRestore?.();
   };
@@ -181,6 +198,11 @@ export default function SubscriptionWall({
       {errorMsg && (
         <div className="w-full max-w-xs mb-4 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3">
           <p className="text-xs text-red-500 text-center">{errorMsg}</p>
+        </div>
+      )}
+      {noticeMsg && (
+        <div role="status" className={`w-full max-w-xs mb-4 rounded-xl border px-4 py-3 ${card}`}>
+          <p className={`text-xs text-center ${sub}`}>{noticeMsg}</p>
         </div>
       )}
 

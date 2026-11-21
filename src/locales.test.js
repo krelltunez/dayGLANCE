@@ -207,6 +207,11 @@ describe('locale bundles', () => {
     'jobo.view.capturedPlan': ['de', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk'],
     'jobo.view.capturedTitle': ['de', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk'],
     'jobo.view.titleRequired': ['de', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk'],
+    // The paywall's two pending outcomes (billing Phase 3) shipped in English
+    // first, so no installable version reaches one with nothing to show; the
+    // localization pass translates them.
+    'subscription.purchasePendingApproval': ['de', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk', 'zh-CN', 'zh-TW'],
+    'subscription.purchaseUnconfirmed': ['de', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk', 'zh-CN', 'zh-TW'],
   };
 
   it.each(TRANSLATED)('%s carries no untracked English phrase', (lng) => {

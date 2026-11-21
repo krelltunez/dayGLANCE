@@ -179,6 +179,8 @@
     "errorNetwork": "网络错误。请检查连接后重试。",
     "errorProductNotFound": "未找到该产品，请稍后重试。",
     "errorPurchase": "购买时出现问题，请重试。",
+    "purchasePendingApproval": "Your purchase is waiting for approval. dayGLANCE will unlock on its own as soon as it is approved.",
+    "purchaseUnconfirmed": "Your purchase went through and is still being confirmed. dayGLANCE will unlock on its own as soon as it is. If it hasn't within a few minutes, email support@glance-apps.com.",
     "errorSubscriptionUnavailable": "此订阅目前不可用，请稍后重试。",
     "everyPlanUnlocks": "任一方案均可解锁完整应用",
     "featureCloudSync": "通过你自己的云服务跨设备同步",

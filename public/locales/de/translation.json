@@ -179,6 +179,8 @@
     "errorNetwork": "Netzwerkfehler. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
     "errorProductNotFound": "Produkt nicht gefunden. Versuchen Sie es später erneut.",
     "errorPurchase": "Beim Kauf ist ein Fehler aufgetreten. Versuchen Sie es erneut.",
+    "purchasePendingApproval": "Your purchase is waiting for approval. dayGLANCE will unlock on its own as soon as it is approved.",
+    "purchaseUnconfirmed": "Your purchase went through and is still being confirmed. dayGLANCE will unlock on its own as soon as it is. If it hasn't within a few minutes, email support@glance-apps.com.",
     "errorSubscriptionUnavailable": "Dieses Abonnement ist derzeit nicht verfügbar. Versuchen Sie es später erneut.",
     "everyPlanUnlocks": "Jeder Tarif schaltet die vollständige App frei",
     "featureCloudSync": "Geräteübergreifende Synchronisierung über Ihre eigene Cloud",

@@ -7,7 +7,15 @@ import WebKit
 /// Synchronous bridge calls return cached values so the JS thread never blocks.
 /// Purchase and restore outcomes are delivered asynchronously via
 /// `window.__billingEvent(JSON)` — the same callback pattern Android uses.
-final class SubscriptionBridge {
+///
+/// Entitlements RevenueCat reports on its own (its PurchasesDelegate: a
+/// purchase whose post was retried, an Ask to Buy approved later, an
+/// entitlement synced back from another device) are pushed via
+/// `window.__billingStatus(JSON)`, ACTIVE ONLY: a push can rescue an
+/// entitlement and never revoke one (@glance-apps/billing 0.2.4's status
+/// channel, which also drops anything inactive). An NSObject because
+/// PurchasesDelegate is an Objective-C protocol.
+final class SubscriptionBridge: NSObject, PurchasesDelegate {
 
     static let shared = SubscriptionBridge()
 
@@ -17,6 +25,21 @@ final class SubscriptionBridge {
     private let entitlementId = "pro"
     private let productYearly = "com.dayglance.pro.yearly"
     private let productLifetime = "com.dayglance.pro.lifetime"
+
+    /// The 'pending' outcome's codes, BILLING_CODE_PENDING and
+    /// BILLING_CODE_UNCONFIRMED in @glance-apps/billing (src/iosBilling.test.js
+    /// holds them equal). Pending: deferred, nothing charged yet (Ask to Buy,
+    /// extra authentication). Unconfirmed: the store completed the purchase but
+    /// the entitlement RevenueCat returned does not include ours.
+    static let codePending = 100
+    static let codeUnconfirmed = 101
+
+    /// The last customer info RevenueCat reported to the delegate, whatever it
+    /// said. Read by currentCustomerInfo(); see there for why.
+    private var lastReported: CustomerInfo?
+    private let reportLock = NSLock()
+
+    private override init() { super.init() }
 
     // MARK: - RevenueCat configuration
 
@@ -29,6 +52,10 @@ final class SubscriptionBridge {
         #endif
         Purchases.logLevel = .warn
         Purchases.configure(withAPIKey: apiKey)
+        // RevenueCat sends the cached customer info to a delegate as soon as it
+        // is set. That push finds no web view yet and is dropped; the page's
+        // first status read covers it (it is the cache).
+        Purchases.shared.delegate = self
         refreshStatusInBackground()
         fetchPricesInBackground()
         checkTrialEligibilityInBackground()
@@ -49,7 +76,7 @@ final class SubscriptionBridge {
         #if DEBUG
         return "{\"active\":true,\"productId\":null}"
         #endif
-        let info = Purchases.shared.cachedCustomerInfo
+        let info = currentCustomerInfo()
         let active = info?.entitlements[entitlementId]?.isActive == true
         if active {
             UserDefaults.standard.set(true, forKey: wasActiveKey)
@@ -59,6 +86,59 @@ final class SubscriptionBridge {
         let productId = info?.entitlements[entitlementId]?.productIdentifier
         let productJson = productId.map { "\"\(esc($0))\"" } ?? "null"
         return "{\"active\":\(active),\"productId\":\(productJson)}"
+    }
+
+    /// RevenueCat's most recent customer info: the newer, by requestDate, of its
+    /// cache and what it last reported to the delegate.
+    ///
+    /// The cache alone is not enough. RevenueCat writes it BEFORE it tells the
+    /// delegate, so for server-verified info a read after a push always sees
+    /// what the push carried. But customer info verified ON DEVICE (RevenueCat
+    /// computing entitlements from StoreKit while its servers are unreachable)
+    /// is never cached, and the existing cache is cleared
+    /// (CustomerInfoManager.cache(customerInfo:) in purchases-ios 5.90.1). A
+    /// push of that info dropped for want of a receiver (no web view yet, a
+    /// reload, the page not yet bound) would then be covered by no read at all.
+    /// With the delegate's copy included, every status read sees everything
+    /// the delegate has seen, so a dropped push is always recovered by the next
+    /// read: the page's first read on (re)load, or the one after a foreground.
+    private func currentCustomerInfo() -> CustomerInfo? {
+        let cached = Purchases.shared.cachedCustomerInfo
+        reportLock.lock()
+        let reported = lastReported
+        reportLock.unlock()
+        guard let reported else { return cached }
+        guard let cached else { return reported }
+        return reported.requestDate > cached.requestDate ? reported : cached
+    }
+
+    // MARK: - RevenueCat's delegate
+
+    /// Customer info changed. Recorded whatever it says (currentCustomerInfo
+    /// reads it, so revocations flow through the reads as before), and pushed
+    /// to the page only when the entitlement is ACTIVE.
+    func purchases(_ purchases: Purchases, receivedUpdated customerInfo: CustomerInfo) {
+        reportLock.lock()
+        lastReported = customerInfo
+        reportLock.unlock()
+        guard let ent = customerInfo.entitlements[entitlementId], ent.isActive else { return }
+        pushActiveStatus(productId: ent.productIdentifier)
+    }
+
+    /// The 'billingStatus' push. `active` is the literal true: this is the only
+    /// place the push is sent, and it has no inactive form. The guard makes a
+    /// page that has not bound the global (still loading, reloading, engine
+    /// stopped) a no-op; with no web view at all the push is dropped before it
+    /// is sent. Either way the next status read sees the same entitlement (see
+    /// currentCustomerInfo), so nothing is lost but the head start.
+    private func pushActiveStatus(productId: String) {
+        let json = "{\"active\":true,\"productId\":\"\(esc(productId))\"}"
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript(
+                "if(typeof window.__billingStatus==='function'){window.__billingStatus(\(json));}",
+                completionHandler: nil
+            )
+        }
     }
 
     /// Silent entitlement recovery for RevenueCat's "Transfer to new App User ID"
@@ -136,8 +216,18 @@ final class SubscriptionBridge {
                 }
                 if result.userCancelled {
                     fireBillingEvent(status: "cancelled", code: -1, message: "User cancelled", productId: productId)
-                } else {
+                } else if result.customerInfo.entitlements[entitlementId]?.isActive == true {
                     fireBillingEvent(status: "success", code: 0, message: "ok", productId: productId)
+                } else {
+                    // The store completed the purchase, but the customer info
+                    // RevenueCat validated it into does not include our
+                    // entitlement: the product is not attached to it, or the
+                    // entitlement sits with another of the user's RevenueCat
+                    // customers. 'success' would unlock now and lock again at
+                    // the next read; an error would tell someone who may have
+                    // paid that it failed. Neither: a pending outcome, and the
+                    // unlock comes from the delegate if the entitlement appears.
+                    fireBillingEvent(status: "pending", code: Self.codeUnconfirmed, message: "unconfirmed", productId: productId)
                 }
             } catch {
                 fireBillingError(error, productId: productId)
@@ -160,6 +250,13 @@ final class SubscriptionBridge {
         // rather than result.userCancelled — not an error the user should see.
         if rcError == .purchaseCancelledError {
             fireBillingEvent(status: "cancelled", code: -1, message: "User cancelled", productId: productId)
+            return
+        }
+        // Deferred (Ask to Buy, extra authentication): nothing has failed and
+        // nothing is charged yet. A pending outcome, not an error; if it is
+        // approved later the delegate reports the entitlement.
+        if rcError == .paymentPendingError {
+            fireBillingEvent(status: "pending", code: Self.codePending, message: "deferred", productId: productId)
             return
         }
         let code: Int
