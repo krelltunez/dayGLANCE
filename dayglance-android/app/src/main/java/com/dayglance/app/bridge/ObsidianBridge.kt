@@ -211,6 +211,27 @@ class ObsidianBridge(private val context: Context, private val webView: android.
     fun getHeartbeat(): String? = repository.getHeartbeat()
 
     /**
+     * Non-blocking versions of the two dotfile reads every Obsidian cycle
+     * makes (and the Obsidian settings panel repeats every 10 seconds). On a
+     * vault behind a network-backed provider (a Google Drive tree), each read
+     * lists the vault root and downloads the file, and synchronously that
+     * held the page for tens of seconds. The answer comes back through
+     * window.__obsidianDispatch as JSON: the file's text as a JSON string, or
+     * null for "could not be determined", the same contract as the
+     * synchronous twin.
+     */
+    @JavascriptInterface
+    fun getHeartbeatAsync(callbackId: String) =
+        runAsync(callbackId) { jsonStringOrNull(repository.getHeartbeat()) }
+
+    @JavascriptInterface
+    fun getCommunityPluginsAsync(callbackId: String) =
+        runAsync(callbackId) { jsonStringOrNull(repository.getCommunityPlugins()) }
+
+    private fun jsonStringOrNull(text: String?): String =
+        if (text == null) "null" else org.json.JSONObject.quote(text)
+
+    /**
      * Returns a JSON array of note paths (relative to vault root) in [folder].
      * Returns "[]" if vault isn't configured or the folder doesn't exist.
      */
@@ -275,8 +296,9 @@ class ObsidianBridge(private val context: Context, private val webView: android.
             try {
                 val json = work()
                 // Escape backslashes and backticks that could break the JS template literal.
-                // The result is a JSON string so only ` and \ need escaping before eval.
-                val safe = json.replace("\\", "\\\\").replace("`", "\\`")
+                // The result is JSON text inside a JS template literal.
+                // `${` would open a template expression: escape every `$` too.
+                val safe = json.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
                 webView?.post {
                     webView.evaluateJavascript(
                         "window.__obsidianDispatch('$callbackId',`$safe`,null)",

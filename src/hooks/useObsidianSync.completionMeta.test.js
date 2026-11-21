@@ -31,6 +31,7 @@ vi.mock('../obsidian.js', () => ({
   scanVaultNotes: vi.fn(async () => ({ names: [], unportable: [] })),
   vaultHasTasksPlugin: vi.fn(async () => false),
   detectTasksPluginNative: vi.fn(() => null),
+  detectTasksPluginNativeAsync: vi.fn(async () => null),
   OBSIDIAN_IMPORT_WINDOW_DAYS: 90,
   // Real implementation (pure): the hook resolves intent paths through it (audit fix H1).
   dailyNoteFilename: (dateStr, pattern) => {

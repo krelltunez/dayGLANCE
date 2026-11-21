@@ -309,6 +309,61 @@ export const nativeListNotesAsync = (folder) => {
   });
 };
 
+// The two vault dotfiles every Obsidian cycle reads (.dayglance/heartbeat and
+// .obsidian/community-plugins.json), off the JS thread on Android. On a vault
+// behind a network-backed provider (a Google Drive tree) each synchronous read
+// listed the vault root and downloaded the file while the page waited: tens
+// of seconds on a tester's Pixel. One read per file at a time; a caller that
+// arrives while one is out joins it.
+const DOTFILE_TIMEOUT_MS = 30_000;
+const DOTFILE_ASYNC_METHODS = { getHeartbeat: 'getHeartbeatAsync', getCommunityPlugins: 'getCommunityPluginsAsync' };
+const dotfileReads = new Map();
+
+/** True when this shell can read `method` ('getHeartbeat' | 'getCommunityPlugins') off the JS thread. */
+export const nativeDotfileAsyncAvailable = (method) => {
+  const bridge = obsidianBridge();
+  const asyncName = DOTFILE_ASYNC_METHODS[method];
+  // Android only: the iOS bridge answers any method name (see nativeListNotesAsync).
+  return !!(bridge && asyncName && isNativeAndroid() && typeof bridge[asyncName] === 'function');
+};
+
+/**
+ * The file's text ("" = determinately absent), or null when it could not be
+ * determined (failed read, no answer in time): the synchronous twin's
+ * contract. Call only when nativeDotfileAsyncAvailable(method).
+ */
+export const nativeReadDotfileAsync = (method) => {
+  const pending = dotfileReads.get(method);
+  if (pending) return pending;
+  const read = new Promise((resolve) => {
+    const bridge = obsidianBridge();
+    if (!window.__obsidianCbs) window.__obsidianCbs = {};
+    const id = Math.random().toString(36).slice(2, 18).replace(/[^a-z0-9]/g, 'x');
+    const timer = setTimeout(() => {
+      if (!window.__obsidianCbs?.[id]) return;
+      delete window.__obsidianCbs[id];
+      resolve(null);
+    }, DOTFILE_TIMEOUT_MS);
+    window.__obsidianCbs[id] = (result, error) => {
+      clearTimeout(timer);
+      if (error) { resolve(null); return; }
+      try {
+        const v = JSON.parse(result);
+        resolve(typeof v === 'string' ? v : null);
+      } catch { resolve(null); }
+    };
+    try {
+      bridge[DOTFILE_ASYNC_METHODS[method]](id);
+    } catch {
+      clearTimeout(timer);
+      delete window.__obsidianCbs[id];
+      resolve(null);
+    }
+  }).finally(() => { dotfileReads.delete(method); });
+  dotfileReads.set(method, read);
+  return read;
+};
+
 export const nativeListNotes = (folder) => {
   const bridge = obsidianBridge();
   if (!bridge?.listNotes) return null;
