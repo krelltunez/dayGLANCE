@@ -30,8 +30,10 @@ vi.mock('../../src/obsidian.js', async (importOriginal) => {
     scanVaultNotes: vi.fn(async () => ({ names: [], unportable: [] })),
     vaultHasTasksPlugin: vi.fn(async () => false),
     detectTasksPluginNative: vi.fn(() => null),
+    detectTasksPluginNativeAsync: vi.fn(async () => null),
     readVaultHeartbeat: vi.fn(async () => ({ paired: true, tsMs: Date.now(), accountId: 'acc-1', deviceId: 'plugin-dev' })),
     readVaultHeartbeatNative: vi.fn(() => null),
+    readVaultHeartbeatNativeAsync: vi.fn(async () => null),
   };
 });
 vi.mock('../../src/native.js', () => ({

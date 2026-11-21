@@ -7,8 +7,8 @@ import {
   simpleHash as obsidianSimpleHash,
   deriveBlockId, appIdForBlockId,
   readWikiNote, writeWikiNote, scanVaultNotes,
-  vaultHasTasksPlugin, detectTasksPluginNative,
-  readVaultHeartbeat, readVaultHeartbeatNative,
+  vaultHasTasksPlugin, detectTasksPluginNativeAsync,
+  readVaultHeartbeat, readVaultHeartbeatNativeAsync,
   OBSIDIAN_IMPORT_WINDOW_DAYS, obsidianWindowCutoffDate,
 } from '../obsidian.js';
 import {
@@ -663,7 +663,7 @@ export default function useObsidianSync({
   // direct scan of a copy Obsidian is not refreshing.
   const refreshBridgeHeartbeat = async (handle) => {
     try {
-      const hb = handle === 'native' ? readVaultHeartbeatNative() : await readVaultHeartbeat(handle);
+      const hb = handle === 'native' ? await readVaultHeartbeatNativeAsync() : await readVaultHeartbeat(handle);
       const state = obsidianHeartbeatState(hb);
       // The pairing meta is the "is the vault paired" fact the posture
       // needs. It is normally cached by the last cycle; on a first cycle
@@ -739,7 +739,7 @@ export default function useObsidianSync({
   const refreshTasksPluginDetection = async (handle) => {
     try {
       const detected = handle === 'native'
-        ? detectTasksPluginNative()
+        ? await detectTasksPluginNativeAsync()
         : await vaultHasTasksPlugin(handle);
       // null = could not determine (old native shell / failed read): keep the
       // last known value rather than flapping the format.

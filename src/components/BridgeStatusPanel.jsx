@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link2 } from 'lucide-react';
-import { readVaultHeartbeatNative } from '../obsidian.js';
+import { readVaultHeartbeatNativeAsync } from '../obsidian.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
 import { getBridgePairingMeta, readBridgeDeliveryState } from '../utils/obsidianBridgeStream.js';
 import { readBridgeCopies } from '../utils/obsidianBridgeInbound.js';
@@ -34,7 +34,7 @@ const BridgeStatusPanel = ({ darkMode, textPrimary, textSecondary, borderClass }
     let cancelled = false;
     const probe = async () => {
       try {
-        const raw = readVaultHeartbeatNative();
+        const raw = await readVaultHeartbeatNativeAsync();
         const state = obsidianHeartbeatState(raw);
         if (cancelled) return;
         // The raw beat's time rides along for the waiting line ("Obsidian

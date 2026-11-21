@@ -45,6 +45,7 @@ export {
   dailyNoteFilename,
 } from '@glance-apps/obsidian-format';
 import { withCreationFrontmatter } from './utils/obsidianFrontmatter.js';
+import { nativeDotfileAsyncAvailable, nativeReadDotfileAsync } from './native.js';
 
 // How far back the Obsidian daily-note scan reads, in days. DELIBERATELY FIXED and
 // decoupled from the calendar "Keep past events" retention (syncRetentionDays):
@@ -678,9 +679,27 @@ export function readVaultHeartbeatNative() {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge?.getHeartbeat) return null;
   try {
-    const text = bridge.getHeartbeat();
-    if (text === null || text === undefined || text === 'null') return null;
-    return parseObsidianHeartbeat(text);
+    return heartbeatFromNativeText(bridge.getHeartbeat());
+  } catch {
+    return null;
+  }
+}
+
+const heartbeatFromNativeText = (text) => {
+  if (text === null || text === undefined || text === 'null') return null;
+  return parseObsidianHeartbeat(text);
+};
+
+/**
+ * readVaultHeartbeatNative without holding the page: on an Android shell that
+ * offers getHeartbeatAsync the read runs on a background thread (a vault on a
+ * network-backed provider made the synchronous read take tens of seconds).
+ * Elsewhere it is the synchronous read.
+ */
+export async function readVaultHeartbeatNativeAsync() {
+  if (!nativeDotfileAsyncAvailable('getHeartbeat')) return readVaultHeartbeatNative();
+  try {
+    return heartbeatFromNativeText(await nativeReadDotfileAsync('getHeartbeat'));
   } catch {
     return null;
   }
@@ -698,8 +717,23 @@ export function readVaultHeartbeatNative() {
 export function detectTasksPluginNative() {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge?.getCommunityPlugins) return null;
+  let text;
   try {
-    const text = bridge.getCommunityPlugins();
+    text = bridge.getCommunityPlugins();
+  } catch {
+    return false;
+  }
+  return tasksPluginFromNativeText(text);
+}
+
+/** detectTasksPluginNative off the JS thread where the shell can (see readVaultHeartbeatNativeAsync). */
+export async function detectTasksPluginNativeAsync() {
+  if (!nativeDotfileAsyncAvailable('getCommunityPlugins')) return detectTasksPluginNative();
+  return tasksPluginFromNativeText(await nativeReadDotfileAsync('getCommunityPlugins'));
+}
+
+function tasksPluginFromNativeText(text) {
+  try {
     if (text === null || text === undefined) return null; // read failed
     // The iOS shim is a Proxy (every method name "exists") and an OLD app
     // shell's dispatcher answers unknown methods with the literal STRING
