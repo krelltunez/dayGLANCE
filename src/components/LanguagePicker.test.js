@@ -12,6 +12,7 @@ describe('nativeLanguageName', () => {
     ['es', 'Español'],
     ['fr', 'Français'],
     ['it', 'Italiano'],
+    ['ja', '日本語'],
     ['pl', 'Polski'],
     ['pt-BR', 'Português (Brasil)'],
     ['pt-PT', 'Português (Portugal)'],
