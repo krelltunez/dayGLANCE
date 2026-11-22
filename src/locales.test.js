@@ -112,6 +112,7 @@ describe('locale bundles', () => {
     }
   });
 
+  // lastGLANCE's equivalent (src/locales.test.ts) also accepts a key that resolves to an object (t('menu', { returnObjects: true })); adopt that if a returnObjects call is ever added here.
   it('defines every literal translation key used by source', () => {
     const englishKeys = keysOf('en');
     const sourceFiles = [];
