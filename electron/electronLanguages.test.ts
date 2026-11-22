@@ -63,6 +63,7 @@ describe('mac.electronLanguages', () => {
     ['fr', true],
     ['it', true],
     ['es', true],
+    ['ja', true],
     // Prefix matching pulls these two in behind bare 'en' and 'es'. Accepted,
     // and asserted so the store listing showing them is never a surprise.
     ['en_GB', true],
@@ -71,7 +72,6 @@ describe('mac.electronLanguages', () => {
     // Traditional Chinese is a different written standard from zh-CN, and each
     // is declared on its own; neither drags in other Chinese regions.
     ['zh_HK', false],
-    ['ja', false],
     ['ko', false],
     ['ru', false],
     ['ar', false],

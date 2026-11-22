@@ -8,7 +8,7 @@ import { languages, loaders, resolveLanguage } from './locales.js';
 // only checked the files existed would have passed throughout that bug — the
 // assertions below go through the same loaders i18n.js resolves at runtime.
 describe('locale bundles', () => {
-  const EXPECTED = ['de', 'en', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk', 'zh-CN', 'zh-TW'];
+  const EXPECTED = ['de', 'en', 'es', 'fr', 'it', 'ja', 'pl', 'pt-BR', 'pt-PT', 'uk', 'zh-CN', 'zh-TW'];
   const TRANSLATED = EXPECTED.filter((l) => l !== 'en');
 
   const bundles = {};
@@ -74,7 +74,7 @@ describe('locale bundles', () => {
     });
 
     it('falls back to en for a language that is not shipped', () => {
-      expect(resolveLanguage('ja')).toBe('en');
+      expect(resolveLanguage('ko')).toBe('en');
       expect(resolveLanguage('zz-ZZ')).toBe('en');
     });
 

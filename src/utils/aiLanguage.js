@@ -24,6 +24,7 @@ export const LANGUAGE_NAMES = Object.freeze({
   'es': ['Spanish', 'Español'],
   'fr': ['French', 'Français'],
   'it': ['Italian', 'Italiano'],
+  'ja': ['Japanese', '日本語'],
   'pl': ['Polish', 'Polski'],
   'pt-BR': ['Brazilian Portuguese', 'Português do Brasil'],
   'pt-PT': ['European Portuguese', 'Português de Portugal'],
