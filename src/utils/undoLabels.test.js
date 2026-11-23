@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import i18next from 'i18next';
 import { UNDO_LABELS, shortTitle, findTaskTitle, describeUndoLabel } from './undoLabels.js';
 
-const LANGUAGES = ['de', 'en', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk', 'zh-CN', 'zh-TW'];
+const LANGUAGES = ['de', 'en', 'es', 'fr', 'it', 'ja', 'pl', 'pt-BR', 'pt-PT', 'uk', 'zh-CN', 'zh-TW'];
 const bundle = (lng) => JSON.parse(readFileSync(join(process.cwd(), 'public', 'locales', lng, 'translation.json'), 'utf8'));
 
 let t;

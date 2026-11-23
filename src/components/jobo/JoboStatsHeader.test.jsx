@@ -42,7 +42,7 @@ async function render({ lng = 'en', header = false, planner = {}, features = {},
 }
 
 describe('read-only JOBO date-header tiles', () => {
-  it.each(['en', 'zh-CN', 'zh-TW', 'de', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk'])('renders all five tiles with the real %s bundle', async lng => {
+  it.each(['en', 'zh-CN', 'zh-TW', 'de', 'es', 'fr', 'it', 'ja', 'pl', 'pt-BR', 'pt-PT', 'uk'])('renders all five tiles with the real %s bundle', async lng => {
     const { html, resource } = await render({ lng, props: { className: 'flex-1' } });
     expect(html.match(/data-jobo-stat=/g)).toHaveLength(5);
     expect(html).toContain(resource.jobo.stats.native);

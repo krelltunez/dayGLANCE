@@ -28,6 +28,12 @@
             "value" : "Segna come completata"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了にする"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -91,6 +97,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Posticipa 15 min"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15分スヌーズ"
           }
         },
         "pl" : {
