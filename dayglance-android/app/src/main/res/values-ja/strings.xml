@@ -174,7 +174,7 @@
     <string name="widget_month_all_day_or_due">終日または期限</string>
     <string name="widget_month_agenda_description">6週間をひと目で確認でき、どの日の予定も表示できます</string>
     <string name="badge_due">期限</string>
-    <string name="widget_nothing_scheduled">予定はありません</string>
+    <string name="widget_nothing_scheduled">予定なし</string>
     <plurals name="widget_more_items">
         <item quantity="one">ほか%d件</item>
         <item quantity="other">ほか%d件</item>
