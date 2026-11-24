@@ -28,6 +28,12 @@
             "value" : "%@ disponibili"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@空いています"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -91,6 +97,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "restano %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "残り%@"
           }
         },
         "pl" : {
@@ -158,6 +170,12 @@
             "value" : "%@ senza impegni"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@空き"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -221,6 +239,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld giorni fa"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld日前のデータ"
           }
         },
         "pl" : {
@@ -288,6 +312,12 @@
             "value" : "%lld pianificati"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定あり%lld件"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -351,6 +381,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld%% · %lld/%lld attività"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% · タスク %lld/%lld"
           }
         },
         "pl" : {
@@ -418,6 +454,12 @@
             "value" : "restano %lld g"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "残り%lld日"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -481,6 +523,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld g di ritardo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld日超過"
           }
         },
         "pl" : {
@@ -548,6 +596,12 @@
             "value" : "+%lld altri"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ほか%lld件"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -611,6 +665,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aggiungi attività alla posta in arrivo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インボックスにタスクを追加"
           }
         },
         "pl" : {
@@ -678,6 +738,12 @@
             "value" : "Aggiungi attività programmata"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定ありのタスクを追加"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -741,6 +807,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aggiungi attività con la voce"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声でタスクを追加"
           }
         },
         "pl" : {
@@ -808,6 +880,12 @@
             "value" : "Aggiunge un'attività al programma di oggi."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日の予定にタスクを追加します。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -871,6 +949,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tutto il giorno"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終日"
           }
         },
         "pl" : {
@@ -938,6 +1022,12 @@
             "value" : "Tutto il giorno o in scadenza"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終日または期限"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1001,6 +1091,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cattura un'attività con la voce."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声でタスクを記録します。"
           }
         },
         "pl" : {
@@ -1068,6 +1164,12 @@
             "value" : "Scegli quale obiettivo mostra questo widget."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このウィジェットに表示する目標を選びます。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1131,6 +1233,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scegli quale progetto mostra questo widget."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このウィジェットに表示するプロジェクトを選びます。"
           }
         },
         "pl" : {
@@ -1198,6 +1306,12 @@
             "value" : "Data"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日付"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1261,6 +1375,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Quadrante del giorno"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デイダイヤル"
           }
         },
         "pl" : {
@@ -1328,6 +1448,12 @@
             "value" : "Fatto"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1391,6 +1517,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scadenza"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "期限"
           }
         },
         "pl" : {
@@ -1458,6 +1590,12 @@
             "value" : "Scade oggi"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日が期限"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1521,6 +1659,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impegno"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "負荷"
           }
         },
         "pl" : {
@@ -1588,6 +1732,12 @@
             "value" : "Concentrazione"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "集中"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1651,6 +1801,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Blocchi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フレーム"
           }
         },
         "pl" : {
@@ -1718,6 +1874,12 @@
             "value" : "OBIETTIVO"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1781,6 +1943,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Obiettivo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標"
           }
         },
         "pl" : {
@@ -1848,6 +2016,12 @@
             "value" : "In arrivo"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インボックスのタスク"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1911,6 +2085,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mese"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "月"
           }
         },
         "pl" : {
@@ -1978,6 +2158,12 @@
             "value" : "Giorno successivo"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次の日"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2041,6 +2227,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nessun obiettivo attivo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進行中の目標はありません"
           }
         },
         "pl" : {
@@ -2108,6 +2300,12 @@
             "value" : "Nessun progetto attivo"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進行中のプロジェクトはありません"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2171,6 +2369,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nient'altro oggi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日はほかに予定はありません"
           }
         },
         "pl" : {
@@ -2238,6 +2442,12 @@
             "value" : "Niente in programma"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定なし"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2301,6 +2511,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Adesso: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今：%@"
           }
         },
         "pl" : {
@@ -2368,6 +2584,12 @@
             "value" : "NON AGGIORNATO"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古いデータ"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2431,6 +2653,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In pausa"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留中"
           }
         },
         "pl" : {
@@ -2498,6 +2726,12 @@
             "value" : "Apri dayGLANCE per aggiornare"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dayGLANCEを開いて更新"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2561,6 +2795,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apri dayGLANCE per configurare"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dayGLANCEを開いて設定"
           }
         },
         "pl" : {
@@ -2628,6 +2868,12 @@
             "value" : "Non aggiornato"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古いデータ"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2691,6 +2937,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "PROGETTO"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクト"
           }
         },
         "pl" : {
@@ -2758,6 +3010,12 @@
             "value" : "Pianificato al %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@時点の計画"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2821,6 +3079,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pianificato in anticipo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "事前に計画"
           }
         },
         "pl" : {
@@ -2888,6 +3152,12 @@
             "value" : "Giorno precedente"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前の日"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2951,6 +3221,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Avanzamento di un obiettivo. Tieni premuto per scegliere quale."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標の進捗を表示します。長押しして目標を選べます。"
           }
         },
         "pl" : {
@@ -3018,6 +3294,12 @@
             "value" : "Avanzamento di un progetto. Tieni premuto per scegliere quale."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクトの進捗を表示します。長押ししてプロジェクトを選べます。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3081,6 +3363,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Progetto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクト"
           }
         },
         "pl" : {
@@ -3148,6 +3436,12 @@
             "value" : "Cattura rapidamente un'attività nella posta in arrivo."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タスクをすばやくインボックスに追加します。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3211,6 +3505,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Recupero"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回復"
           }
         },
         "pl" : {
@@ -3278,6 +3578,12 @@
             "value" : "Routine"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ルーティン"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3341,6 +3647,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Attività programmata"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定ありのタスク"
           }
         },
         "pl" : {
@@ -3408,6 +3720,12 @@
             "value" : "Scegli obiettivo"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標を選択"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3471,6 +3789,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scegli progetto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクトを選択"
           }
         },
         "pl" : {
@@ -3538,6 +3862,12 @@
             "value" : "Mostra giorno"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日を表示"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3601,6 +3931,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mostra oggi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日を表示"
           }
         },
         "pl" : {
@@ -3668,6 +4004,12 @@
             "value" : "Sei settimane della tua agenda a colpo d'occhio."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6週間分の予定をひと目で確認できます。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3731,6 +4073,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sonno"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠"
           }
         },
         "pl" : {
@@ -3798,6 +4146,12 @@
             "value" : "Questo obiettivo potrebbe essere stato completato o eliminato. Modifica il widget per sceglierne un altro."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この目標は完了したか、削除された可能性があります。ウィジェットを編集して別の目標を選んでください。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3861,6 +4215,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Questo progetto potrebbe essere stato archiviato o eliminato. Modifica il widget per sceglierne un altro."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプロジェクトはアーカイブされたか、削除された可能性があります。ウィジェットを編集して別のプロジェクトを選んでください。"
           }
         },
         "pl" : {
@@ -3928,6 +4288,12 @@
             "value" : "Fuso orario cambiato"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイムゾーンが変更されました"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3991,6 +4357,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Oggi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日"
           }
         },
         "pl" : {
@@ -4058,6 +4430,12 @@
             "value" : "A SEGUIRE"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次の予定"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4121,6 +4499,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tempo libero"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空き"
           }
         },
         "pl" : {
@@ -4188,6 +4572,12 @@
             "value" : "Senza titolo"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無題"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4251,6 +4641,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A seguire"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次の予定"
           }
         },
         "pl" : {
@@ -4318,6 +4714,12 @@
             "value" : "Attività vocale"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声タスク"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4381,6 +4783,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La tua giornata come un quadrante."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1日をダイヤルで表示します。"
           }
         },
         "pl" : {
@@ -4448,6 +4856,12 @@
             "value" : "La tua prossima attività programmata."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次に予定されているタスクです。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4511,6 +4925,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "al %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@時点"
           }
         },
         "pl" : {
@@ -4584,6 +5004,12 @@
             "value" : "Sonno"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4647,6 +5073,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "poi %@ senza impegni"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その後は%@空き"
           }
         },
         "pl" : {
@@ -4714,6 +5146,12 @@
             "value" : "poi %@ fino al sonno"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その後は就寝まで%@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4777,6 +5215,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "fino alle %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@まで"
           }
         },
         "pl" : {
@@ -4844,6 +5288,12 @@
             "value" : "fino a %@ alle %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（%@）まで"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4909,6 +5359,12 @@
             "value" : "fino alle %@ · restano %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@まで · 残り%@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4972,6 +5428,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "fino al sonno alle %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就寝（%@）まで"
           }
         },
         "pl" : {

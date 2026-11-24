@@ -49,12 +49,8 @@ const androidLocaleFor = (tag) => ANDROID_LOCALE_NAME[tag] ?? tag;
  * actually land.
  */
 const NATIVE_TRANSLATION_PENDING = {
-  android: {
-    ja: 'The Japanese web bundle comes first; values-ja (strings and widget previews) follows in a separate PR.',
-  },
-  ios: {
-    ja: 'The Japanese web bundle comes first; ja in the two .xcstrings catalogs follows in a separate PR.',
-  },
+  android: {},
+  ios: {},
 };
 
 const iosCatalogs = ['dayglance-ios/DayGlance/Localizable.xcstrings', 'dayglance-ios/DayGlanceWidget/Localizable.xcstrings']

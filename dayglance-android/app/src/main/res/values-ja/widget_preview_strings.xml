@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_preview_date">3月10日（火）</string>
+    <string name="widget_preview_updated">8:42</string>
+    <string name="widget_preview_today_allday_title">母の誕生日</string>
+    <string name="widget_preview_today_frame_name">ディープワーク</string>
+    <string name="widget_preview_today_frame_times">9:00 – 11:30</string>
+    <string name="widget_preview_today_frame_free">30分空き</string>
+    <string name="widget_preview_today_task1_title">プルリクエストをレビュー</string>
+    <string name="widget_preview_today_task1_time">9:00 – 10:00  #仕事</string>
+    <string name="widget_preview_today_task2_title">プロジェクト概要を作成</string>
+    <string name="widget_preview_today_task2_project">ウェブサイトのリニューアル</string>
+    <string name="widget_preview_today_task2_time">10:00 – 11:00</string>
+    <string name="widget_preview_today_task3_title">Samとランチ</string>
+    <string name="widget_preview_today_task3_time">12:30 – 13:30</string>
+    <string name="widget_preview_upnext_title">四半期レポートを準備</string>
+    <string name="widget_preview_upnext_time">14:00 – 15:30</string>
+    <string name="widget_preview_upnext_time_until">25分後</string>
+    <string name="widget_preview_upnext_project">経理</string>
+    <string name="widget_preview_upnext_tags">#仕事  #集中</string>
+    <string name="widget_preview_upnext_sub1">売上の数値を集める</string>
+    <string name="widget_preview_upnext_sub2">要約スライドを下書き</string>
+    <string name="widget_preview_project_goal">新居</string>
+    <string name="widget_preview_project_title">キッチンのリフォーム</string>
+    <string name="widget_preview_project_task1">キャビネットの仕上げを選ぶ</string>
+    <string name="widget_preview_project_task2">電気工事の業者を予約</string>
+    <string name="widget_preview_project_task3">キッチンの寸法を測る</string>
+    <string name="widget_preview_project_task4">予算を決める</string>
+    <string name="widget_preview_goal_title">ハーフマラソンを走る</string>
+    <string name="widget_preview_goal_due">残り42日</string>
+    <string name="widget_preview_goal_project1">週の走行距離を伸ばす</string>
+    <string name="widget_preview_goal_project2">大会にエントリー</string>
+    <string name="widget_preview_goal_project3">ランニングシューズを買う</string>
+</resources>

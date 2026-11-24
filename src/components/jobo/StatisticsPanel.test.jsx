@@ -10,7 +10,7 @@ import { buildStatisticsDayReport, buildStatisticsReports } from '../../jobo/che
 
 vi.mock('react-dom', async original => ({ ...await original(), createPortal: children => children }));
 afterEach(() => vi.unstubAllGlobals());
-const locales = ['en', 'zh-CN', 'zh-TW', 'de', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk'];
+const locales = ['en', 'zh-CN', 'zh-TW', 'de', 'es', 'fr', 'it', 'ja', 'pl', 'pt-BR', 'pt-PT', 'uk'];
 const bundle = lng => JSON.parse(readFileSync(new URL(`../../../public/locales/${lng}/translation.json`, import.meta.url), 'utf8'));
 const date = '2026-09-28';
 const record = createDoRecord({ id: 'r1', taskId: null, title: 'Work', source: 'manual', progress: 'partial',

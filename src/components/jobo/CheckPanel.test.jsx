@@ -21,7 +21,7 @@ const row = (over = {}) => createDoRecord({ id: 'r1', taskId: 't1', title: task.
   date, startTime: '09:10', endDate: date, endTime: '10:20', progress: 'mostly', planSnapshot: plan,
   createdAt: stamp, updatedAt: stamp, observedAt: stamp, ...over });
 const build = (records = [row()], extra = {}) => buildJoboDayModel({ date, records, tasks: [task], taskLookup: [task], ...extra });
-const locales = ['en', 'zh-CN', 'zh-TW', 'de', 'es', 'fr', 'it', 'pl', 'pt-BR', 'pt-PT', 'uk'];
+const locales = ['en', 'zh-CN', 'zh-TW', 'de', 'es', 'fr', 'it', 'ja', 'pl', 'pt-BR', 'pt-PT', 'uk'];
 const bundle = lng => JSON.parse(readFileSync(new URL(`../../../public/locales/${lng}/translation.json`, import.meta.url), 'utf8'));
 async function render(lng = 'en', props = {}, Component = CheckJournal) {
   const i18n = i18next.createInstance();
