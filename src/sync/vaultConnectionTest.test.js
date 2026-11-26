@@ -119,6 +119,47 @@ describe('testVaultConnection', () => {
     expect(res.ok).toBe(false);
     expect(res.code).toBe(VAULT_TEST_OUTCOMES.NETWORK);
   });
+
+  // #2445: the Android/iOS bridge and the desktop proxy answer "never
+  // connected" with a status-0 RESULT, not a throw. Through the real vault
+  // client that used to become "The vault rejected the request (status 0)".
+  it('native bridge failure shape (status 0, error) → NETWORK with the bridge reason', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      status: 0, ok: false, body: '', error: 'Failed to connect to /10.10.10.11:19991',
+    }));
+    const res = await testVaultConnection(CREDS, { fetchImpl });
+
+    expect(res.ok).toBe(false);
+    expect(res.code).toBe(VAULT_TEST_OUTCOMES.NETWORK);
+    expect(res.message).toBe('Could not reach the vault at this URL (Failed to connect to /10.10.10.11:19991).');
+    expect(res.message).not.toContain('rejected');
+  });
+
+  it('desktop proxy failure shape (status 0, statusText) → NETWORK with the reason', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      status: 0, ok: false, statusText: 'connect ECONNREFUSED 127.0.0.1:8080', body: '', headers: { etag: null },
+    }));
+    const res = await testVaultConnection(CREDS, { fetchImpl });
+
+    expect(res.code).toBe(VAULT_TEST_OUTCOMES.NETWORK);
+    expect(res.message).toContain('ECONNREFUSED');
+  });
+
+  it('a status-0 error from an injected client is NETWORK, never SERVER_ERROR', async () => {
+    const vaultClient = { getSalt: vi.fn(async () => { throw Object.assign(new Error('get salt failed: 0'), { status: 0 }); }) };
+    const res = await testVaultConnection(CREDS, { vaultClient });
+
+    expect(res.code).toBe(VAULT_TEST_OUTCOMES.NETWORK);
+    expect(res.message).toBe('Could not reach the vault at this URL.');
+  });
+
+  it('a real HTTP status the bridge carries is still the vault answering', async () => {
+    const fetchImpl = vi.fn(async () => ({ status: 418, ok: false, body: '' }));
+    const res = await testVaultConnection(CREDS, { fetchImpl });
+
+    expect(res.code).toBe(VAULT_TEST_OUTCOMES.SERVER_ERROR);
+    expect(res.status).toBe(418);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
