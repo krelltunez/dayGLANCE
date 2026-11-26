@@ -331,6 +331,12 @@ Two options, to be chosen once the read side runs:
 
 Either way: consent tiers from §6.3 (read; read + write; the device-calendar tier does not apply), the journal with undo, the rate limit, a kill switch.
 
+## Installing a host
+
+The install line, and the peer requirements (zod 4 in particular), are in
+`packages/dayglance-mcp/README.md` ("Installing"). The wiring is shown end to
+end in `packages/dayglance-vault/test/hostPull.e2e.test.js`.
+
 ## Deployment and security notes
 
 - Token required on any non-loopback bind; Host allowlist configured; TLS at a reverse proxy.

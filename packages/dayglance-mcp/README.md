@@ -17,6 +17,21 @@ synced slices. Both answer through `handleMcpRequest`, over the state
 The write tools stay in the desktop app for now. Plain ESM JavaScript for Node
 20+, with hand-written types in `types/`.
 
+## Installing
+
+The other `@glance-apps` packages, the MCP SDK and zod are peer dependencies,
+so a host installs them alongside:
+
+```bash
+npm install @glance-apps/mcp-host @glance-apps/dayglance-mcp @glance-apps/dayglance-vault @glance-apps/agenda-core @glance-apps/obsidian-format @glance-apps/sync @modelcontextprotocol/server @modelcontextprotocol/node zod@4
+```
+
+**zod must be version 4** (`^4.6.7`). The tool schemas are built with zod 4,
+and with zod 3 installed instead the host fails at runtime with an error that
+does not name zod (#2280). Use current versions of the `@glance-apps`
+packages together: their peer ranges are kept in step
+(`packages/peerRanges.test.js`), so no `--legacy-peer-deps` is needed.
+
 ## Entries
 
 | Entry | What | Where it runs |
