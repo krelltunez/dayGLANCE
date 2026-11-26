@@ -62,6 +62,7 @@ import { ghostSuccessorId, persistDerivedGhostRetirements } from '../utils/obsid
 import { createIdbKeyValue } from '../utils/idbKeyValue.js';
 import { cycleErrorCode } from './syncErrors.js';
 import { nativeHttpRequest } from '../native.js';
+import { throwIfBridgeFailure } from './bridgeFailure.js';
 import { timeAsync, timeSync } from '../utils/perfTrace.js';
 
 const APP_ID = 'dayglance';
@@ -318,8 +319,11 @@ export function vaultFetchImpl() {
     : null;
   // Wrap a bridge's plain {status, ok, statusText, body, headers} result in the
   // subset of the Response interface the vaultClient consumes.
-  const shapeResponse = (r) => {
-    if (!r) throw new TypeError('Failed to fetch');
+  // A bridge's status-0 "no response" result throws like browser fetch does
+  // (bridgeFailure.js, #2445), so the cycle reports it as the network failure
+  // it is, with the bridge's reason, rather than as an HTTP status 0.
+  const shapeResponse = (raw) => {
+    const r = throwIfBridgeFailure(raw);
     return {
       status: r.status,
       ok: r.ok,

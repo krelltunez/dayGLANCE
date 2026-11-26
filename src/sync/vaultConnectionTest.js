@@ -113,8 +113,22 @@ export async function testVaultConnection(credentials = {}, opts = {}) {
   } catch (err) {
     // createVaultClient.getSalt throws a VaultError carrying the HTTP `status` on
     // any non-OK, non-404 response; the transport throws a plain TypeError
-    // ('Failed to fetch') with NO status on a network/DNS/bad-URL failure.
+    // ('Failed to fetch') with NO status on a network/DNS/bad-URL failure. The
+    // native and desktop bridges answer that failure with status 0, which the
+    // transport turns into the same throw (bridgeFailure.js); a status 0 that
+    // still arrives (an injected client) is the same "never answered", never a
+    // vault rejection (#2445).
     const status = err?.status;
+    if (status === 0 || typeof status !== 'number') {
+      const reason = err?.bridgeReason;
+      return {
+        ok: false,
+        code: VAULT_TEST_OUTCOMES.NETWORK,
+        message: reason
+          ? `Could not reach the vault at this URL (${reason}).`
+          : 'Could not reach the vault at this URL.',
+      };
+    }
     if (status === 401) {
       return {
         ok: false,
@@ -141,20 +155,12 @@ export async function testVaultConnection(credentials = {}, opts = {}) {
         status,
       };
     }
-    if (typeof status === 'number') {
-      // Any other unexpected HTTP status from the salt endpoint.
-      return {
-        ok: false,
-        code: VAULT_TEST_OUTCOMES.SERVER_ERROR,
-        message: `The vault rejected the request (status ${status}).`,
-        status,
-      };
-    }
-    // No status → network unreachable, bad URL, DNS failure, CORS, etc.
+    // Any other unexpected HTTP status from the salt endpoint.
     return {
       ok: false,
-      code: VAULT_TEST_OUTCOMES.NETWORK,
-      message: 'Could not reach the vault at this URL.',
+      code: VAULT_TEST_OUTCOMES.SERVER_ERROR,
+      message: `The vault rejected the request (status ${status}).`,
+      status,
     };
   }
 }

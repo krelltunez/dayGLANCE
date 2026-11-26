@@ -17,6 +17,7 @@ import { createVaultClient } from '@glance-apps/sync';
 import { getSyncPassphrase } from '../utils/crypto.js';
 import { getDbIntentsConfig, getDbIntentsConnection, setDbIntentsConfig } from './dbIntentsConfig.js';
 import { defaultVaultFetch } from './dbIntentsTransport.js';
+import { throwIfBridgeFailure } from '../sync/bridgeFailure.js';
 import { clearVaultIntentsRootKey, loadVaultIntentsRootKey, storeVaultIntentsRootKey } from './intentsKeyStore.js';
 
 export class VaultIntentsSetupError extends Error {
@@ -35,8 +36,9 @@ export class VaultIntentsSetupError extends Error {
 // path already uses on every platform.
 export function adaptFetchForVaultClient(rawFetch) {
   return async (url, { method = 'GET', headers = {}, body } = {}) => {
-    const r = await rawFetch(method, url, headers, body ?? null);
-    if (!r) throw new TypeError('Failed to fetch');
+    // A bridge's status-0 result is "never answered" and keeps its reason
+    // (bridgeFailure.js, #2445), whichever raw fetch was injected.
+    const r = throwIfBridgeFailure(await rawFetch(method, url, headers, body ?? null));
     return {
       status: r.status,
       ok: r.ok,

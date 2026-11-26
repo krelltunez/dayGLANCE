@@ -93,6 +93,7 @@ import { recordOwnWriteSeq } from '@glance-apps/dayglance-vault';
 // already reported the incident once.
 import { createVaultClient } from '@glance-apps/sync';
 import { nativeHttpRequest } from '../native.js';
+import { throwIfBridgeFailure } from '../sync/bridgeFailure.js';
 import { timeAsync } from '../utils/perfTrace.js';
 
 // Module-level lock: prevents React StrictMode's double-mount from running two
@@ -158,8 +159,8 @@ export function defaultVaultFetch() {
       let r;
       try { r = await nativeHttpRequest(method, url, headers, body ?? ''); }
       catch { throw new TypeError('Failed to fetch'); }
-      if (!r) throw new TypeError('Failed to fetch');
-      return r;
+      // Status 0 is the bridge's "never answered", not an HTTP status (#2445).
+      return throwIfBridgeFailure(r);
     };
   }
   if (electronProxyFetch) {
@@ -167,8 +168,7 @@ export function defaultVaultFetch() {
       let r;
       try { r = await electronProxyFetch(method, url, headers, body ?? null); }
       catch { throw new TypeError('Failed to fetch'); }
-      if (!r) throw new TypeError('Failed to fetch');
-      return r;
+      return throwIfBridgeFailure(r);
     };
   }
   // Browser / PWA: global fetch, normalized to { status, ok, body }.
