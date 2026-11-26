@@ -248,6 +248,13 @@ module.exports = {
     ],
     target: [{ target: 'nsis' }],
   },
+  nsis: {
+    // Re-stamps the AppUserModelID on the Start Menu and desktop shortcuts an
+    // upgrade keeps, so they agree with the ID the app sets at startup
+    // (electron/windowsAppId.ts, #2446). Kept under electron/ rather than
+    // buildResources: that is public/, which the web build ships.
+    include: 'electron/resources/installer.nsh',
+  },
   // Per-target options. artifactName lives HERE rather than on the target entry
   // or the linux block. TargetConfiguration is additionalProperties:false with
   // only `target` and `arch`, so an artifactName inside one invalidates the whole

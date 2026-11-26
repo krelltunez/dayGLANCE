@@ -18,6 +18,7 @@ import { registerDirectAccessHandlers } from './directAccess.js';
 import { APP_SCHEME, APP_HOST, APP_BASE_URL, resolveAppRequest } from './appProtocol.js';
 import { shouldQuitOnAllWindowsClosed, shouldUnregisterShortcutsOnQuit } from './startupQuit.js';
 import { initStartupLog, logStartup } from './startupLog.js';
+import { shouldSetAppUserModelId, WINDOWS_APP_USER_MODEL_ID } from './windowsAppId.js';
 import { startMcpServer } from './mcpServer.js';
 import {
   generateMcpToken,
@@ -106,6 +107,13 @@ protocol.registerSchemesAsPrivileged([
 // every Electron build since main.ts was created, so existing users are already
 // here. The MAS build's distinct bundle ID (com.dayglance) does not move it either.
 app.setPath('userData', path.join(app.getPath('appData'), 'dayGLANCE'));
+
+// One taskbar identity on Windows, whichever shortcut (or none) started the
+// process (#2446, windowsAppId.ts). Before the first window, which takes the
+// process's AUMID when it is created.
+if (shouldSetAppUserModelId(process.platform, app.isPackaged)) {
+  app.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID);
+}
 
 // Startup logging — a bounded record in userData (dayglance-startup.log) that a
 // user can send after a bad launch. Initialized as early as possible (right
