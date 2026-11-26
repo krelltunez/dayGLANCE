@@ -1,6 +1,6 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createDoRecord } from '../jobo/core.js';
 
@@ -35,6 +35,10 @@ const timed = (over = {}) => createDoRecord({
   createdAt: stamp, updatedAt: stamp, observedAt: stamp, ...over,
 });
 
+// The notes sidebar's width test: the calendar's three-column layout, which
+// App publishes as canShowViewCycler (utils/desktopColumns.js).
+let wideCalendar = false;
+
 function render(extra = {}, ctxExtra = {}) {
   fixture.planColumns = [];
   fixture.ctx = {
@@ -43,6 +47,7 @@ function render(extra = {}, ctxExtra = {}) {
     getTasksForDate: () => [task], formatTime: (value) => value,
     textPrimary: '', textSecondary: '', cardBg: '', borderClass: '', darkMode: false,
     calendarRef: { current: null }, stickyHeaderRef: { current: null },
+    canShowViewCycler: wideCalendar,
     ...ctxExtra,
   };
   fixture.features = { joboRecords: [], joboLoaded: true, joboWritable: true, joboError: null, recordJobo: vi.fn(), reloadJobo: vi.fn(), ...extra };
@@ -317,8 +322,9 @@ describe('START to END only', () => {
 });
 
 describe('the notes sidebar', () => {
+  afterEach(() => { wideCalendar = false; });
   const wideScreen = (matches) => {
-    vi.stubGlobal('window', { matchMedia: () => ({ matches, addEventListener() {}, removeEventListener() {} }) });
+    wideCalendar = matches;
     vi.stubGlobal('localStorage', { getItem: (key) => (key === 'dg-jobo-notes-sidebar' ? '1' : null), setItem: () => {} });
   };
 
@@ -358,7 +364,7 @@ describe('the notes sidebar', () => {
     } finally {
       vi.unstubAllGlobals();
     }
-    vi.stubGlobal('window', { matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }) });
+    wideCalendar = true;
     vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} });
     try {
       const closed = render();
@@ -370,7 +376,7 @@ describe('the notes sidebar', () => {
     }
   });
 
-  it('is not offered below 1600px, whatever was chosen', () => {
+  it('is not offered below the three-column calendar width, whatever was chosen', () => {
     wideScreen(false);
     try {
       const html = render();

@@ -43,7 +43,7 @@ import { useTranslation } from 'react-i18next';
 const DesktopLayout = () => {
   const {
     isPhone, isMobile, isTablet, isLandscape,
-    sidePanelCollapsed,
+    sidePanelCollapsed, sidePanelMode,
     visibleDays, visibleDates,
     effectiveViewMode,
     tabBarRef, suppressTabBarRef,
@@ -790,7 +790,7 @@ const DesktopLayout = () => {
 
           {/* Desktop side panel — Glance + Inbox (matching tablet landscape design) */}
           {!isTablet && (
-          <SidePanelFrame collapsed={sidePanelCollapsed}>
+          <SidePanelFrame collapsed={sidePanelCollapsed} overlay={sidePanelMode === 'overlay'}>
           <div
             data-side-panel
             className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0 relative`}
