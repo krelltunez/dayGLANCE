@@ -176,9 +176,12 @@ export function registerReadTools(server, deps) {
         'back as cursor for the next page. Filters: scope "all" returns every unscheduled task ' +
         '(the default), "standalone" only tasks not attached to a project (what the app itself ' +
         'counts as the inbox), "project" only project-attached tasks; include_completed defaults ' +
-        'to true, pass false for open tasks only. total, truncated, and next_cursor always ' +
-        'describe the FILTERED set. Bucket List (someday/maybe) items are never returned by this ' +
-        'tool; see dayglance_list_bucket_list. Items carry duration_minutes and, when assigned, ' +
+        'to true, pass false for open tasks only. Archived tasks and tasks in an archived project ' +
+        'are left out, as the app\'s inbox leaves them out; pass include_archived true to list ' +
+        'them too, each marked archived or project_archived. A task whose project no longer ' +
+        'exists counts as standalone and carries project_missing: true. total, truncated, and ' +
+        'next_cursor always describe the FILTERED set. Bucket List (someday/maybe) items and ' +
+        'tasks in the recycle bin are never returned by this tool; see dayglance_list_bucket_list. Items carry duration_minutes and, when assigned, ' +
         'assignee_id. A cursor is bound to the filters it was issued under: changing scope or ' +
         'include_completed mid-pagination is a validation error, so to change filters, restart ' +
         'with a fresh call and no cursor.' + PLAN_HISTORY_NOTE + ' An inbox task keeps the history ' +
@@ -191,17 +194,19 @@ export function registerReadTools(server, deps) {
           'attached to any project (what the app counts as the inbox). "project": only tasks attached to a project.'),
         include_completed: z.boolean().optional().describe(
           'Default true. Pass false to return only open tasks.'),
+        include_archived: z.boolean().optional().describe(
+          'Default false. Pass true to also return archived tasks and tasks in archived projects.'),
       }),
     },
-    async ({ limit, cursor, scope, include_completed }) => {
+    async ({ limit, cursor, scope, include_completed, include_archived }) => {
       // Resolve defaults BEFORE anything compares or encodes: the canonical
       // tuple is what the renderer applies and what the cursor carries, so
       // omitted-vs-explicit defaults can never mismatch across pages.
-      const resolved = resolveInboxFilter({ scope, include_completed });
+      const resolved = resolveInboxFilter({ scope, include_completed, include_archived });
       if (!resolved.ok) return toolError('validation', resolved.message);
       const { filter } = resolved;
       const r = await deps.bridge.request('list_unscheduled', {
-        filter: { scope: filter.scope, includeCompleted: filter.includeCompleted },
+        filter: { scope: filter.scope, includeCompleted: filter.includeCompleted, includeArchived: filter.includeArchived },
       });
       if (!r.ok) return bridgeError(r);
       const items = r.data.items ?? [];

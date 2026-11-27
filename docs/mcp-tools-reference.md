@@ -239,6 +239,13 @@ exclusion applies here, not a filter argument, and `bucketId` never appears on t
 | `cursor` | string | no | Opaque cursor from a previous response's `next_cursor`. Bound to the filters it was issued under (see below). |
 | `scope` | `'all'` \| `'standalone'` \| `'project'` | no | Default `'all'` (every unscheduled task). `'standalone'`: tasks not attached to a project — what the app itself counts as the inbox. `'project'`: only project-attached tasks. |
 | `include_completed` | boolean | no | Default `true`. Pass `false` for open tasks only. |
+| `include_archived` | boolean | no | Default `false`. Pass `true` to also list archived tasks and tasks in an archived project. |
+
+**The list holds to the app's Inbox.** Archived tasks and tasks in an archived project are left out
+unless `include_archived` is `true`; then each carries `archived: true` or `project_archived: true`.
+Tasks in the recycle bin are never listed. A task whose project no longer exists (its `project_id`
+names no project) counts as standalone, keeps its `project_id`, and carries `project_missing: true`;
+it is judged missing only when the app holds any projects at all.
 
 Returns `{ items, truncated, next_cursor, total, timezone }`. Items carry `id`, `title`,
 `priority` (0–3), `completed`, `created_at`, `completed_at`, `duration_minutes`, and `deadline` /
@@ -252,8 +259,9 @@ error. Cursors encode the resolved filter they were minted under; presenting a c
 different filter arguments is a `validation` error naming both sides — restart with a fresh
 call (no cursor) to change filters. Defaults are resolved before comparison, so omitting
 `include_completed` on one page and passing `include_completed: true` on the next never
-mismatches. `scope: 'standalone'` with `include_completed: false` is the app's own inbox
-count (the same predicate the TRMNL integration uses).
+mismatches, and a cursor minted before `include_archived` existed still matches the default.
+`scope: 'standalone'` with `include_completed: false` is the app's own inbox with its default
+filters.
 
 ### `dayglance_list_bucket_list`
 The Bucket List: someday/maybe items kept out of the inbox on purpose, in two lists with the

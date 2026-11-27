@@ -217,6 +217,40 @@ describe('buildUnscheduledItems', () => {
     }
   });
 
+  it('matches the app\'s Inbox: archived tasks and tasks in archived projects are left out unless asked for (2026-11-27)', () => {
+    const state = {
+      projects: [{ id: 'live', status: 'active' }, { id: 'shelved', status: 'archived' }],
+      unscheduledTasks: [
+        { id: 'plain', title: 'Plain' },
+        { id: 'archived', title: 'Archived', completed: true, archived: true },
+        { id: 'in-live', title: 'In live', projectId: 'live' },
+        { id: 'in-shelved', title: 'In shelved', projectId: 'shelved' },
+      ],
+    };
+    const ids = (filter) => buildUnscheduledItems(state, filter).items.map((i) => i.id);
+    expect(ids(undefined)).toEqual(['plain', 'in-live']);
+    expect(ids({ scope: 'project' })).toEqual(['in-live']);
+    const all = buildUnscheduledItems(state, { includeArchived: true }).items;
+    expect(all.map((i) => i.id)).toEqual(['plain', 'archived', 'in-live', 'in-shelved']);
+    expect(all.find((i) => i.id === 'archived').archived).toBe(true);
+    expect(all.find((i) => i.id === 'in-shelved').project_archived).toBe(true);
+    expect(all.find((i) => i.id === 'plain')).not.toHaveProperty('archived');
+  });
+
+  it('a task whose project no longer exists is standalone and flagged project_missing', () => {
+    const state = {
+      projects: [{ id: 'live', status: 'active' }],
+      unscheduledTasks: [{ id: 'orphan', title: 'Orphan', projectId: 'gone' }, { id: 'in-live', title: 'In live', projectId: 'live' }],
+    };
+    const standalone = buildUnscheduledItems(state, { scope: 'standalone' }).items;
+    expect(standalone.map((i) => i.id)).toEqual(['orphan']);
+    expect(standalone[0]).toMatchObject({ project_id: 'gone', project_missing: true });
+    expect(buildUnscheduledItems(state, { scope: 'project' }).items.map((i) => i.id)).toEqual(['in-live']);
+    // With no projects at all nothing is judged missing (a state that never carried them).
+    const bare = buildUnscheduledItems({ unscheduledTasks: state.unscheduledTasks }, { scope: 'project' }).items;
+    expect(bare.map((i) => i.id)).toEqual(['orphan', 'in-live']);
+  });
+
   it('a filter matching nothing returns an empty list, not an error', () => {
     const state = { unscheduledTasks: [{ id: 'p1', title: 'Project only', projectId: 'p' }] };
     expect(buildUnscheduledItems(state, { scope: 'standalone' }).items).toEqual([]);

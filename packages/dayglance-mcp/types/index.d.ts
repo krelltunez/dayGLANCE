@@ -16,6 +16,8 @@ export type InboxScope = (typeof INBOX_SCOPES)[number];
 export interface ResolvedInboxFilter {
   scope: InboxScope;
   includeCompleted: boolean;
+  /** Archived tasks and tasks in archived projects; false by default. */
+  includeArchived: boolean;
   /**
    * Canonical string form, stable key order, built from RESOLVED values.
    * Encoded into cursors and compared across pages; also readable in the
@@ -29,7 +31,7 @@ export type InboxFilterResult =
   | { ok: false; message: string };
 
 /** Defaults resolve here, once, before anything compares or encodes. */
-export function resolveInboxFilter(args: { scope?: unknown; include_completed?: unknown }): InboxFilterResult;
+export function resolveInboxFilter(args: { scope?: unknown; include_completed?: unknown; include_archived?: unknown }): InboxFilterResult;
 
 // ── readTools.js, resources.js ───────────────────────────────────────────────
 
