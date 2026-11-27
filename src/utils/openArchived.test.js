@@ -124,6 +124,16 @@ describe('a reopen in an archived project unlinks the task', () => {
     expect(row).toMatchObject({ projectId: 'p1', archived: false, lastModified: '2026-11-28T00:00:00.000Z' });
   });
 
+  it('restoring the project leaves a reopened task the user has since moved to another project', () => {
+    const reopened = reopenTask(hidden, { ...hidden, completed: false, completedAt: null }, [archivedProject], NOW);
+    const moved = { ...reopened, projectId: 'p2', lastModified: '2026-11-27T19:00:00.000Z' };
+    const plan = planProjectStatusChange(archivedProject, { status: 'active' }, [moved], '2026-11-28T00:00:00.000Z');
+    const rows = [moved];
+    const out = plan.rowsUpdater(rows);
+    expect(out[0]).toEqual(moved);
+    expect(out).toBe(rows);
+  });
+
   it('a project that is merely completed keeps its reopened task', () => {
     const r = reopenTask(hidden, { ...hidden, completed: false }, [{ ...archivedProject, status: 'completed' }], NOW);
     expect(r.projectId).toBe('p1');
