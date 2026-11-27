@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
   SIDE_PANEL_WIDTH, THREE_COLUMN_MIN, TWO_COLUMN_MIN,
-  columnsForWidth, windowColumns, desktopPanelLayout,
+  columnsForWidth, windowColumns, desktopPanelLayout, desktopViewState,
 } from './desktopColumns.js';
+import { DESKTOP_VIEW_MODES, cyclerStates, nextState } from '../constants/views.js';
 
 describe('columnsForWidth', () => {
   it('keeps the old window breakpoints once the open panel is taken off', () => {
@@ -70,12 +71,96 @@ describe('desktopPanelLayout', () => {
   });
 });
 
+describe('desktopViewState: what a laptop offers with the panel open', () => {
+  // A 14" MacBook Pro window: three columns only with the panel hidden.
+  const laptop = windowColumns(1512);
+  const at = (viewMode, panelCollapsed = false, hiddenDesktopViews = [], cols = laptop) => desktopViewState({
+    windowCols: cols, panelCollapsed, viewMode, hiddenDesktopViews, isTablet: false, isMobile: false, isLandscape: true,
+  });
+
+  // The cycler as the user drives it: ViewCycler and the C key both step
+  // cyclerStates(allDesktopViews, ...) from the view on screen.
+  const walk = (start, panelCollapsed = false, hidden = []) => {
+    const seen = [];
+    let viewMode = start;
+    for (let i = 0; i < DESKTOP_VIEW_MODES.length; i++) {
+      const state = at(viewMode, panelCollapsed, hidden);
+      seen.push({ view: state.effectiveViewMode, panel: state.sidePanelMode, columns: state.columns });
+      viewMode = nextState(cyclerStates(state.allDesktopViews, false, hidden), state.effectiveViewMode);
+    }
+    return seen;
+  };
+
+  // MUTATION: offer cyclerStates(canShowViewCycler) again and, from MONTH with
+  // the panel open, DAY and WEEK never come round: the bug this fixes.
+  it('cycling from MONTH with the panel open reaches every view, the panel floating only over DAY and WEEK', () => {
+    expect(walk('month')).toEqual([
+      { view: 'month', panel: 'docked', columns: 2 },
+      { view: 'sched', panel: 'docked', columns: 2 },
+      { view: 'jobo', panel: 'docked', columns: 2 },
+      { view: 'multi', panel: 'docked', columns: 2 },
+      { view: 'day', panel: 'overlay', columns: 3 },
+      { view: 'week', panel: 'overlay', columns: 3 },
+    ]);
+  });
+
+  it('cycling from JOBO with the panel open reaches DAY and WEEK too', () => {
+    const views = walk('jobo').map((s) => s.view);
+    expect(views).toEqual(['jobo', 'multi', 'day', 'week', 'month', 'sched']);
+  });
+
+  it('with the panel hidden, every view is wide and nothing floats', () => {
+    for (const step of walk('multi', true)) expect(step).toMatchObject({ panel: 'collapsed', columns: 3 });
+  });
+
+  it('the number keys reach DAY and WEEK from a docked view', () => {
+    const state = at('month');
+    expect(state.canShowViewCycler).toBe(false);
+    expect(state.allDesktopViews).toBe(true);
+    expect(cyclerStates(state.allDesktopViews, false, [])).toEqual(expect.arrayContaining(['day', 'week']));
+  });
+
+  it('a view turned off on this device stays off, and its stand-in never floats the panel', () => {
+    expect(walk('month', false, ['week']).map((s) => s.view)).not.toContain('week');
+    expect(at('week', false, ['week'])).toMatchObject({ sidePanelMode: 'docked', effectiveViewMode: 'multi' });
+  });
+
+  it('a window too narrow even with the panel hidden offers the narrow views only', () => {
+    const state = at('week', false, [], windowColumns(1100));
+    expect(state).toMatchObject({ allDesktopViews: false, canShowViewCycler: false, schedOnlyCycler: true, effectiveViewMode: 'multi' });
+  });
+
+  it('a wide display is as before: everything docked and wide', () => {
+    for (const view of DESKTOP_VIEW_MODES) {
+      expect(at(view, false, [], windowColumns(1920))).toMatchObject({ sidePanelMode: 'docked', columns: 3, canShowViewCycler: true, allDesktopViews: true, effectiveViewMode: view });
+    }
+  });
+
+  it('tablets and phones keep their own rules', () => {
+    const base = { windowCols: windowColumns(1366), panelCollapsed: false, viewMode: 'week', hiddenDesktopViews: [] };
+    expect(desktopViewState({ ...base, isTablet: true, isMobile: false, isLandscape: true }))
+      .toMatchObject({ visibleDays: 2, canShowViewCycler: false, allDesktopViews: false, schedOnlyCycler: true });
+    expect(desktopViewState({ ...base, isTablet: false, isMobile: true, isLandscape: false }))
+      .toMatchObject({ visibleDays: 1, allDesktopViews: false, schedOnlyCycler: false, effectiveViewMode: 'multi' });
+  });
+});
+
 describe('App wiring', () => {
   const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8');
 
-  it('derives the columns from the panel and the chosen view, and the header from the window', () => {
-    expect(app).toMatch(/desktopPanelLayout\(\s*windowCols, sidePanelCollapsed, hiddenViews\.desktop\.includes\(viewMode\) \? null : viewMode,\s*\)/);
+  it('derives the layout and the views on offer in one place, and the header from the window', () => {
+    expect(app).toMatch(/desktopViewState\(\{\s*windowCols, panelCollapsed: sidePanelCollapsed, viewMode, hiddenDesktopViews: hiddenViews\.desktop,/);
     expect(app).toContain('const headerDays = windowCols.open;');
-    expect(app).toContain('const canShowViewCycler = !isTablet && !isMobile && _visibleDays === 3;');
+  });
+
+  // MUTATION: drop allDesktopViews from any of these and that switcher hides
+  // DAY and WEEK on a laptop with the panel docked.
+  it('every switcher offers views by allDesktopViews, not by the current layout', () => {
+    const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
+    expect(read('../components/ViewCycler.jsx')).toContain('cyclerStates(allDesktopViews, !!showDayDial');
+    expect(read('../components/ShortcutHelpModal.jsx')).toContain('cyclerStates(allDesktopViews, false');
+    expect(read('../hooks/useKeyboardShortcuts.js').match(/cyclerStates\(allDesktopViews, showDayDial, hiddenViews\)/g)).toHaveLength(2);
+    expect(read('../components/settings/topics/useAppearanceTopic.jsx').match(/allDesktopViews \? DESKTOP_VIEW_MODES/g)).toHaveLength(2);
+    expect(app).toContain('setViewMode, canShowViewCycler, allDesktopViews, schedOnlyCycler, effectiveViewMode, hiddenViews: hiddenViews.desktop,');
   });
 });

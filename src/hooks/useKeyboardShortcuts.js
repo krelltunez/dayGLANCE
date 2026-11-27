@@ -113,7 +113,7 @@ export default function useKeyboardShortcuts({
   // date navigation (arrows)
   changeDate, setSelectedDate,
   // view cycler (1/2/3)
-  setViewMode, canShowViewCycler, schedOnlyCycler, effectiveViewMode, hiddenViews,
+  setViewMode, canShowViewCycler, allDesktopViews = canShowViewCycler, schedOnlyCycler, effectiveViewMode, hiddenViews,
 }) {
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
@@ -431,7 +431,7 @@ export default function useKeyboardShortcuts({
       // shortcut down while it is up, MONTH included.)
       if (noModifiers && (canShowViewCycler || schedOnlyCycler) && Object.values(VIEW_SHORTCUT_KEYS).includes(e.key)) {
         const view = Object.keys(VIEW_SHORTCUT_KEYS).find((v) => VIEW_SHORTCUT_KEYS[v] === e.key);
-        if (cyclerStates(canShowViewCycler, showDayDial, hiddenViews).includes(view)) {
+        if (cyclerStates(allDesktopViews, showDayDial, hiddenViews).includes(view)) {
           e.preventDefault();
           setViewMode(view);
         }
@@ -440,7 +440,7 @@ export default function useKeyboardShortcuts({
       // valid, unlike the direct-jump numbers (2/3 need the 3-column grid).
       if ((e.key === 'c' || e.key === 'C') && noModifiers && (canShowViewCycler || schedOnlyCycler)) {
         e.preventDefault();
-        const states = cyclerStates(canShowViewCycler, showDayDial, hiddenViews);
+        const states = cyclerStates(allDesktopViews, showDayDial, hiddenViews);
         // Cycle from the EFFECTIVE mode, matching the ViewCycler: a stored
         // DAY/WEEK renders as MULTI at narrow widths, so cycling must start
         // from what's on screen, not the raw stored mode.
@@ -478,5 +478,5 @@ export default function useKeyboardShortcuts({
     // action callbacks (changeDate/goToToday/performUndo/performRedo/playUISound),
     // all stable or read through refs — listing them would needlessly re-bind.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthViewActive, selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, showBucketList, showDayDial, plannerProjectId, showTagManager, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, sidePanelCollapsible, toggleSidePanel, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler, schedOnlyCycler, effectiveViewMode, hiddenViews]);
+  }, [monthViewActive, selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, showBucketList, showDayDial, plannerProjectId, showTagManager, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, sidePanelCollapsible, toggleSidePanel, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler, allDesktopViews, schedOnlyCycler, effectiveViewMode, hiddenViews]);
 }

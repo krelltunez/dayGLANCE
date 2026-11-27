@@ -133,7 +133,7 @@ import MobileNewTaskModal from './components/MobileNewTaskModal.jsx';
 import ProjectPlanner from './components/projects/ProjectPlanner.jsx';
 import DesktopNewTaskModal from './components/DesktopNewTaskModal.jsx';
 import useWindowColumns from './hooks/useWindowColumns.js';
-import { desktopPanelLayout } from './utils/desktopColumns.js';
+import { desktopViewState } from './utils/desktopColumns.js';
 import useSidePanelCollapse from './hooks/useSidePanelCollapse.js';
 import useDeviceType from './hooks/useDeviceType.js';
 import useIsLandscape from './hooks/useIsLandscape.js';
@@ -245,7 +245,7 @@ import DesktopLayout from './components/DesktopLayout.jsx';
 import GlanceSidebar from './components/GlanceSidebar.jsx';
 import TrayApp from './components/TrayApp.jsx';
 import MobileLayout from './components/MobileLayout.jsx';
-import { DESKTOP_VIEW_MODES, NARROW_DESKTOP_VIEW_MODES, MOBILE_VIEW_MODES, VIEW_SCOPES, resolveStoredView, normalizeHiddenViews, enabledViews, homeView, gateExperimentalViews } from './constants/views.js';
+import { DESKTOP_VIEW_MODES, MOBILE_VIEW_MODES, VIEW_SCOPES, resolveStoredView, normalizeHiddenViews, enabledViews, homeView, gateExperimentalViews } from './constants/views.js';
 import ShortcutHelpModal from './components/ShortcutHelpModal.jsx';
 import FocusModeModal from './components/FocusModeModal.jsx';
 import HyperGlanceModeModal from './components/HyperGlanceModeModal.jsx';
@@ -464,35 +464,21 @@ const DayPlanner = () => {
     const home = homeView(DESKTOP_VIEW_MODES, hiddenViews.desktop);
     try { return resolveStoredView(def ? JSON.parse(def) : null, allowed, home); } catch { return home; }
   });
-  // The desktop calendar's columns follow the room it has, not the window:
-  // hiding the side panel gives a laptop the wide layout (utils/desktopColumns.js).
-  // With the panel open on such a window, a view only the wide layout shows
-  // (DAY, WEEK) keeps it and the panel floats over the calendar instead;
-  // MONTH docks it and takes its sheet, as a laptop always showed it. The header spans the window whatever the panel does, so
-  // it keeps the window's own count (headerDays), as before.
-  const { columns: _visibleDays, panelMode: sidePanelMode } = desktopPanelLayout(
-    windowCols, sidePanelCollapsed, hiddenViews.desktop.includes(viewMode) ? null : viewMode,
-  );
+  // The calendar's layout and the views on offer, from the window, the side
+  // panel and the chosen view (utils/desktopColumns.js desktopViewState):
+  // hiding the panel gives a laptop the wide layout; with the panel open there,
+  // DAY and WEEK float it over the calendar and the rest dock it, and every
+  // view stays on offer either way. The header spans the window whatever the
+  // panel does, so it keeps the window's own count (headerDays), as before.
+  const {
+    visibleDays, sidePanelMode, canShowViewCycler, allDesktopViews, schedOnlyCycler, effectiveViewMode,
+  } = desktopViewState({
+    windowCols, panelCollapsed: sidePanelCollapsed, viewMode, hiddenDesktopViews: hiddenViews.desktop,
+    isTablet, isMobile, isLandscape,
+  });
   const headerDays = windowCols.open;
   // Floating over the calendar, the panel closes on Escape like any overlay.
   useSidePanelOverlayEscape({ active: sidePanelMode === 'overlay', close: collapseSidePanel });
-  // Override visible days: tablet uses orientation (static panel always present), mobile always 1, desktop the layout above
-  const visibleDays = isTablet ? (isLandscape ? 2 : 1) : isMobile ? 1 : _visibleDays;
-  // Only expose the cycler (and honour viewMode) when the 3-day breakpoint is active
-  const canShowViewCycler = !isTablet && !isMobile && _visibleDays === 3;
-  // Narrow desktop (1-2 columns) and tablet landscape: DAY/WEEK don't fit,
-  // but SCHED does — the cycler still shows there, restricted to MULTI and
-  // SCHED. Landscape tablets get the desktop SCHED dashboard (rail filters);
-  // portrait keeps the mobile toggle + SchedView bottom-sheet variant.
-  const schedOnlyCycler = (!isTablet && !isMobile && _visibleDays < 3) || (isTablet && isLandscape);
-  // Otherwise the cycler is hidden and the stored mode is ignored until the
-  // viewport grows back; the app behaves as 'multi' in the meantime.
-  // SCHED, MONTH and the two-column JOBO fit narrow desktop/landscape widths.
-  // A view turned off on this device is never on screen either: the width's
-  // first view still on stands in, as it does for a DAY/WEEK too narrow to fit.
-  const effectiveViewMode = canShowViewCycler ? (hiddenViews.desktop.includes(viewMode) ? homeView(DESKTOP_VIEW_MODES, hiddenViews.desktop) : viewMode)
-    : schedOnlyCycler ? (NARROW_DESKTOP_VIEW_MODES.includes(viewMode) && !hiddenViews.desktop.includes(viewMode) ? viewMode : homeView(NARROW_DESKTOP_VIEW_MODES, hiddenViews.desktop))
-    : 'multi';
   const [defaultView, setDefaultView] = useState(() => {
     const saved = localStorage.getItem('day-planner-default-view');
     const home = homeView(DESKTOP_VIEW_MODES, hiddenViews.desktop);
@@ -3769,7 +3755,7 @@ const DayPlanner = () => {
     gtdFrames: myFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
     setMobileActiveTab, setMobileSettingsView, setShowSettings,
     changeDate, setSelectedDate,
-    setViewMode, canShowViewCycler, schedOnlyCycler, effectiveViewMode, hiddenViews: hiddenViews.desktop,
+    setViewMode, canShowViewCycler, allDesktopViews, schedOnlyCycler, effectiveViewMode, hiddenViews: hiddenViews.desktop,
   });
 
   const changeViewedMonth = (delta) => {
@@ -7059,7 +7045,7 @@ const DayPlanner = () => {
     // ── Device & layout ──────────────────────────────────────────────────────
     isPhone, isMobile, isTablet, isLandscape,
     visibleDays, visibleDates, headerDays,
-    viewMode, setViewMode, canShowViewCycler, schedOnlyCycler, effectiveViewMode,
+    viewMode, setViewMode, canShowViewCycler, allDesktopViews, schedOnlyCycler, effectiveViewMode,
     monthViewActive, openMonthDaySheetRef,
     monthSheetRequest, setMonthSheetRequest,
     defaultView, setDefaultView,

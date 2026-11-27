@@ -8,6 +8,8 @@
 // for two) less the panel's width, so a window with the panel open lays out
 // exactly as it did when the breakpoints read the window.
 
+import { DESKTOP_VIEW_MODES, NARROW_DESKTOP_VIEW_MODES, homeView } from '../constants/views.js';
+
 export const SIDE_PANEL_WIDTH = 340;
 export const THREE_COLUMN_MIN = 1600 - SIDE_PANEL_WIDTH; // 1260
 export const TWO_COLUMN_MIN = 1200 - SIDE_PANEL_WIDTH; //  860
@@ -60,4 +62,51 @@ export function desktopPanelLayout({ open, full }, panelCollapsed, viewMode) {
     return { columns: 3, panelMode: 'overlay' };
   }
   return { columns: open, panelMode: 'docked' };
+}
+
+/**
+ * Everything App derives from the window, the side panel and the chosen view:
+ * the calendar's layout (columns, the panel's placement, the view on screen)
+ * and the views the switchers offer, which are not the same thing.
+ *
+ *   canShowViewCycler  the calendar is laid out wide right now (MONTH docks
+ *                      its day panel, JOBO opens its notes sidebar, a chosen
+ *                      DAY / WEEK is honoured)
+ *   allDesktopViews    the cycler, the number keys, the shortcut sheet and the
+ *                      settings offer every view: wherever the whole window
+ *                      reaches three columns. On a laptop with the panel
+ *                      docked the layout is narrow, but picking DAY or WEEK
+ *                      floats the panel and the view fits, so they stay on
+ *                      offer instead of vanishing until the panel is closed.
+ *   schedOnlyCycler    the narrow cycler (narrow desktop, landscape tablet)
+ *   effectiveViewMode  the view on screen: the chosen one where the layout
+ *                      allows it and it is on, else the layout's first view on
+ *
+ * @param {object} o
+ * @param {{ open: number, full: number }} o.windowCols  from windowColumns
+ * @param {boolean} o.panelCollapsed
+ * @param {string} o.viewMode             the stored desktop view
+ * @param {string[]} o.hiddenDesktopViews views turned off on this device
+ * @param {boolean} o.isTablet
+ * @param {boolean} o.isMobile
+ * @param {boolean} o.isLandscape
+ */
+export function desktopViewState({ windowCols, panelCollapsed, viewMode, hiddenDesktopViews = [], isTablet, isMobile, isLandscape }) {
+  const desktop = !isTablet && !isMobile;
+  const viewOn = !hiddenDesktopViews.includes(viewMode);
+  const { columns, panelMode } = desktopPanelLayout(windowCols, panelCollapsed, viewOn ? viewMode : null);
+  // Tablet uses orientation (its panel is always present), the phone one column.
+  const visibleDays = isTablet ? (isLandscape ? 2 : 1) : isMobile ? 1 : columns;
+  const canShowViewCycler = desktop && columns === 3;
+  const allDesktopViews = desktop && windowCols.full === 3;
+  // Narrow desktop (1-2 columns) and tablet landscape: the cycler shows the
+  // narrow views. Elsewhere it is hidden and the app behaves as MULTI.
+  const schedOnlyCycler = (desktop && columns < 3) || (!!isTablet && !!isLandscape);
+  const effectiveViewMode = canShowViewCycler ? (viewOn ? viewMode : homeView(DESKTOP_VIEW_MODES, hiddenDesktopViews))
+    : schedOnlyCycler ? (NARROW_DESKTOP_VIEW_MODES.includes(viewMode) && viewOn ? viewMode : homeView(NARROW_DESKTOP_VIEW_MODES, hiddenDesktopViews))
+    : 'multi';
+  return {
+    columns, sidePanelMode: panelMode, visibleDays,
+    canShowViewCycler, allDesktopViews, schedOnlyCycler, effectiveViewMode,
+  };
 }

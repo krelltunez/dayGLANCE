@@ -9,11 +9,11 @@ const ShortcutHelpModal = () => {
   const {
     setShowShortcutHelp,
     cardBg, borderClass, textPrimary, textSecondary, darkMode,
-    canShowViewCycler, schedOnlyCycler, hiddenViews,
+    canShowViewCycler, allDesktopViews = canShowViewCycler, schedOnlyCycler, hiddenViews,
   } = useDayPlannerCtx();
   // The view keys this width offers, minus views turned off on this device:
   // the same list the cycler and the number keys work from.
-  const views = cyclerStates(canShowViewCycler, false, hiddenViews?.desktop);
+  const views = cyclerStates(allDesktopViews, false, hiddenViews?.desktop);
   // Named the way the cycler button names them, from one shared map, so the two
   // cannot drift — and localised, since a German build's button reads TAGE.
   const viewRows = canShowViewCycler || schedOnlyCycler
