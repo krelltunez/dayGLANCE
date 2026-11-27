@@ -915,6 +915,46 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     expect(A.all().find((t) => t.id === id)!.title).toBe('Lawn trimmed #obsidian');
   });
 
+  it('21b. A DAMAGED LINE (2026-11-27 device test): a newer report whose line carries a stray ^dg- token does not take the title and does not advance the gate; a clean report with an older mtime then applies and its title wins', async () => {
+    await bootLinked();
+    await s.write(NOTE, s.text(NOTE)!.replace('## Tasks\n', '## Tasks\n- [ ] ZZ bridge tick test 3\n- [x] ZZ bridge tick test\n'));
+    await s.settle();
+    await A.sync();
+    await A.writeback();
+    await s.plugin.transport.drain();
+    await s.settle();
+    await A.sync();
+    const three = A.all().find((t) => t.title.startsWith('ZZ bridge tick test 3'))!;
+    const done = A.all().find((t) => t.title === 'ZZ bridge tick test #obsidian')!;
+    const tokenOf = (t: Row) => String(t.id).slice('obsidian-dg-'.length);
+    const clean = s.text(NOTE)!;
+    expect(clean).toContain(`- [ ] ZZ bridge tick test 3 ^dg-${tokenOf(three)}`);
+    const before = JSON.parse(A.store.get('dayglance-obsidian-last-applied-mtime')!)[NOTE];
+
+    // A merge ran the two lines together: the line keeps its own trailing
+    // token, and the neighbour's token sits inside the title.
+    await s.advance(30_000);
+    await s.write(NOTE, clean.replace(`- [ ] ZZ bridge tick test 3 ^dg-${tokenOf(three)}`,
+      `- [ ] ZZ bridge tick test ^dg-${tokenOf(done)}3 ^dg-${tokenOf(three)}`));
+    const damagedMtime = s.file(NOTE).stat.mtime;
+    await s.settle();
+    await A.sync();
+    expect(A.all().find((t) => t.id === three.id)!.title).toBe('ZZ bridge tick test 3 #obsidian');
+    expect(A.all().find((t) => t.id === three.id)!.obsidianRawTitle).toBe('ZZ bridge tick test 3');
+    expect(JSON.parse(A.store.get('dayglance-obsidian-last-applied-mtime')!)[NOTE]).toBe(before);
+
+    // The clean version comes back under an OLDER mtime than the damaged one
+    // (a copy restored with its own mtime), renamed in Obsidian: it applies
+    // with no re-save, and the rename is taken.
+    await s.advance(5_000);
+    await s.write(NOTE, clean.replace(`- [ ] ZZ bridge tick test 3 ^dg-${tokenOf(three)}`, `- [ ] ZZ bridge tick test three ^dg-${tokenOf(three)}`));
+    s.file(NOTE).stat.mtime = damagedMtime - 12_000;
+    await s.settle();
+    await A.sync();
+    expect(A.all().find((t) => t.id === three.id)!.title).toBe('ZZ bridge tick test three #obsidian');
+    expect(A.all().filter((t) => String(t.title).includes('^dg-'))).toEqual([]);
+  });
+
   it('22. THE NOTES BOX AT CREATION (owner ruling 2026-10-03): the box rides the create intent into the description slot; the record empties on enqueue; the journal holds the text', async () => {
     const project = { id: 'p1', title: 'House', status: 'active', description: 'Dry roof by spring.' };
     await boot({ projects: [project] });

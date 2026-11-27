@@ -37,6 +37,16 @@
 // create or move reports its arrival time) is deliberate revival evidence.
 // Path keys never parse as dates, so their memory entries are pruned by the
 // age of the stored mtime instead.
+//
+// A DAMAGED REPORT DOES NOT ADVANCE THE MEMORY (2026-11-27 device test). A
+// note whose report carries a damaged task line (a stray `^dg-` token inside
+// a title: two lines run together by a merge, src/obsidian.js
+// carriesStrayBlockToken) is still applied, but its mtime is not remembered
+// as the note's newest. That report is not the vault's settled statement: the
+// clean version can come back under an OLDER mtime (a copy restored with its
+// own mtime), and remembering the damaged one would drop every clean report
+// until the note was saved again. The damaged report's own mtime still counts
+// as evidence for this batch; it is only the memory that it does not move.
 
 export const LAST_APPLIED_MTIME_KEY = 'dayglance-obsidian-last-applied-mtime';
 // Daily-note dates older than this fall out of the memory map.
@@ -71,9 +81,9 @@ export function writeLastAppliedMtimes(map, storage = defaultStorage()) {
  * @param {Record<string, object>} dailyNotes   date → observed note
  * @param {Record<string, string>} noteMtimes   date → real mtime ISO (evidence)
  * @param {Record<string, string>} lastApplied  date → mtime ISO of the last applied observation
- * @param {{now?: number}} [opts]
+ * @param {{now?: number, scopedNotes?: object, holdKeys?: Set<string>}} [opts]  holdKeys: notes applied without moving the memory (a damaged report)
  */
-export function gateLateObservations(dailyNotes, noteMtimes, lastApplied, { now = Date.now(), scopedNotes = null } = {}) {
+export function gateLateObservations(dailyNotes, noteMtimes, lastApplied, { now = Date.now(), scopedNotes = null, holdKeys = null } = {}) {
   const fresh = {};
   const freshScoped = {};
   const evidence = {};
@@ -100,7 +110,7 @@ export function gateLateObservations(dailyNotes, noteMtimes, lastApplied, { now 
     }
     out[key] = note;
     evidence[key] = mtime;
-    next[key] = mtime;
+    if (!holdKeys || !holdKeys.has(key)) next[key] = mtime;
   };
   for (const [date, note] of Object.entries(dailyNotes || {})) judge(date, note, fresh);
   for (const [path, note] of Object.entries(scopedNotes || {})) judge(path, note, freshScoped);
@@ -133,8 +143,8 @@ export function dropTasksOfSkippedNotes(tasks, skippedKeys) {
  * date) and scoped notes (by path), persist, log.
  * @returns {{dailyNotes: object, scopedNotes: object, noteMtimes: object, skipped: Array, skippedKeys: Set<string>}}
  */
-export function applyLateObservationGate(dailyNotes, noteMtimes, storage = defaultStorage(), scopedNotes = null) {
-  const { fresh, freshScoped, evidence, skipped, next } = gateLateObservations(dailyNotes, noteMtimes, readLastAppliedMtimes(storage), { scopedNotes });
+export function applyLateObservationGate(dailyNotes, noteMtimes, storage = defaultStorage(), scopedNotes = null, holdKeys = null) {
+  const { fresh, freshScoped, evidence, skipped, next } = gateLateObservations(dailyNotes, noteMtimes, readLastAppliedMtimes(storage), { scopedNotes, holdKeys });
   writeLastAppliedMtimes(next, storage);
   if (skipped.length) {
     console.info('[Obsidian] late observation skipped (older than the last applied mtime, spec 2.7):',

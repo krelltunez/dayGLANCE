@@ -1112,6 +1112,22 @@ export function buildExistingObsidianTaskContext(existingTasks, existingInbox) {
 // made in DG are honoured — UNLESS the vault itself just (un)scheduled the
 // line (⏳ added/removed): the vault's demonstrable edit wins the
 // classification too.
+/**
+ * A task line whose title still carries `^dg-` after its trailing token was
+ * split off is DAMAGED (identity.js, blockIdSuffix: a written title never
+ * contains our marker). A merge of concurrent edits runs two lines together
+ * (`ZZ bridge tick test ^dg-ou7b1zfo3`) or doubles a token, and a report of
+ * that text would otherwise become the task's title (2026-11-27 device
+ * test). The app and the plugin already refuse to stamp or rewrite such a
+ * line; the merge below also refuses to take its title.
+ */
+export function carriesStrayBlockToken(rawTitle) {
+  return typeof rawTitle === 'string' && rawTitle.includes('^dg-');
+}
+
+/** The note a parsed task's line is in: a scoped note's path, or a daily note's date. */
+const lineNoteKey = (task) => task?.obsidianNotePath || task?.obsidianFileDate || null;
+
 export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
   const { existingTaskMap, userScheduledIds, userInboxIds } = ctx;
   const { allScheduled, allInbox } = out;
@@ -1125,9 +1141,26 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
     task.obsidianRawTitle = existing.obsidianRawTitle;
     return true;
   };
+  // A DAMAGED line (carriesStrayBlockToken) says nothing about the title: the
+  // task keeps the text it holds, so no rule below finds a retitle in it. The
+  // rest of the line (completion, metadata) is read as usual, field by field.
+  // Its note is recorded either way, so the late-observation gate does not
+  // take this report's mtime as the note's newest (useObsidianSync).
+  const damagedLine = (task) => {
+    if (!carriesStrayBlockToken(task.obsidianRawTitle)) return false;
+    const key = lineNoteKey(task);
+    if (key && out.damagedNotes) out.damagedNotes.add(key);
+    return true;
+  };
+  const keepTitleOf = (task, existing) => {
+    if (existing.obsidianRawTitle === undefined) return false;
+    task.obsidianRawTitle = existing.obsidianRawTitle;
+    return true;
+  };
   for (const task of parsed.scheduledTasks) {
     const existing = resolveExistingObsidianTask(existingTaskMap, task);
     keepExistingHint(task, existing, existingTaskMap);
+    const damagedReport = damagedLine(task);
     const stale = staleOwnWrite(task, existing);
     if (existing) {
       // Line-derived values, captured BEFORE the existing-fields copies
@@ -1146,8 +1179,9 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       if (existing.date !== undefined) task.date = existing.date;
       if (existing.startTime !== undefined) task.startTime = existing.startTime;
       if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
+      const damaged = !stale && damagedReport && keepTitleOf(task, existing);
       resolveTitleOwnership(task, existing, onTitleConflict);
-      if (stale && existing.title !== undefined) task.title = existing.title;
+      if ((stale || damaged) && existing.title !== undefined) task.title = existing.title;
       adoptVaultMetadataEdits(task, edits, lineVals, ctx.resolveProject);
       // OWNED-SCHEDULE ENFORCEMENT (§3.10, 2026-09-02 correction): DG owns
       // scheduling once a task is imported, and the copy above enforces
@@ -1232,6 +1266,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
   for (const task of parsed.inboxTasks) {
     const existing = resolveExistingObsidianTask(existingTaskMap, task);
     keepExistingHint(task, existing, existingTaskMap);
+    const damagedReport = damagedLine(task);
     const stale = staleOwnWrite(task, existing);
     if (existing) {
       const lineVals = { deadline: task.deadline, priority: task.priority };
@@ -1243,8 +1278,9 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
       if (existing.color !== undefined) task.color = existing.color;
       if (existing.duration !== undefined) task.duration = existing.duration;
+      const damaged = !stale && damagedReport && keepTitleOf(task, existing);
       resolveTitleOwnership(task, existing, onTitleConflict);
-      if (stale && existing.title !== undefined) task.title = existing.title;
+      if ((stale || damaged) && existing.title !== undefined) task.title = existing.title;
       adoptVaultMetadataEdits(task, edits, lineVals, ctx.resolveProject);
       if (existing.lastModified) task.lastModified = existing.lastModified;
       // An untimed line: the writeback that removed the time has landed, so
@@ -1295,6 +1331,7 @@ export async function syncObsidianVault(
   const dailyNotes = {};
   const allScheduled = [];
   const lineSchedule = {}; // id → the line's own time when it differs from DG's (owned-schedule enforcement)
+  const damagedNotes = new Set(); // notes a damaged line was read from (mergeParsedObsidianTasks)
   const allInbox = [];
 
   const ctx = buildExistingObsidianTaskContext(existingTasks, existingInbox);
@@ -1335,11 +1372,11 @@ export async function syncObsidianVault(
     // mergeParsedObsidianTasks above for the ownership commentary).
     mergeParsedObsidianTasks(
       parseTasksFromMarkdown(text, dateStr, seenBlockIds),
-      ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
+      ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule, damagedNotes },
     );
   }
 
-  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox, lineSchedule };
+  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox, lineSchedule, damagedNotes: [...damagedNotes] };
 }
 
 // ---------------------------------------------------------------------------
@@ -1586,6 +1623,7 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
   const noteMtimes = {}; // date → REAL file mtime only (revival evidence; see below)
   const allScheduled = [];
   const lineSchedule = {}; // id → the line's own time when it differs from DG's (owned-schedule enforcement)
+  const damagedNotes = new Set(); // notes a damaged line was read from (mergeParsedObsidianTasks)
   const allInbox = [];
 
   // Prefer the batch getAllDailyNotesAsync method (non-blocking: SAF I/O runs on a
@@ -1687,9 +1725,9 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
     // Step 2 per-field vault-edit adoption and its classification override.
     mergeParsedObsidianTasks(
       parseTasksFromMarkdown(text, dateStr, seenBlockIds),
-      ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
+      ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule, damagedNotes },
     );
   }
 
-  return { dailyNotes, noteMtimes, scheduledTasks: allScheduled, inboxTasks: allInbox, lineSchedule };
+  return { dailyNotes, noteMtimes, scheduledTasks: allScheduled, inboxTasks: allInbox, lineSchedule, damagedNotes: [...damagedNotes] };
 }

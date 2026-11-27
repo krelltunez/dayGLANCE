@@ -576,6 +576,7 @@ export function applyBridgeObservations(observations, {
   const links = [];       // project/goal note link observations (companion §4.3), for the caller
   const allScheduled = [];
   const lineSchedule = {}; // id → the line's own time when it differs from DG's (owned-schedule enforcement)
+  const damagedNotes = new Set(); // notes a damaged line was read from (mergeParsedObsidianTasks)
   const allInbox = [];
   const unapplied = [];
   const completedSince = scope && today ? completedSinceFor(scope, today) : null;
@@ -649,7 +650,7 @@ export function applyBridgeObservations(observations, {
       const beforeInbox = allInbox.length;
       mergeParsedObsidianTasks(
         parseTasksFromMarkdown(obs.content, today || '1970-01-01', seenBlockIds, { notePath: obs.path, completedSince }),
-        ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
+        ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule, damagedNotes },
       );
       const projectId = projectByNotePath?.[obs.path];
       if (projectId) {
@@ -688,7 +689,7 @@ export function applyBridgeObservations(observations, {
     if (obs.mtime) noteMtimes[dateStr] = dailyNotes[dateStr].lastModified;
     mergeParsedObsidianTasks(
       parseTasksFromMarkdown(obs.content, dateStr, seenBlockIds),
-      ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
+      ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule, damagedNotes },
     );
   }
 
@@ -696,5 +697,5 @@ export function applyBridgeObservations(observations, {
     ...[...allScheduled, ...allInbox].map((t) => String(t.id)),
     ...[...allScheduled, ...allInbox].filter((t) => t.obsidianLegacyId).map((t) => String(t.obsidianLegacyId)),
   ]);
-  return { dailyNotes, noteMtimes, deletedDailyNotes, scopedNotes, withdrawn, links, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied, lineSchedule };
+  return { dailyNotes, noteMtimes, deletedDailyNotes, scopedNotes, withdrawn, links, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied, lineSchedule, damagedNotes: [...damagedNotes] };
 }

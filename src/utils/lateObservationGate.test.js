@@ -129,3 +129,29 @@ describe('scoped notes and parsed tasks (2026-09-17)', () => {
     info.mockRestore();
   });
 });
+
+// A damaged report (src/obsidian.js carriesStrayBlockToken) is applied but
+// does not move the memory: the clean version may come back older.
+describe('holdKeys: a damaged report does not advance the memory', () => {
+  it('applies the held note, keeps its evidence, and leaves the remembered mtime where it was', () => {
+    const r = gateLateObservations({}, { 'Projects/A.md': T2 }, { 'Projects/A.md': T0 },
+      { now: NOW, scopedNotes: { 'Projects/A.md': { lastModified: T2 } }, holdKeys: new Set(['Projects/A.md']) });
+    expect(r.freshScoped['Projects/A.md']).toBeDefined();
+    expect(r.evidence['Projects/A.md']).toBe(T2);
+    expect(r.next['Projects/A.md']).toBe(T0);
+  });
+
+  it('so a clean report older than the damaged one but newer than the memory still applies', () => {
+    const store = storage();
+    applyLateObservationGate({}, { 'Projects/A.md': T0 }, store, { 'Projects/A.md': {} });
+    applyLateObservationGate({}, { 'Projects/A.md': T2 }, store, { 'Projects/A.md': {} }, new Set(['Projects/A.md']));
+    const clean = applyLateObservationGate({}, { 'Projects/A.md': T1 }, store, { 'Projects/A.md': {} });
+    expect(clean.skippedKeys.size).toBe(0);
+    expect(readLastAppliedMtimes(store)['Projects/A.md']).toBe(T1);
+  });
+
+  it('a held note is still skipped when it is older than the memory', () => {
+    const r = gateLateObservations({ d: { text: 'old' } }, { d: T0 }, { d: T1 }, { now: NOW, holdKeys: new Set(['d']) });
+    expect(r.skipped.map((x) => x.key)).toEqual(['d']);
+  });
+});
