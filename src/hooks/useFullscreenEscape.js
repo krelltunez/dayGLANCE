@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { SIDE_PANEL_OVERLAY_SELECTOR } from './useSidePanelOverlayEscape.js';
 
 // Escape exits native macOS (green-button) fullscreen. macOS/Electron don't do
 // this by default, so users who enter fullscreen expect ESC to work and find
@@ -21,6 +22,9 @@ export default function useFullscreenEscape() {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
       const t = e.target;
       if (t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      // The side panel floating over the calendar takes this press
+      // (useSidePanelOverlayEscape); listeners on one target can run in either order.
+      if (document.querySelector(SIDE_PANEL_OVERLAY_SELECTOR)) return;
       api.exitFullscreen();
     };
 

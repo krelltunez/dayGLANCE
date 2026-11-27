@@ -232,6 +232,7 @@ import useTimelineScroll from './hooks/useTimelineScroll.js';
 import RefocusTimelineToast from './components/RefocusTimelineToast.jsx';
 import useModalClose from './hooks/useModalClose.js';
 import useFullscreenEscape from './hooks/useFullscreenEscape.js';
+import useSidePanelOverlayEscape from './hooks/useSidePanelOverlayEscape.js';
 import useMobileInteractions from './hooks/useMobileInteractions.js';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts.js';
 import { DayPlannerContext } from './context/DayPlannerContext.jsx';
@@ -413,7 +414,7 @@ const DayPlanner = () => {
   // The desktop side panel can be hidden (#2407). Picking one of its tabs, by
   // a shortcut, a jump to the Inbox or anything else, is asking to see it, so
   // every path that sets the tab opens the panel first.
-  const { sidePanelCollapsible, sidePanelCollapsed, toggleSidePanel, expandSidePanel } =
+  const { sidePanelCollapsible, sidePanelCollapsed, toggleSidePanel, expandSidePanel, collapseSidePanel } =
     useSidePanelCollapse({ enabled: !isMobile && !isTablet });
   const setTabletActiveTab = useCallback((tab) => {
     expandSidePanel();
@@ -473,6 +474,8 @@ const DayPlanner = () => {
     windowCols, sidePanelCollapsed, hiddenViews.desktop.includes(viewMode) ? null : viewMode,
   );
   const headerDays = windowCols.open;
+  // Floating over the calendar, the panel closes on Escape like any overlay.
+  useSidePanelOverlayEscape({ active: sidePanelMode === 'overlay', close: collapseSidePanel });
   // Override visible days: tablet uses orientation (static panel always present), mobile always 1, desktop the layout above
   const visibleDays = isTablet ? (isLandscape ? 2 : 1) : isMobile ? 1 : _visibleDays;
   // Only expose the cycler (and honour viewMode) when the 3-day breakpoint is active

@@ -56,6 +56,15 @@ describe('useSidePanelCollapse (#2407)', () => {
     expect(localStorage.setItem).not.toHaveBeenCalled();
   });
 
+  it('collapses (Escape on the overlaid panel), and not on a tablet or a phone', () => {
+    useRendered().collapseSidePanel();
+    expect(useRendered().sidePanelCollapsed).toBe(true);
+    expect(store[SIDE_PANEL_COLLAPSED_KEY]).toBe('true');
+    slot = undefined; store = {};
+    useRendered(false).collapseSidePanel();
+    expect(store[SIDE_PANEL_COLLAPSED_KEY]).toBeUndefined();
+  });
+
   it('is never collapsed on a tablet or a phone, whatever was stored, and cannot be toggled there', () => {
     store[SIDE_PANEL_COLLAPSED_KEY] = 'true';
     const panel = useRendered(false);
