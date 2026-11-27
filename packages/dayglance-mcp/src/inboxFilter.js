@@ -24,7 +24,7 @@ export const INBOX_SCOPES = Object.freeze(['all', 'standalone', 'project']);
  * @returns {{ ok: true, filter: { scope: string, includeCompleted: boolean, key: string } } | { ok: false, message: string }}
  */
 export function resolveInboxFilter(args) {
-  const { scope, include_completed } = args;
+  const { scope, include_completed, include_archived } = args;
 
   let scopeValue = 'all';
   if (scope !== undefined) {
@@ -42,12 +42,24 @@ export function resolveInboxFilter(args) {
     includeCompleted = include_completed;
   }
 
+  // Archived tasks, and tasks in an archived project, are hidden by default,
+  // as the app's Inbox hides them. The key gains the axis only when it is set,
+  // so a cursor minted before the axis existed still matches the default.
+  let includeArchived = false;
+  if (include_archived !== undefined) {
+    if (typeof include_archived !== 'boolean') {
+      return { ok: false, message: `include_archived must be a boolean, got ${JSON.stringify(include_archived)}` };
+    }
+    includeArchived = include_archived;
+  }
+
   return {
     ok: true,
     filter: {
       scope: scopeValue,
       includeCompleted,
-      key: `scope=${scopeValue};completed=${includeCompleted ? '1' : '0'}`,
+      includeArchived,
+      key: `scope=${scopeValue};completed=${includeCompleted ? '1' : '0'}${includeArchived ? ';archived=1' : ''}`,
     },
   };
 }

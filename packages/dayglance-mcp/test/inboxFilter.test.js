@@ -11,8 +11,17 @@ describe('resolveInboxFilter', () => {
     const r = resolveInboxFilter({});
     expect(r).toEqual({
       ok: true,
-      filter: { scope: 'all', includeCompleted: true, key: 'scope=all;completed=1' },
+      filter: { scope: 'all', includeCompleted: true, includeArchived: false, key: 'scope=all;completed=1' },
     });
+  });
+
+  it('include_archived: default false keeps the pre-existing key, so older cursors still match; true is its own key', () => {
+    const off = resolveInboxFilter({ include_archived: false });
+    const on = resolveInboxFilter({ include_archived: true });
+    if (!off.ok || !on.ok) throw new Error('expected ok');
+    expect(off.filter.key).toBe('scope=all;completed=1');
+    expect(on.filter).toMatchObject({ includeArchived: true, key: 'scope=all;completed=1;archived=1' });
+    expect(resolveInboxFilter({ include_archived: 'yes' })).toMatchObject({ ok: false });
   });
 
   it('omitted and explicit defaults produce IDENTICAL canonical keys', () => {

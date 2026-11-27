@@ -335,14 +335,24 @@ export function buildWeek(state, params) {
 
 /** The unscheduled inbox, unpaginated — the main process owns paging (§5.1). */
 export function buildUnscheduledItems(state, filter = {}) {
-  const { unscheduledTasks = [], isVisibleForUser = () => true } = state;
+  const { unscheduledTasks = [], projects = [], isVisibleForUser = () => true } = state;
   // Filter selection over structural fields, resolved by the main process
   // (inboxFilter.js, in the tool layer) and applied HERE, before the array crosses
   // IPC to paginate — so total/truncated/next_cursor are computed against
   // the filtered set by construction, never by post-filtering a page. The
-  // predicates are the app's own: 'standalone' is the TRMNL inbox-count
-  // shape (notBucketed && !projectId), with completion a separate axis.
-  const { scope = 'all', includeCompleted = true } = filter;
+  // predicates are the app's own Inbox (utils/inboxFilter.js): 'standalone'
+  // is a task with no project it can be listed under, with completion a
+  // separate axis.
+  const { scope = 'all', includeCompleted = true, includeArchived = false } = filter;
+  // What the app's Inbox hides by default is hidden here too (2026-11-27):
+  // an archived task, and a task in an archived project. A task whose project
+  // this state does not hold is not a project task (it has no project to be
+  // listed under) and is flagged project_missing; judged only when there are
+  // projects at all, as the app judges it (utils/inboxFilter.js).
+  const projectById = new Map((projects ?? []).filter(Boolean).map((p) => [String(p.id), p]));
+  const missing = (t) => projectById.size > 0 && !!t.projectId && !projectById.has(String(t.projectId));
+  const inArchivedProject = (t) => !!t.projectId && projectById.get(String(t.projectId))?.status === 'archived';
+  const attached = (t) => !!t.projectId && !missing(t);
   return {
     // Bucket List items never appear in Inbox output — the unconditional
     // exclusion bucketList.js (agenda-core) documents for EVERY consumer feeding
@@ -353,9 +363,16 @@ export function buildUnscheduledItems(state, filter = {}) {
     items: unscheduledTasks
       .filter(notBucketed)
       .filter(isVisibleForUser)
-      .filter((t) => (scope === 'standalone' ? !t.projectId : scope === 'project' ? !!t.projectId : true))
+      .filter((t) => includeArchived || (!t.archived && !inArchivedProject(t)))
+      .filter((t) => (scope === 'standalone' ? !attached(t) : scope === 'project' ? attached(t) : true))
       .filter((t) => includeCompleted || !t.completed)
-      .map((t) => inboxItem(t, { timeZone: state.timeZone })),
+      .map((t) => {
+        const item = inboxItem(t, { timeZone: state.timeZone });
+        if (missing(t)) item.project_missing = true;
+        if (t.archived) item.archived = true;
+        if (inArchivedProject(t)) item.project_archived = true;
+        return item;
+      }),
   };
 }
 

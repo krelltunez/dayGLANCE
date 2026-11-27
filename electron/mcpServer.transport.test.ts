@@ -1075,6 +1075,60 @@ describe('plan history on the task output, over the wire', () => {
   });
 });
 
+// The MCP inbox holds to the app's Inbox (2026-11-27 field report: four tasks
+// the app showed nowhere were listed as open here). Through the real read
+// model over the state buildMcpReadState builds, so the schema, the argument
+// resolution, the bridge filter and the read model are one path.
+describe('the inbox over the wire matches the app\'s Inbox', () => {
+  const state = buildMcpReadState({
+    projects: [{ id: 'live', title: 'Live', status: 'active' }, { id: 'shelved', title: 'Shelved', status: 'archived' }],
+    unscheduledTasks: [
+      { id: 'plain', title: 'Plain', completed: false },
+      { id: 'left-archived', title: 'Done and archived', completed: true, archived: true },
+      { id: 'in-shelved', title: 'In an archived project', projectId: 'shelved', completed: false },
+      { id: 'orphan', title: 'Project gone', projectId: 'gone', completed: false },
+    ],
+    recycleBin: [{ id: 'binned', title: 'In the bin', completed: false }],
+  }, { now: NOW, timeZone: TZ });
+  let h: Harness;
+  beforeAll(async () => {
+    const bridge = fakeBridge({
+      list_unscheduled: (params) => handleMcpRequest(state, { method: 'list_unscheduled', params }) as RendererResult,
+    });
+    h = await start({ readDeps: readDeps(bridge.bridge) });
+  });
+  afterAll(() => h.close());
+
+  const list = async (args: Record<string, unknown>) => {
+    const client = await h.connect();
+    return body(await client.callTool({ name: 'dayglance_list_unscheduled_tasks', arguments: args })) as { items: Array<Record<string, unknown>>; total: number };
+  };
+
+  it('by default: no archived task, nothing from an archived project, nothing from the bin; the orphan is standalone and flagged', async () => {
+    const data = await list({});
+    expect(data.items.map((i) => i.id)).toEqual(['plain', 'orphan']);
+    expect(data.items[1]).toMatchObject({ project_id: 'gone', project_missing: true });
+    expect((await list({ scope: 'standalone' })).items.map((i) => i.id)).toEqual(['plain', 'orphan']);
+    expect((await list({ scope: 'project' })).total).toBe(0);
+  });
+
+  it('include_archived lists them, each marked', async () => {
+    const data = await list({ include_archived: true });
+    const byId = Object.fromEntries(data.items.map((i) => [i.id, i]));
+    expect(Object.keys(byId).sort()).toEqual(['in-shelved', 'left-archived', 'orphan', 'plain']);
+    expect(byId['left-archived'].archived).toBe(true);
+    expect(byId['in-shelved'].project_archived).toBe(true);
+  });
+
+  it('the description names the exclusions, and the schema takes the argument', async () => {
+    const client = await h.connect();
+    const tool = (await client.listTools()).tools.find((t) => t.name === 'dayglance_list_unscheduled_tasks');
+    expect(tool?.description).toContain('include_archived');
+    expect(tool?.description).toContain('recycle bin');
+    expect(Object.keys(tool?.inputSchema.properties ?? {})).toContain('include_archived');
+  });
+});
+
 describe('the listener itself', () => {
   let h: Harness;
   beforeAll(async () => {
