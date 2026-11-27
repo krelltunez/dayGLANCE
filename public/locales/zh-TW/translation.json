@@ -154,6 +154,7 @@
     "passphraseLabel": "同步通關密語",
     "passphrasePlaceholder": "您的同步通關密語",
     "passphrasePrompt": "雲端同步已加密。請輸入同步通關密語以繼續。",
+    "passphrasePromptRemoteEncrypted": "另一台裝置為此同步資料夾開啟了加密，因此本裝置的同步已暫停。輸入同步通關密語即可恢復，本裝置也會同時開啟加密。",
     "unlock": "解鎖",
     "unlockTitle": "解鎖同步",
     "obsidianToast": {

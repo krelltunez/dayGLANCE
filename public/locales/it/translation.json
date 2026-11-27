@@ -154,6 +154,7 @@
     "passphraseLabel": "Passphrase di sincronizzazione",
     "passphrasePlaceholder": "La tua passphrase di sincronizzazione",
     "passphrasePrompt": "La sincronizzazione cloud è cifrata. Inserisci la passphrase di sincronizzazione per continuare.",
+    "passphrasePromptRemoteEncrypted": "Un altro dispositivo ha attivato la cifratura per questa cartella di sincronizzazione, quindi qui la sincronizzazione è in pausa. Inserisci la passphrase di sincronizzazione per riprendere. La cifratura verrà attivata anche su questo dispositivo.",
     "unlock": "Sblocca",
     "unlockTitle": "Sblocca la sincronizzazione",
     "obsidianToast": {

@@ -154,6 +154,7 @@
     "passphraseLabel": "Synchronisierungs-Passphrase",
     "passphrasePlaceholder": "Ihre Synchronisierungs-Passphrase",
     "passphrasePrompt": "Die Cloud-Synchronisierung ist verschlüsselt. Geben Sie Ihre Synchronisierungs-Passphrase ein, um fortzufahren.",
+    "passphrasePromptRemoteEncrypted": "Ein anderes Gerät hat die Verschlüsselung für diesen Sync-Ordner aktiviert, daher ist die Synchronisierung hier pausiert. Geben Sie die Synchronisierungs-Passphrase ein, um fortzufahren. Die Verschlüsselung wird auch auf diesem Gerät aktiviert.",
     "unlock": "Entsperren",
     "unlockTitle": "Synchronisierung entsperren",
     "obsidianToast": {

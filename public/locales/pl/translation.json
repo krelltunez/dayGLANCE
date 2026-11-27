@@ -166,6 +166,7 @@
     "passphraseLabel": "Hasło synchronizacji",
     "passphrasePlaceholder": "Twoje hasło synchronizacji",
     "passphrasePrompt": "Synchronizacja w chmurze jest szyfrowana. Podaj swoje hasło synchronizacji, aby kontynuować.",
+    "passphrasePromptRemoteEncrypted": "Inne urządzenie włączyło szyfrowanie tego folderu synchronizacji, więc synchronizacja jest tutaj wstrzymana. Wpisz hasło synchronizacji, aby ją wznowić. Szyfrowanie zostanie włączone także na tym urządzeniu.",
     "unlock": "Odblokuj",
     "unlockTitle": "Odblokuj synchronizację",
     "obsidianToast": {

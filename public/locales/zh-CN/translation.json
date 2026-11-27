@@ -154,6 +154,7 @@
     "passphraseLabel": "同步口令",
     "passphrasePlaceholder": "输入同步口令",
     "passphrasePrompt": "云同步已加密。请输入同步口令以继续。",
+    "passphrasePromptRemoteEncrypted": "另一台设备为此同步文件夹开启了加密，因此本设备的同步已暂停。输入同步口令即可恢复，本设备也会同时开启加密。",
     "unlock": "解锁",
     "unlockTitle": "解锁同步",
     "obsidianToast": {

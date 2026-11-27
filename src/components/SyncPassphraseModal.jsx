@@ -10,8 +10,12 @@ import { useTranslation } from 'react-i18next';
  * The user enters their sync passphrase — we store it in session memory and
  * the derived key is cached to IndexedDB/Android Keystore on the first
  * successful decryption (inside decryptData in crypto.js).
+ *
+ * `remoteEncrypted`: this device's encryption is off, but the sync file was
+ * encrypted by another device (#2453). The prompt says so, and that unlocking
+ * turns encryption on here too (App does that, sync/fileTierKeyPrompt.js).
  */
-const SyncPassphraseModal = ({ darkMode, textPrimary, textSecondary, borderClass, onUnlocked }) => {
+const SyncPassphraseModal = ({ darkMode, textPrimary, textSecondary, borderClass, onUnlocked, remoteEncrypted = false }) => {
   const { t } = useTranslation();
   const [passphrase, setPassphrase] = useState('');
   const [error, setError] = useState(null);
@@ -39,7 +43,9 @@ const SyncPassphraseModal = ({ darkMode, textPrimary, textSecondary, borderClass
         </div>
 
         <p className={`text-sm ${textSecondary} mb-4`}>
-          {t('sync.passphrasePrompt', { defaultValue: 'Cloud sync is encrypted. Enter your sync passphrase to continue.' })}
+          {remoteEncrypted
+            ? t('sync.passphrasePromptRemoteEncrypted', { defaultValue: 'Another device turned on encryption for this sync folder, so sync is paused here. Enter the sync passphrase to resume. Encryption will be turned on for this device too.' })
+            : t('sync.passphrasePrompt', { defaultValue: 'Cloud sync is encrypted. Enter your sync passphrase to continue.' })}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">

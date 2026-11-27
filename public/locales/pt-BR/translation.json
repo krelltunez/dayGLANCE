@@ -154,6 +154,7 @@
     "passphraseLabel": "Frase de sincronização",
     "passphrasePlaceholder": "Sua frase de sincronização",
     "passphrasePrompt": "A sincronização na nuvem está criptografada. Digite sua frase de sincronização para continuar.",
+    "passphrasePromptRemoteEncrypted": "Outro dispositivo ativou a criptografia desta pasta de sincronização, então a sincronização está pausada aqui. Digite a frase de sincronização para retomar. A criptografia também será ativada neste dispositivo.",
     "unlock": "Desbloquear",
     "unlockTitle": "Desbloquear sincronização",
     "obsidianToast": {
