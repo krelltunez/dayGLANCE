@@ -143,12 +143,48 @@ export function reopenTask(before, after, projects = null, nowIso = new Date().t
 }
 
 /**
- * The ingress repairs for a task-shaped list, in one call: the tombstone-keyed
- * project strip, then the open-archived repair. Same array identity when
- * neither changes anything.
+ * Detach every OPEN task from an archived project (2026-11-27 device test).
+ * An archived project takes no open work: archiving one detaches its open
+ * tasks (archiveCascade.js), a reopen inside one unlinks the task
+ * (reopenTask), the pickers and MCP offer none (#2385), and the Obsidian
+ * import leaves an open line in its note standalone (#2457). A build that
+ * predates the import rule (5.16.0) still attaches such a line, and its copy
+ * carries a real stamp, so it wins the sync and the task disappears from the
+ * Inbox and from every project list.
+ *
+ * Unstamped, like the tombstone strip and the open-archived repair: the
+ * result depends only on the row and the project's status, so every device
+ * on this build derives the same rows, and a tie in last-writer-wins leaves
+ * an older device on its own copy rather than flipping. That older device
+ * does not re-attach: its import rule fires only on a fresh import's epoch
+ * stamp, and a repaired row keeps the real stamp it arrived with. Completed
+ * tasks stay: an archived project keeps its completed work, hidden.
+ *
+ * `projects` unknown (null, not loaded) detaches nothing. Same array
+ * identity when nothing changes.
  */
-export function repairTaskRows(rows, deletedProjectIds = null) {
-  return unarchiveOpenTasks(stripProjectRefs(rows, deletedProjectIds));
+export function detachOpenFromArchivedProjects(rows, projects = null) {
+  if (!Array.isArray(rows) || rows.length === 0 || !Array.isArray(projects)) return rows;
+  const archived = new Set(projects.filter((p) => p && p.status === 'archived').map((p) => String(p.id)));
+  if (archived.size === 0) return rows;
+  let changed = false;
+  const next = rows.map((row) => {
+    if (!row || row.completed || !row.projectId || !archived.has(String(row.projectId))) return row;
+    changed = true;
+    const { projectId: _detached, ...rest } = row;
+    return rest;
+  });
+  return changed ? next : rows;
+}
+
+/**
+ * The ingress repairs for a task-shaped list, in one call: the tombstone-keyed
+ * project strip, the open-archived repair, then the detach of open tasks from
+ * archived projects (when `projects` is known). Same array identity when none
+ * changes anything.
+ */
+export function repairTaskRows(rows, deletedProjectIds = null, projects = null) {
+  return detachOpenFromArchivedProjects(unarchiveOpenTasks(stripProjectRefs(rows, deletedProjectIds)), projects);
 }
 
 /**

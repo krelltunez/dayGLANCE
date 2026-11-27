@@ -3,7 +3,7 @@
 // Archived bar). The helpers, the reopen paths and the Inbox filter that
 // reads the result.
 import { describe, it, expect } from 'vitest';
-import { unarchiveOpenTasks, repairTaskRows, reopenTask } from './referentialIntegrity.js';
+import { unarchiveOpenTasks, repairTaskRows, reopenTask, detachOpenFromArchivedProjects } from './referentialIntegrity.js';
 import { planProjectStatusChange } from './archiveCascade.js';
 import { applySetCompletion, applyUndoOps } from './taskMutations.js';
 import { filterInboxTasks, knownProjectIdsOf, hasMissingProject, inboxFromStorage } from './inboxFilter.js';
@@ -171,5 +171,60 @@ describe('a task whose project this device does not hold', () => {
     const storage = { getItem: () => null };
     const list = [task('orphan', { projectId: 'gone' })];
     expect(ids(inboxFromStorage({ unscheduledTasks: list, projects, goalsProjectsEnabled: true, storage }))).toEqual(['orphan']);
+  });
+});
+
+describe('detachOpenFromArchivedProjects', () => {
+  const projects = [{ id: 'pA', status: 'archived' }, { id: 'pLive', status: 'active' }];
+
+  it('detaches open tasks from an archived project, unstamped; completed ones and live projects stay', () => {
+    const rows = [task('o', { projectId: 'pA' }), task('c', { projectId: 'pA', completed: true }), task('l', { projectId: 'pLive' })];
+    const out = detachOpenFromArchivedProjects(rows, projects);
+    expect(out[0]).not.toHaveProperty('projectId');
+    expect(out[0].lastModified).toBe(OLD);
+    expect(out[1]).toBe(rows[1]);
+    expect(out[2]).toBe(rows[2]);
+  });
+
+  it('keeps the array when nothing changes, when projects are unknown, and is idempotent', () => {
+    const rows = [task('o', { projectId: 'pA' })];
+    expect(detachOpenFromArchivedProjects(rows, null)).toBe(rows);
+    expect(detachOpenFromArchivedProjects(rows, [{ id: 'pA', status: 'active' }])).toBe(rows);
+    const once = detachOpenFromArchivedProjects(rows, projects);
+    expect(detachOpenFromArchivedProjects(once, projects)).toBe(once);
+  });
+
+  it('repairTaskRows runs it when given projects, and the save pass reads it as no edit', () => {
+    const [row] = repairTaskRows([task('o', { projectId: 'pA' })], null, projects);
+    expect(row).not.toHaveProperty('projectId');
+    const [stamped] = stampTimestamps([row], [row], NOW);
+    expect(stamped.lastModified).toBe(OLD);
+  });
+});
+
+describe('restoring a project brings back open standalone tasks from its note', () => {
+  const NOTE_PATH = 'Goals/Ship/App Store Connect.md';
+  const project = { id: 'pA', status: 'archived', obsidianNotePath: NOTE_PATH,
+    archiveRecord: { priorStatus: 'completed', archivedAt: OLD, archivedTaskIds: [], detachedTaskIds: [] } };
+  const restore = (rows) => planProjectStatusChange(project, { status: 'active' }, rows, NOW).rowsUpdater(rows);
+
+  it('reattaches an open standalone task whose line is in the note, stamped', () => {
+    const [row] = restore([task('o', { obsidianNotePath: NOTE_PATH })]);
+    expect(row).toMatchObject({ projectId: 'pA', lastModified: NOW });
+  });
+
+  it('leaves a task given another project, a completed one, and one from another note', () => {
+    const rows = [
+      task('moved', { obsidianNotePath: NOTE_PATH, projectId: 'pOther' }),
+      task('done', { obsidianNotePath: NOTE_PATH, completed: true }),
+      task('elsewhere', { obsidianNotePath: 'Projects/Other.md' }),
+    ];
+    expect(restore(rows)).toEqual(rows);
+  });
+
+  it('a project with no note reattaches only what its record lists', () => {
+    const plain = { ...project, obsidianNotePath: undefined };
+    const rows = [task('o', { obsidianNotePath: NOTE_PATH })];
+    expect(planProjectStatusChange(plain, { status: 'active' }, rows, NOW).rowsUpdater(rows)).toEqual(rows);
   });
 });

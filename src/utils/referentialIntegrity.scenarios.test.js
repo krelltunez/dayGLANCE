@@ -352,3 +352,59 @@ describe('a completion stamp across a sync cycle', () => {
   });
 });
 
+describe('an open task in an archived project across a sync cycle (mixed versions)', () => {
+  beforeEach(() => { globalThis.localStorage = memoryStorage(); });
+  afterEach(() => {
+    delete globalThis.localStorage;
+    vi.restoreAllMocks();
+  });
+
+  const NOTE_PATH = 'Goals/Ship/App Store Connect/App Store Connect.md';
+  const archived = P('p360', { status: 'archived', obsidianNotePath: NOTE_PATH,
+    archiveRecord: { priorStatus: 'completed', archivedAt: '2026-11-09T00:29:48.371Z', archivedTaskIds: [], detachedTaskIds: [] } });
+  // The line as this build imported it: standalone, with the fresh-import stamp.
+  const standalone = () => T('obsidian-dg-7azkbpwb', { completed: false, importSource: 'obsidian', obsidianNotePath: NOTE_PATH, lastModified: '1970-01-01T00:00:00.000Z' });
+
+  it('a newer copy an older build attached is detached on apply, at its own stamp, visible in the Inbox, and nothing re-stamps', async () => {
+    const { filterInboxTasks, knownProjectIdsOf } = await import('./inboxFilter.js');
+    const { stampTimestamps } = await import('./stampTimestamps.js');
+    const A = device({ unscheduledTasks: [standalone()], projects: [archived] });
+    persist(A);
+    // Device B on 5.16.0 read the same note, attached the line it took for
+    // a fresh import, and its save pass stamped the change: it wins the pull.
+    const attached = { ...standalone(), projectId: 'p360', lastModified: '2026-11-27T21:51:11.764Z' };
+    const merged = { ...on(A, () => A.mount().buildSyncPayload()).data, unscheduledTasks: [attached] };
+
+    on(A, () => A.mount().applyEngineData(merged));
+
+    const [row] = A.state.unscheduledTasks;
+    expect(row).not.toHaveProperty('projectId');
+    expect(row.lastModified).toBe(attached.lastModified);
+    expect(stored(A, 'day-planner-unscheduled')[0]).not.toHaveProperty('projectId');
+    const known = knownProjectIdsOf(A.state.projects, { goalsProjectsEnabled: true });
+    expect(filterInboxTasks(A.state.unscheduledTasks, { goalsProjectsEnabled: true, knownProjectIds: known }).map(t => t.id)).toEqual([row.id]);
+    const [stamped] = stampTimestamps(A.state.unscheduledTasks, stored(A, 'day-planner-unscheduled'), '2026-11-28T00:00:00.000Z');
+    expect(stamped.lastModified).toBe(attached.lastModified);
+
+    // What A pushes next is the detached row at B's stamp; B keeps its own copy
+    // on the tie and does not re-attach (the stamp is no longer the epoch).
+    const next = on(A, () => A.mount().buildSyncPayload()).data;
+    expect(next.unscheduledTasks[0]).not.toHaveProperty('projectId');
+    expect(next.unscheduledTasks[0].lastModified).toBe(attached.lastModified);
+    const before = A.state.unscheduledTasks;
+    on(A, () => A.mount().applyEngineData({ ...next }));
+    expect(A.state.unscheduledTasks[0]).toEqual(before[0]);
+  });
+
+  it('a restore made elsewhere arrives with its reattached tasks in one apply, and they stay attached', () => {
+    const A = device({ unscheduledTasks: [standalone()], projects: [archived] });
+    persist(A);
+    const restored = { ...archived, status: 'completed', archiveRecord: null, updatedAt: '2026-11-28T09:00:00.000Z' };
+    const reattached = { ...standalone(), projectId: 'p360', lastModified: '2026-11-28T09:00:00.000Z' };
+    const merged = { ...on(A, () => A.mount().buildSyncPayload()).data, projects: [restored], unscheduledTasks: [reattached] };
+
+    on(A, () => A.mount().applyEngineData(merged));
+    expect(A.state.unscheduledTasks[0].projectId).toBe('p360');
+  });
+});
+

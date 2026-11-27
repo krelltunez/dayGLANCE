@@ -159,6 +159,15 @@ export default function useDataPersistence({
     };
     const deletedProjectIds = readTombstones('day-planner-deleted-project-ids');
     const deletedGoalIds = readTombstones('day-planner-deleted-goal-ids');
+    // The stored projects, for the detach of open tasks from archived ones
+    // (repairTaskRows). Unreadable means unknown, and unknown detaches nothing.
+    const storedProjects = (() => {
+      try {
+        const raw = localStorage.getItem('day-planner-projects');
+        const parsed = raw ? JSON.parse(raw) : null;
+        return Array.isArray(parsed) ? parsed : null;
+      } catch { return null; }
+    })();
     const parseTaskList = (key) => {
       const raw = localStorage.getItem(key);
       if (!raw) return [];
@@ -172,8 +181,9 @@ export default function useDataPersistence({
       // re-stamp lastModified). Unstamped on purpose: every device derives the
       // same repair from the same tombstone, so a tie in last-writer-wins
       // converges instead of flipping. The open-archived repair rides along on
-      // the same terms (utils/referentialIntegrity.js, unarchiveOpenTasks).
-      return repairTaskRows(parsed, deletedProjectIds);
+      // the same terms (utils/referentialIntegrity.js, unarchiveOpenTasks), and
+      // so does the detach of open tasks from archived projects.
+      return repairTaskRows(parsed, deletedProjectIds, storedProjects);
     };
 
     // Parse existing data and normalize defaults so localStorage and React
@@ -220,7 +230,7 @@ export default function useDataPersistence({
       const recycleBinData = localStorage.getItem('day-planner-recycle-bin');
       if (!recycleBinData) return;
       const parsedBin = JSON.parse(recycleBinData);
-      const prunedBin = repairTaskRows(parsedBin, deletedProjectIds);
+      const prunedBin = repairTaskRows(parsedBin, deletedProjectIds, storedProjects);
       if (prunedBin !== parsedBin) writeBack('day-planner-recycle-bin', JSON.stringify(prunedBin));
       setRecycleBin(prunedBin);
     });

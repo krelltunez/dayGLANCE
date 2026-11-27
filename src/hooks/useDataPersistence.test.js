@@ -842,6 +842,53 @@ describe('loadData repairs open tasks left archived', () => {
   });
 });
 
+// An open task never sits in an archived project (referentialIntegrity.js,
+// detachOpenFromArchivedProjects): the boot pass detaches one an older build
+// attached, unstamped, and writes it back before state.
+describe('loadData detaches open tasks from archived projects', () => {
+  let store;
+  let setItem;
+  const setup = (projects) => {
+    store = {
+      'day-planner-projects': projects === undefined ? undefined : JSON.stringify(projects),
+      'day-planner-unscheduled': JSON.stringify([
+        { id: 'u1', completed: false, projectId: 'pA', lastModified: 'old' },
+        { id: 'u2', completed: true, projectId: 'pA', lastModified: 'old' },
+        { id: 'u3', completed: false, projectId: 'pLive', lastModified: 'old' },
+      ]),
+    };
+    setItem = vi.fn((key, value) => { store[key] = value; });
+    globalThis.localStorage = { getItem: vi.fn((k) => store[k] ?? null), setItem, removeItem: vi.fn() };
+  };
+  afterEach(() => {
+    delete globalThis.localStorage;
+    delete globalThis.window;
+  });
+
+  it('detaches the open row only, keeps its stamp, and persists the repair', async () => {
+    setup([{ id: 'pA', status: 'archived' }, { id: 'pLive', status: 'active' }]);
+    const loadHook = await loadHookAs('main');
+    const { props, setters } = makeProps();
+    await loadHook(props).loadData();
+
+    const inbox = setters.setUnscheduledTasks.mock.calls[0][0];
+    expect(inbox.find(t => t.id === 'u1')).not.toHaveProperty('projectId');
+    expect(inbox.find(t => t.id === 'u1').lastModified).toBe('old');
+    expect(inbox.find(t => t.id === 'u2').projectId).toBe('pA');
+    expect(inbox.find(t => t.id === 'u3').projectId).toBe('pLive');
+    const written = Object.fromEntries(setItem.mock.calls);
+    expect(JSON.parse(written['day-planner-unscheduled']).find(t => t.id === 'u1')).not.toHaveProperty('projectId');
+  });
+
+  it('detaches nothing when the projects cannot be read', async () => {
+    setup(undefined);
+    const loadHook = await loadHookAs('main');
+    const { props, setters } = makeProps();
+    await loadHook(props).loadData();
+    expect(setters.setUnscheduledTasks.mock.calls[0][0].find(t => t.id === 'u1').projectId).toBe('pA');
+  });
+});
+
 // #2135: the persist pass stamps `createdAt` on a task this device created,
 // and on nothing else (utils/createdAt.js has the rules).
 describe('saveData stamps createdAt on tasks created on this device', () => {
