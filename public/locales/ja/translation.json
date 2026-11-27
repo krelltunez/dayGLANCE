@@ -154,6 +154,7 @@
     "passphraseLabel": "同期パスフレーズ",
     "passphrasePlaceholder": "同期パスフレーズ",
     "passphrasePrompt": "クラウド同期は暗号化されています。続けるには同期パスフレーズを入力してください。",
+    "passphrasePromptRemoteEncrypted": "別のデバイスがこの同期フォルダーの暗号化をオンにしたため、このデバイスでは同期が一時停止しています。同期パスフレーズを入力すると再開します。このデバイスでも暗号化がオンになります。",
     "unlock": "ロック解除",
     "unlockTitle": "同期のロックを解除",
     "obsidianToast": {

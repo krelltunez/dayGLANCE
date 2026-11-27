@@ -174,6 +174,7 @@ import useVoiceInput from './hooks/useVoiceInput.js';
 import useCloudSync from './hooks/useCloudSync.js';
 import { useFileSyncEngine, useVaultSyncEngine, vaultEngineData } from './hooks/useSyncEngines.js';
 import { resolveSyncTarget } from './sync/syncTarget.js';
+import { syncPassphrasePromptWanted, fileTierConfigAfterUnlock } from './sync/fileTierKeyPrompt.js';
 import useCloudSyncAfterEdit from './hooks/useCloudSyncAfterEdit.js';
 import { createDbEngine, resetVaultSyncCursor } from './sync/dbEngine.js';
 import useRosterVaultSync from './hooks/useRosterVaultSync.js';
@@ -1024,6 +1025,11 @@ const DayPlanner = () => {
   // leading or trailing slash stops producing doubled slashes in the URL.
   const syncFolder = normalizeSyncFolder(cloudSyncConfig?.syncFolder);
   const autoBackupProviders = useMemo(() => createAutoBackupProvidersForFolder(syncFolder), [syncFolder]);
+  // Raised when the WebDAV engine reads an envelope this device has no key or
+  // passphrase for, whatever its own encryption switch says: another device
+  // turned encryption on (#2453, sync/fileTierKeyPrompt.js). It lets the
+  // unlock prompt show, and unlocking from it turns encryption on here.
+  const [fileTierKeyWanted, setFileTierKeyWanted] = useState(false);
   useFileSyncEngine({
     callbacksRef: engineCallbacksRef,
     engineRef: cloudSyncEngineRef,
@@ -1046,7 +1052,13 @@ const DayPlanner = () => {
       },
       onConflict:           (remoteData, remoteModified, etag) =>
         setCloudSyncConflict({ remoteData, remoteModified, etag }),
-      onPassphraseRequired: () => setSyncKeyReady(false),
+      // While the launch key check is still pending (null) its answer is on
+      // the way and decides; a prompt raised now would flash and vanish.
+      onPassphraseRequired: () => {
+        if (syncKeyReadyRef.current === null) return;
+        setFileTierKeyWanted(true);
+        setSyncKeyReady(false);
+      },
       onFirstSyncReload:    () => window.location.reload(),
     },
   });
@@ -8741,13 +8753,27 @@ const DayPlanner = () => {
       {/* Sync passphrase prompt — shown on app load when an encrypted transport
           (WebDAV encryption or GLANCEvault) is active but no cached key was found
           in device storage (e.g. new device, or first launch after key isolation). */}
-      {(cloudSyncConfig?.encryptionEnabled || isVaultEnabled() || isDbIntentsEnabled() || directAccessStatus.encrypt || directAccessKeyWanted) && syncKeyReady === false && (
+      {/* Also shown when the WebDAV engine found the sync file encrypted by
+          another device while this one's switch is off (#2453): unlocking then
+          turns encryption on here, or the next upload would be plaintext over
+          the other device's envelope (sync/fileTierKeyPrompt.js). */}
+      {syncPassphrasePromptWanted({
+        cloudSyncConfig, vaultEnabled: isVaultEnabled(), dbIntentsEnabled: isDbIntentsEnabled(),
+        directAccessEncrypt: directAccessStatus.encrypt, directAccessKeyWanted, fileTierKeyWanted, syncKeyReady,
+      }) && (
         <SyncPassphraseModal
           darkMode={darkMode}
           textPrimary={textPrimary}
           textSecondary={textSecondary}
           borderClass={borderClass}
-          onUnlocked={() => setSyncKeyReady(true)}
+          remoteEncrypted={fileTierKeyWanted && !cloudSyncConfig?.encryptionEnabled}
+          onUnlocked={() => {
+            if (fileTierKeyWanted) {
+              setCloudSyncConfig(fileTierConfigAfterUnlock);
+              setFileTierKeyWanted(false);
+            }
+            setSyncKeyReady(true);
+          }}
         />
       )}
 

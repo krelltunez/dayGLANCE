@@ -154,6 +154,7 @@
     "passphraseLabel": "Sync passphrase",
     "passphrasePlaceholder": "Your sync passphrase",
     "passphrasePrompt": "Cloud sync is encrypted. Enter your sync passphrase to continue.",
+    "passphrasePromptRemoteEncrypted": "Another device turned on encryption for this sync folder, so sync is paused here. Enter the sync passphrase to resume. Encryption will be turned on for this device too.",
     "unlock": "Unlock",
     "unlockTitle": "Unlock sync",
     "obsidianToast": {

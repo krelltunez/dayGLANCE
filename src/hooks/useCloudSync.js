@@ -103,7 +103,11 @@ const useCloudSync = () => {
   //     file" switch (docs/direct-access-sync.md, Phase 6) uses the SAME key:
   //     a device with it on needs the key before its first write. A device
   //     whose folder holds an envelope with the switch off is prompted by the
-  //     cycle itself when it reads the file (App's onKeyNeeded).
+  //     cycle itself when it reads the file (App's onKeyNeeded). The same goes
+  //     for WebDAV: a device whose switch is off but whose remote file another
+  //     device encrypted is prompted by the engine's onPassphraseRequired, and
+  //     unlocking turns its switch on, so from then on this check covers it
+  //     (#2453, sync/fileTierKeyPrompt.js).
   //   • GLANCEvault — needed whenever the vault is enabled; gated on its DB root key.
   useEffect(() => {
     const config = (() => {

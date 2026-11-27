@@ -154,6 +154,7 @@
     "passphraseLabel": "Phrase secrète de synchronisation",
     "passphrasePlaceholder": "Votre phrase secrète de synchronisation",
     "passphrasePrompt": "La synchronisation cloud est chiffrée. Saisissez votre phrase secrète de synchronisation pour continuer.",
+    "passphrasePromptRemoteEncrypted": "Un autre appareil a activé le chiffrement pour ce dossier de synchronisation : la synchronisation est donc en pause ici. Saisissez la phrase secrète de synchronisation pour la reprendre. Le chiffrement sera aussi activé sur cet appareil.",
     "unlock": "Déverrouiller",
     "unlockTitle": "Déverrouiller la synchronisation",
     "obsidianToast": {
