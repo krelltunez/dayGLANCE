@@ -50,15 +50,17 @@ describe('desktopPanelLayout', () => {
   });
 
   // MUTATION: dock the panel for these and opening it on a laptop drops the
-  // user out of DAY / WEEK, and MONTH's day panel back into a sheet.
+  // user out of DAY / WEEK.
   it('open on a laptop, it floats over a view only the wide layout shows', () => {
-    for (const view of ['day', 'week', 'month']) {
+    for (const view of ['day', 'week']) {
       expect(desktopPanelLayout(laptop, false, view)).toEqual({ columns: 3, panelMode: 'overlay' });
     }
   });
 
+  // MUTATION: float the panel over MONTH and, with the panel open, a laptop
+  // loses the grid's first columns where it used to show the whole month.
   it('open on a laptop, it docks beside a view the narrow layout shows too', () => {
-    for (const view of ['multi', 'sched', 'jobo', null]) {
+    for (const view of ['multi', 'month', 'sched', 'jobo', null]) {
       expect(desktopPanelLayout(laptop, false, view)).toEqual({ columns: 2, panelMode: 'docked' });
     }
   });

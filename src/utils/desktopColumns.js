@@ -12,12 +12,18 @@ export const SIDE_PANEL_WIDTH = 340;
 export const THREE_COLUMN_MIN = 1600 - SIDE_PANEL_WIDTH; // 1260
 export const TWO_COLUMN_MIN = 1200 - SIDE_PANEL_WIDTH; //  860
 
-// The views the narrow layout cannot show as chosen: DAY and WEEK need the
-// three-column width, and MONTH's selected day docks beside the grid there
-// (a bottom sheet otherwise). On a window wide enough for them only while the
-// panel is hidden, opening the panel lays it over the calendar instead of
-// beside it, so the view on screen stays where it is.
-export const SIDE_PANEL_OVERLAY_VIEWS = Object.freeze(['day', 'week', 'month']);
+// The views the narrow layout cannot show at all: DAY and WEEK need the
+// three-column width. On a window wide enough for them only while the panel
+// is hidden, opening the panel lays it over the calendar instead of beside
+// it, so the view on screen stays where it is.
+//
+// MONTH is not one of them: it has a whole layout beside the panel (the full
+// grid, the selected day in a bottom sheet), which is what a laptop showed
+// before. Floating the panel would cover the grid's first columns to keep only
+// the docked day panel, so MONTH docks the panel and takes the sheet; hiding
+// the panel brings the docked day panel back (MonthView hands an open sheet's
+// day over to it).
+export const SIDE_PANEL_OVERLAY_VIEWS = Object.freeze(['day', 'week']);
 
 export function columnsForWidth(width) {
   if (width >= THREE_COLUMN_MIN) return 3;

@@ -467,8 +467,8 @@ const DayPlanner = () => {
   // The desktop calendar's columns follow the room it has, not the window:
   // hiding the side panel gives a laptop the wide layout (utils/desktopColumns.js).
   // With the panel open on such a window, a view only the wide layout shows
-  // (DAY, WEEK, MONTH's docked day) keeps it and the panel floats over the
-  // calendar instead. The header spans the window whatever the panel does, so
+  // (DAY, WEEK) keeps it and the panel floats over the calendar instead;
+  // MONTH docks it and takes its sheet, as a laptop always showed it. The header spans the window whatever the panel does, so
   // it keeps the window's own count (headerDays), as before.
   const { columns: _visibleDays, panelMode: sidePanelMode } = desktopPanelLayout(
     windowCols, sidePanelCollapsed, hiddenViews.desktop.includes(viewMode) ? null : viewMode,
