@@ -74,14 +74,16 @@ const ICONS = { multi: MultiIcon, day: DayIcon, week: WeekIcon, sched: SchedIcon
 export { LONG_PRESS_MS };
 
 const ViewCycler = () => {
-  const { setViewMode, effectiveViewMode, textSecondary, canShowViewCycler, showDayDial, hiddenViews } = useDayPlannerCtx();
+  const { setViewMode, effectiveViewMode, textSecondary, canShowViewCycler, allDesktopViews = canShowViewCycler, showDayDial, hiddenViews } = useDayPlannerCtx();
   const { t } = useTranslation();
   const label = t(VIEW_LABEL_KEYS[effectiveViewMode]);
 
   // Narrow desktop (1-2 columns) offers MULTI, SCHED and MONTH — DAY/WEEK need
-  // the full 3-column breakpoint. MONTH steps out while the Day Dial is up,
+  // the full 3-column breakpoint, which a laptop reaches by floating the side
+  // panel (allDesktopViews, utils/desktopColumns.js), so they stay on offer
+  // there. MONTH steps out while the Day Dial is up,
   // and views turned off on this device are out altogether.
-  const states = cyclerStates(canShowViewCycler, !!showDayDial, hiddenViews?.desktop);
+  const states = cyclerStates(allDesktopViews, !!showDayDial, hiddenViews?.desktop);
 
   // Display + cycle from effectiveViewMode, not the raw stored mode: a stored
   // DAY/WEEK at narrow width renders as MULTI, and the picker must agree with

@@ -20,7 +20,7 @@ export default function useAppearanceTopic() {
     use24HourClock, weekTimelineStartHour, setWeekTimelineStartHour,
     weekTimelineEndHour, setWeekTimelineEndHour, isMobile, isTablet, defaultView,
     setDefaultView, hiddenViews, dayViewMode, setDayViewMode, weekViewMode,
-    setWeekViewMode, canShowViewCycler, schedOnlyCycler, setViewMode, glancePage,
+    setWeekViewMode, canShowViewCycler, allDesktopViews = canShowViewCycler, schedOnlyCycler, setViewMode, glancePage,
     setGlancePage, mobileViewMode, setMobileViewMode, mobileDefaultView,
     setMobileDefaultView, listEndOfDayTime, setListEndOfDayTime, formatTime,
     showCardSubtasks, setShowCardSubtasks,
@@ -82,7 +82,7 @@ export default function useAppearanceTopic() {
                 <div>
                   <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.defaultViewOnLoad')}</label>
                   <div className="flex flex-wrap gap-2">
-                    {enabledViews(canShowViewCycler ? DESKTOP_VIEW_MODES : NARROW_DESKTOP_VIEW_MODES, hiddenViews?.desktop).map(v => (
+                    {enabledViews(allDesktopViews ? DESKTOP_VIEW_MODES : NARROW_DESKTOP_VIEW_MODES, hiddenViews?.desktop).map(v => (
                       <button
                         key={v}
                         onClick={() => setDefaultView(v)}
@@ -97,8 +97,8 @@ export default function useAppearanceTopic() {
                     ))}
                   </div>
                 </div>
-                <ViewToggles scope="desktop" views={offeredViews(canShowViewCycler ? DESKTOP_VIEW_MODES : NARROW_DESKTOP_VIEW_MODES, { joboEnabled })} label={desktopViewLabel} />
-                {canShowViewCycler && (<>
+                <ViewToggles scope="desktop" views={offeredViews(allDesktopViews ? DESKTOP_VIEW_MODES : NARROW_DESKTOP_VIEW_MODES, { joboEnabled })} label={desktopViewLabel} />
+                {allDesktopViews && (<>
                 <div>
                   <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.dayViewMode')}</label>
                   <div className="flex gap-2">
