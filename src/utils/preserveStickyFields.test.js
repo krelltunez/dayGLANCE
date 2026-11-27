@@ -177,3 +177,17 @@ describe('preserveStickyFields — clientId (the launcher write id)', () => {
     expect('clientId' in preserveStickyFields([{ id: 'a' }], [{ id: 'a' }])[0]).toBe(false);
   });
 });
+
+describe('preserveStickyFields — completedAt (packages/dayglance-vault/src/completedAt.js)', () => {
+  const STAMP = '2026-11-27T14:57:15-07:00';
+
+  it('a done incoming copy without a stamp keeps the one this device recorded', () => {
+    const [out] = preserveStickyFields([{ id: 'a', completed: true }], [{ id: 'a', completed: true, completedAt: STAMP }]);
+    expect(out.completedAt).toBe(STAMP);
+  });
+
+  it('an incoming reopen takes no stamp, and an incoming stamp is kept', () => {
+    expect(preserveStickyFields([{ id: 'a', completed: false, completedAt: null }], [{ id: 'a', completed: true, completedAt: STAMP }])[0].completedAt).toBeNull();
+    expect(preserveStickyFields([{ id: 'a', completed: true, completedAt: 'X' }], [{ id: 'a', completed: true, completedAt: STAMP }])[0].completedAt).toBe('X');
+  });
+});

@@ -37,6 +37,7 @@
 import { mergeDeferrals } from './deferrals.js';
 import { mergePlanTrail, sameTrail } from './planTrail.js';
 import { earlierCreatedAt } from './createdAt.js';
+import { carriedCompletedAt } from '@glance-apps/dayglance-vault';
 
 export const STICKY_FIELDS = ['archived', 'originalPlan', 'starredDate', 'clientId'];
 //
@@ -71,6 +72,12 @@ export function preserveStickyFields(incoming, existing) {
     // replace the creation date this device already holds with a later one.
     const created = earlierCreatedAt(out.createdAt, prev.createdAt);
     if (created !== undefined && created !== out.createdAt) out = { ...out, createdAt: created };
+    // `completedAt` (packages/dayglance-vault/src/completedAt.js): a done
+    // incoming copy without a stamp keeps the one this device recorded, if its
+    // own copy is done too. Not a STICKY_FIELD: an open copy's stamp is never
+    // carried onto it.
+    const stamp = carriedCompletedAt(out, prev);
+    if (stamp !== out.completedAt) out = { ...out, completedAt: stamp };
     return out;
   });
 }

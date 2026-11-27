@@ -46,6 +46,8 @@ const { noteTextHash, bridgeNoteDescriptionLoader, importBridgeSubkey, openBridg
 const { readWikiNote, readVaultHeartbeat } = await import('../../src/obsidian.js');
 const { topProjectOrder, sendToBottomIds, applyProjectReorder, sortByProjectOrder } = await import('../../src/utils/projectOrder.js');
 const { readRetiredTaskIds } = await import('../../src/utils/retiredTaskIds.js');
+const { applyRemoteEntity, makeEntityId } = await import('@glance-apps/dayglance-vault');
+const { preserveStickyFields } = await import('../../src/utils/preserveStickyFields.js');
 const { buildMcpReadState, handleMcpRequest } = await import('@glance-apps/dayglance-mcp/model');
 const { enrichGoalTreeDescriptions, splitDescriptionWrite, writeLinkedDescription } = await import('../../src/utils/mcpNoteDescriptions.js');
 
@@ -559,6 +561,51 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     expect(s.text(NOTE)).toContain('Draft the letter');
     expect(s.plugin.app.vault.writes).toBe(writes);
     expect(JSON.parse(JSON.stringify(A.all()))).toEqual(records);
+  });
+
+  it('7c. A TICK RACED BY AN OLDER DEVICE (2026-11-27 device test): a line typed in an active project\'s note, ticked in Obsidian with no done date, is stamped here; a newer copy from a device that recorded no stamp arrives through sync and the stamp survives it, and later passes', async () => {
+    await bootLinked();
+    await s.write(NOTE, s.text(NOTE)!.replace('## Tasks\n', '## Tasks\n- [ ] ZZ bridge tick test\n'));
+    await s.settle();
+    await A.sync();
+    const id = A.all().find((t) => t.title.startsWith('ZZ bridge tick test'))!.id;
+    expect(A.all().find((t) => t.id === id)).toMatchObject({ projectId: 'p1', completed: false });
+    await A.writeback();
+    await s.plugin.transport.drain();
+    await s.settle();
+    await A.sync();
+    await s.advance(60_000);
+
+    // Ticked by hand: no ✅ date, no [completion::], the Tasks plugin off.
+    await s.write(NOTE, s.text(NOTE)!.replace('- [ ] ZZ bridge tick test', '- [x] ZZ bridge tick test'));
+    await s.settle();
+    await A.sync();
+    const stamped = A.all().find((t) => t.id === id)!;
+    expect(stamped.completed).toBe(true);
+    expect(stamped.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
+
+    // The other device applied the same tick on a build without the stamp: its
+    // copy is done, has no completedAt, and is newer, so it wins the pull.
+    await s.advance(6_000);
+    const { completedAt: _dropped, ...rest } = stamped;
+    const older: Row = { ...rest, lastModified: new Date().toISOString() };
+    // The vault tier's apply, then the app's apply step, as useSyncEngineData runs them.
+    const data = { unscheduledTasks: JSON.parse(JSON.stringify(A.state.inbox)) };
+    applyRemoteEntity(data, { entityId: makeEntityId('unscheduledTasks', id), _kind: 'unscheduledTasks', value: older });
+    const applied = preserveStickyFields(data.unscheduledTasks, A.state.inbox);
+    A.state.inbox.splice(0, A.state.inbox.length, ...applied);
+    const pulled = A.all().find((t) => t.id === id)!;
+    expect(pulled.lastModified).toBe(older.lastModified);
+    expect(pulled.completedAt).toBe(stamped.completedAt);
+
+    // The bridge sees the line again: nothing changes, nothing is written.
+    const writes = s.plugin.app.vault.writes;
+    await A.writeback();
+    await s.plugin.transport.drain();
+    await s.settle();
+    await A.sync();
+    expect(A.all().find((t) => t.id === id)).toMatchObject({ completed: true, completedAt: stamped.completedAt });
+    expect(s.plugin.app.vault.writes).toBe(writes);
   });
 
   it('8. a fresh link fills the note over passes, not in one burst', async () => {

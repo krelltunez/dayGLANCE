@@ -165,6 +165,8 @@ export interface PlanTrailStop { at: number; date: string; startTime: string }
 export function mergePlanTrail(a: unknown, b: unknown): PlanTrailStop[] | undefined;
 export function sameTrail(a: unknown, b: unknown): boolean;
 export function earlierCreatedAt(a: string | null | undefined, b: string | null | undefined): string | undefined;
+/** The completedAt a merged copy carries: the winner's, or a done other copy's when the done winner has none. */
+export function carriedCompletedAt(winner: { completed?: boolean; completedAt?: string | null } | null | undefined, ...others: Array<{ completed?: boolean; completedAt?: string | null } | null | undefined>): string | null | undefined;
 export interface Retirement { retiredAt: string; successor: string }
 export function mergeRetiredTaskIds(local?: Record<string, Retirement>, remote?: Record<string, Retirement>): Record<string, Retirement>;
 export function pruneRetiredTaskIds(
