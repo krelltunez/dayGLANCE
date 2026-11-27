@@ -84,6 +84,7 @@ export function planProjectStatusChange(project, updates, taskRows = [], nowIso 
     // can still be shown again; which open tasks it detached is not known.
     const unhide = record ? idSet(record.archivedTaskIds) : null;
     const reattach = idSet(record?.detachedTaskIds);
+    const note = typeof project.obsidianNotePath === 'string' && project.obsidianNotePath ? project.obsidianNotePath : null;
     return {
       projectUpdates: { archiveRecord: null },
       rowsUpdater: (rows) => mapChanged(rows, (t) => {
@@ -95,7 +96,13 @@ export function planProjectStatusChange(project, updates, taskRows = [], nowIso 
         // Reattach what the archive detached, and a task it hid that was
         // reopened since: a reopen in an archived project unlinks the task
         // (`reopenTask` in referentialIntegrity.js), and it belonged here.
-        if (!t.projectId && (has(reattach, t.id) || (unhide && has(unhide, t.id)))) {
+        // So does an open standalone task whose line is in the project's
+        // note: while archived, the import leaves such a line standalone
+        // (#2457) and the sync repair detaches one an older build attached
+        // (`detachOpenFromArchivedProjects`). A task given another project
+        // meanwhile keeps it.
+        const fromNote = !!note && !t.completed && t.obsidianNotePath === note;
+        if (!t.projectId && (has(reattach, t.id) || (unhide && has(unhide, t.id)) || fromNote)) {
           return { ...t, projectId, lastModified: nowIso };
         }
         return t;

@@ -399,16 +399,22 @@ export default function useSyncEngineData(deps) {
     // carries this device's `archived: true` onto a copy reopened elsewhere
     // that omits the key; and again on the setState output below, for the
     // device-local rows the rescue re-adds.
-    if (normalizedTasks) normalizedTasks = repairTaskRows(normalizedTasks, deletedProjectIds);
-    if (normalizedUnsched) normalizedUnsched = repairTaskRows(normalizedUnsched, deletedProjectIds);
+    const projectsForApply = Array.isArray(data.projects)
+      ? stripGoalRefs(data.projects, deletedGoalIds)
+      : null;
+    // The detach of open tasks from archived projects (referentialIntegrity.js)
+    // judges by the projects this apply lands, which arrive in the same
+    // payload as the tasks: a project restored elsewhere is active here in the
+    // same pass that brings its reattached tasks. Without projects in the
+    // payload, the ones this device holds.
+    const projectsForRepair = projectsForApply ?? (Array.isArray(projects) ? projects : null);
+    if (normalizedTasks) normalizedTasks = repairTaskRows(normalizedTasks, deletedProjectIds, projectsForRepair);
+    if (normalizedUnsched) normalizedUnsched = repairTaskRows(normalizedUnsched, deletedProjectIds, projectsForRepair);
     const recycleBinForApply = Array.isArray(data.recycleBin)
-      ? repairTaskRows(data.recycleBin, deletedProjectIds)
+      ? repairTaskRows(data.recycleBin, deletedProjectIds, projectsForRepair)
       : null;
     const recurringForApply = Array.isArray(data.recurringTasks)
       ? stripProjectRefs(data.recurringTasks, deletedProjectIds)
-      : null;
-    const projectsForApply = Array.isArray(data.projects)
-      ? stripGoalRefs(data.projects, deletedGoalIds)
       : null;
 
     // Update localStorage
@@ -679,10 +685,10 @@ export default function useSyncEngineData(deps) {
     // project, not just the rows the payload happened to contain.
     if (normalizedTasks) setTasks(prev => repairTaskRows(applyTaskRetirements(
       rescueUnsyncedTasks(preserveStickyFields(normalizedTasks, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones, retiredLiveIds, rescueOpts),
-      retiredRecord, retiredLiveIds), deletedProjectIds));
+      retiredRecord, retiredLiveIds), deletedProjectIds, projectsForRepair));
     if (normalizedUnsched) setUnscheduledTasks(prev => repairTaskRows(applyTaskRetirements(
       rescueUnsyncedTasks(preserveStickyFields(normalizedUnsched, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones, retiredLiveIds, rescueOpts),
-      retiredRecord, retiredLiveIds), deletedProjectIds));
+      retiredRecord, retiredLiveIds), deletedProjectIds, projectsForRepair));
     if (data.unscheduledOrderTimestamp) {
       setUnscheduledOrderTimestamp(data.unscheduledOrderTimestamp);
       localStorage.setItem('day-planner-unscheduled-order-ts', data.unscheduledOrderTimestamp);

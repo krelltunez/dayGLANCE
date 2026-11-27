@@ -1100,6 +1100,16 @@ entry. The rule now:
   tasks the archive cascade detached. Both decisions are made once (the
   attach at first import, a known task keeps its project), so passes after
   the import change nothing and write nothing.
+  *Amended the same day, mixed versions:* "first import" is read as "the
+  task still has the fresh-import stamp", which a task imported standalone
+  and never edited also has. A build that predates the rule (5.16.0)
+  therefore attached such a line when it read the note, stamped the change
+  and won the sync. So the app now also detaches every open task from an
+  archived project on load and on each sync apply, unstamped, judged by the
+  projects the same apply lands (`detachOpenFromArchivedProjects` in
+  `src/utils/referentialIntegrity.js`). Restoring the project reattaches
+  open standalone tasks whose line is in its note, besides the ones its
+  archive record lists (`planProjectStatusChange`).
 - **Identity.** A vault task's app id is `obsidian-dg-` plus its token, and
   the scanner matches lines by that id, so a dayGLANCE-born task's id
   switches to the derived form when its line is written: the stamping
