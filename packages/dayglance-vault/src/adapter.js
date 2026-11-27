@@ -37,6 +37,7 @@ import { mergeDeferrals } from './deferrals.js';
 import { withMergedExceptions, withMergedSubtaskCompletions } from './recurringExceptions.js';
 import { mergePlanTrail, sameTrail } from './planTrail.js';
 import { earlierCreatedAt } from './createdAt.js';
+import { carriedCompletedAt } from './completedAt.js';
 import { TOMBSTONE_BUNDLE_KEYS, tombstoneCutoff, pruneCompletedTaskUids } from './tombstoneRetention.js';
 import { mergeRetiredTaskIds } from './retiredTaskIds.js';
 import { mergeDayWindowMaps } from './dayWindowSync.js';
@@ -430,6 +431,13 @@ function upsertCollection(data, kind, value) {
     {
       const created = earlierCreatedAt(merged?.createdAt, local?.createdAt);
       if (merged && created !== undefined && created !== merged.createdAt) merged = { ...merged, createdAt: created };
+    }
+    // `completedAt` (completedAt.js): a done winner without a stamp takes the
+    // stamp of a done local copy, so a device that never recorded one cannot
+    // erase it.
+    {
+      const stamp = carriedCompletedAt(merged, local);
+      if (merged && stamp !== merged.completedAt) merged = { ...merged, completedAt: stamp };
     }
     // `clientId` (intents/launcherWrites.js) likewise: write-once at creation,
     // never cleared, so absent on the winner means that device never had it.

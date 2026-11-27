@@ -80,3 +80,36 @@ describe('the writes the flags cause settle', () => {
     for (const f of Object.values(FIELDS)) f.expect(second.data.unscheduledTasks[0]);
   });
 });
+
+// `completedAt` carries only between DONE copies (packages/dayglance-vault/src/completedAt.js).
+describe('the completedAt carry', () => {
+  const STAMP = '2026-11-27T14:57:15-07:00';
+  const done = { ...base, completed: true };
+
+  it('flags the REMOTE when its newer done copy won without a stamp', () => {
+    const local = { unscheduledTasks: [{ ...done, lastModified: OLD, completedAt: STAMP }] };
+    const remote = { unscheduledTasks: [{ ...done, title: 'Report v2', lastModified: NEW }] };
+    const remoteBefore = freeze(remote);
+    const result = mergeSyncData(local, remote, 90);
+    expect(result.data.unscheduledTasks[0]).toMatchObject({ title: 'Report v2', completedAt: STAMP });
+    expect(result.remoteChanged).toBe(true);
+    expect(remote).toEqual(remoteBefore);
+  });
+
+  it('flags the LOCAL side when its newer done copy won without a stamp', () => {
+    const local = { unscheduledTasks: [{ ...done, title: 'Report v2', lastModified: NEW }] };
+    const remote = { unscheduledTasks: [{ ...done, lastModified: OLD, completedAt: STAMP }] };
+    const localBefore = freeze(local);
+    const result = mergeSyncData(local, remote, 90);
+    expect(result.data.unscheduledTasks[0]).toMatchObject({ title: 'Report v2', completedAt: STAMP });
+    expect(result.localChanged).toBe(true);
+    expect(local).toEqual(localBefore);
+  });
+
+  it('a newer reopen takes no stamp', () => {
+    const local = { unscheduledTasks: [{ ...done, lastModified: OLD, completedAt: STAMP }] };
+    const remote = { unscheduledTasks: [{ ...base, completed: false, completedAt: null, lastModified: NEW }] };
+    const result = mergeSyncData(local, remote, 90);
+    expect(result.data.unscheduledTasks[0]).toMatchObject({ completed: false, completedAt: null });
+  });
+});

@@ -324,3 +324,31 @@ describe('a reopen in an archived project across a sync cycle', () => {
     expect(stamped.lastModified).toBe(REOPEN);
   });
 });
+
+describe('a completion stamp across a sync cycle', () => {
+  beforeEach(() => { globalThis.localStorage = memoryStorage(); });
+  afterEach(() => {
+    delete globalThis.localStorage;
+    vi.restoreAllMocks();
+  });
+
+  it('a newer done copy from a device that recorded no stamp keeps this device\'s stamp, in state and storage, and nothing re-stamps', async () => {
+    const { stampTimestamps } = await import('./stampTimestamps.js');
+    const STAMP = '2026-11-27T14:57:15-07:00';
+    const B = device({ unscheduledTasks: [T('u1', { completed: true, completedAt: STAMP, lastModified: '2026-11-27T21:57:16.000Z' })] });
+    persist(B);
+    // The older build's copy of the same tick: done, no completedAt, newer.
+    const older = T('u1', { completed: true, lastModified: '2026-11-27T21:57:21.154Z' });
+    const merged = { ...on(B, () => B.mount().buildSyncPayload()).data, unscheduledTasks: [older] };
+
+    on(B, () => B.mount().applyEngineData(merged));
+
+    expect(B.state.unscheduledTasks[0]).toMatchObject({ completed: true, completedAt: STAMP, lastModified: older.lastModified });
+    expect(stored(B, 'day-planner-unscheduled')[0].completedAt).toBe(STAMP);
+    const [stamped] = stampTimestamps(B.state.unscheduledTasks, stored(B, 'day-planner-unscheduled'), '2026-11-28T00:00:00.000Z');
+    expect(stamped.lastModified).toBe(older.lastModified);
+    // What B pushes next carries the stamp.
+    expect(on(B, () => B.mount().buildSyncPayload()).data.unscheduledTasks[0].completedAt).toBe(STAMP);
+  });
+});
+

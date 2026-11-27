@@ -8,6 +8,7 @@ import { mergeDeferrals } from './utils/deferrals.js';
 import { mergePlanTrail, sameTrail } from './utils/planTrail.js';
 import { sameOccurrenceEdits, withMergedExceptions, sameSubtaskCompletions, withMergedSubtaskCompletions } from '@glance-apps/dayglance-vault';
 import { earlierCreatedAt } from './utils/createdAt.js';
+import { carriedCompletedAt } from '@glance-apps/dayglance-vault';
 import {
   TOMBSTONE_BUNDLE_KEYS,
   tombstoneCutoff,
@@ -519,6 +520,17 @@ export const mergeSyncData = (local, remote, retentionDays) => {
           own().originalPlan = plan;
           if (l?.originalPlan === undefined) result.localChanged = true;
           if (r?.originalPlan === undefined) result.remoteChanged = true;
+        }
+      }
+      // `completedAt` (packages/dayglance-vault/src/completedAt.js): a done
+      // winner without a stamp takes the stamp of a done copy on either side,
+      // and the side that lacked it gets it written back.
+      {
+        const stamp = carriedCompletedAt(item, l, r);
+        if (stamp !== item.completedAt) {
+          own().completedAt = stamp;
+          if (l && l.completedAt !== stamp) result.localChanged = true;
+          if (r && r.completedAt !== stamp) result.remoteChanged = true;
         }
       }
       // `clientId` (intents/launcherWrites.js), the launcher's id for the write
