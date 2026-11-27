@@ -1,4 +1,4 @@
-import { extractWikilinks, sameNoteTarget } from './taskUtils.js';
+import { extractWikilinks, sameNoteTarget, completionTimestamp } from './taskUtils.js';
 import { isObsidianTombstoned, obsidianKeyDate } from './obsidianDeletions.js';
 import { LINE_OWNED_TASK_FIELDS } from '@glance-apps/obsidian-format';
 
@@ -129,12 +129,16 @@ const reviveScannedAgainstTombstone = (t, tombstones, noteMtimes) => {
 // The explicit rules that remain are real semantics on line-owned keys,
 // each pinned by a removal or carry test, not a memory list:
 //
-//  • completedAt — APP WINS WHEN IT HAS A VALUE; THE VAULT MARKER FILLS THE
-//    BLANK (the completion-timestamp feature's merge rule): the marker is
-//    an echo of an action dayGLANCE performed, and a stale echo must not
-//    overwrite the source. An explicit null (the app uncompleted the task)
-//    is the app's statement and still wins; the adoption case (marker, no
-//    app value) isn't a conflict, the parsed value stays.
+//  • completedAt — APP WINS WHILE THE COMPLETION STATE IS THE APP'S (the
+//    completion-timestamp feature's merge rule): the marker is an echo of
+//    an action dayGLANCE performed, and a stale echo must not overwrite the
+//    source. An explicit null (the app uncompleted the task) is the app's
+//    statement and still wins. A completion THE VAULT JUST MADE (the app's
+//    copy open, the line checked) is not an echo: the app's null describes
+//    the open task, so the vault decides (vaultCompletedAt): the line's
+//    marker, else the note's mtime, else now, never earlier than the
+//    task's last open state (2026-11-27: a box ticked without the Tasks
+//    plugin's done date imported with no completedAt at all).
 //  • projectId — app-owned, carried across re-scans unless the SCAN adopted
 //    a vault edit of the line's [project:: …] field (companion §4.3, ruling
 //    G as amended): a resolved id wins, an explicit null (the field
@@ -170,7 +174,34 @@ const LINE_OWNED = new Set(APP_LINE_OWNED_TASK_FIELDS);
 // the task is scheduled from the line (§8 ruling, 2026-09-08).
 const SCAN_DECIDED = new Set(['obsidianClearedTime']);
 
-export function preserveObsidianAppFields(old, scanned = {}, noteMtime = undefined) {
+/**
+ * When the vault completed a task the app held open: the completion time to
+ * record. The line's own marker when it carries one, else the note's mtime
+ * (the closest evidence of when the box was ticked), else `nowMs`. Never
+ * earlier than the app copy's lastModified, the last moment the task is
+ * known to have been open, so a stale mtime or an old marker on a line
+ * reopened since cannot date the completion before the reopen. Pure and
+ * deterministic in its inputs, so every device that merges the same report
+ * records the same stamp; local-offset form, as every completion path writes.
+ */
+export function vaultCompletedAt(old, scanned, noteMtime, nowMs = Date.now()) {
+  const floor = ts(old?.lastModified);
+  const marker = typeof scanned?.completedAt === 'string' ? scanned.completedAt : null;
+  if (marker) {
+    if (/T\d{2}:\d{2}/.test(marker)) {
+      const at = Date.parse(marker);
+      if (Number.isFinite(at) && at >= floor) return marker;
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(marker)) {
+      // A date-only marker names a local day: it stands unless that day is
+      // before the day the task was last open.
+      if (!floor || marker >= completionTimestamp(new Date(floor)).slice(0, 10)) return marker;
+    }
+  }
+  const evidence = ts(noteMtime) || nowMs;
+  return completionTimestamp(new Date(Math.max(evidence, floor)));
+}
+
+export function preserveObsidianAppFields(old, scanned = {}, noteMtime = undefined, nowMs = Date.now()) {
   const carried = {};
   for (const k of Object.keys(old)) {
     if (!LINE_OWNED.has(k) && !SCAN_DECIDED.has(k) && old[k] !== undefined) carried[k] = old[k];
@@ -202,7 +233,13 @@ export function preserveObsidianAppFields(old, scanned = {}, noteMtime = undefin
   }
   return {
     ...carried,
-    ...(old.completedAt !== undefined ? { completedAt: old.completedAt } : {}),
+    // A completion the vault just made is dated by the vault; any other
+    // state keeps the app's value (see the completedAt rule above). Once the
+    // app copy is completed the next pass carries the stamp, so the merge is
+    // idempotent and writes nothing back to the line.
+    ...(!old.completed && scanned.completed
+      ? { completedAt: vaultCompletedAt(old, scanned, noteMtime, nowMs) }
+      : old.completedAt !== undefined ? { completedAt: old.completedAt } : {}),
     ...(scanned.projectId === null ? { projectId: undefined }
       : old.projectId && scanned.projectId === undefined ? { projectId: old.projectId } : {}),
     ...(old.deadline && scanned.deadline === undefined ? { deadline: old.deadline } : {}),

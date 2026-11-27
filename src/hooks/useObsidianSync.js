@@ -2055,7 +2055,12 @@ export default function useObsidianSync({
     if (authoritative && blockIdWritesEnabled()) {
       const projectsNow = projectsRef.current || [];
       const noteOf = (pr) => (pr && pr.obsidianNotePath && !pr.obsidianNoteMissingAt ? normalizeNotePath(pr.obsidianNotePath) : null);
-      const linkedProjectPaths = new Set(projectsNow.map(noteOf).filter(Boolean));
+      // An ARCHIVED project's note routes nothing out: an open line there is
+      // a standalone task (utils/obsidianProjectNotes.js attachesOnImport,
+      // and the archive cascade's detach), and moving it out of the note the
+      // user keeps it in would be a vault write nobody asked for. A task
+      // still assigned to the archived project is routed home as before.
+      const linkedProjectPaths = new Set(projectsNow.filter(pr => pr && pr.status !== 'archived').map(noteOf).filter(Boolean));
       const homeFor = (t) => noteOf(t.projectId ? projectsNow.find(pr => pr && String(pr.id) === String(t.projectId)) : null);
       const schedFmt = tasksPluginRef.current ? 'tasks' : 'dataview';
       // THE RE-APPEND (owner ruling 2026-09-16; utils/obsidianLineReappend.js).

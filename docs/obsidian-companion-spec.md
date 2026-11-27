@@ -1089,6 +1089,17 @@ entry. The rule now:
   metadata (ruling B) and no longer occupies the daily note; the daily
   note shows its completion-log entry. Open tasks only: a completed task's
   record is the completion log and the Done query.
+- **An archived project's note (2026-11-27).** An archived project takes no
+  open work: archiving moves its open tasks out (the archive cascade), and
+  an open task left in an archived project is hidden from the Inbox and from
+  every project list. So an OPEN line typed in an archived project's note
+  imports standalone, not assigned; a completed line still imports assigned,
+  so the archive lists it (`attachesOnImport`). The note routes nothing out:
+  placement does not count an archived project's note as a linked note, so a
+  standalone line there stays where the user wrote it, including the open
+  tasks the archive cascade detached. Both decisions are made once (the
+  attach at first import, a known task keeps its project), so passes after
+  the import change nothing and write nothing.
 - **Identity.** A vault task's app id is `obsidian-dg-` plus its token, and
   the scanner matches lines by that id, so a dayGLANCE-born task's id
   switches to the derived form when its line is written: the stamping

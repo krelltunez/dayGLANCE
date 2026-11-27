@@ -527,6 +527,40 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     expect(A.all().find((t) => t.id === task.id)).toMatchObject({ projectId: 'p2', obsidianNotePath: GARDEN });
   });
 
+  it('7b. AN ARCHIVED PROJECT\'S NOTE (2026-11-27): an open line typed there imports standalone and its line stays put; a completed line imports into the project; further passes change nothing and write nothing', async () => {
+    const project = await bootLinked();
+    project.status = 'archived';
+    await s.write(NOTE, s.text(NOTE)!.replace('## Tasks\n', '## Tasks\n- [ ] Draft the letter\n- [x] Paid the deposit\n'));
+    await s.settle();
+    await A.sync();
+    const open = A.all().find((t) => t.title.startsWith('Draft the letter'))!;
+    const done = A.all().find((t) => t.title.startsWith('Paid the deposit'))!;
+    expect(open.projectId).toBeUndefined();
+    expect(open.obsidianNotePath).toBe(NOTE);
+    expect(done.projectId).toBe('p1');
+
+    // Placement routes nothing out of an archived project's note, and the
+    // attach is decided once: passes after the import are no-ops.
+    await A.writeback();
+    await s.plugin.transport.drain();
+    await s.settle();
+    await A.sync();
+    const text = s.text(NOTE);
+    const writes = s.plugin.app.vault.writes;
+    const records = JSON.parse(JSON.stringify(A.all()));
+    for (let i = 0; i < 3; i++) {
+      await A.writeback();
+      await s.plugin.transport.drain();
+      await s.advance(100_000);
+      await s.settle();
+      await A.sync();
+    }
+    expect(s.text(NOTE)).toBe(text);
+    expect(s.text(NOTE)).toContain('Draft the letter');
+    expect(s.plugin.app.vault.writes).toBe(writes);
+    expect(JSON.parse(JSON.stringify(A.all()))).toEqual(records);
+  });
+
   it('8. a fresh link fills the note over passes, not in one burst', async () => {
     await bootLinked();
     for (let i = 0; i < 30; i++) A.add({ title: `Chore ${String(i).padStart(2, '0')}`, projectId: 'p1' });

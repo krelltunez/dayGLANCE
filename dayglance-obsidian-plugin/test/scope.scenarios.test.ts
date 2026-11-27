@@ -438,6 +438,45 @@ describe('vault task scope, end to end', () => {
     expect(JSON.parse(JSON.stringify(A.all()[0]))).toEqual(before);
   });
 
+  it('11c. a box ticked in Obsidian with no done-date marker imports WITH completedAt, never earlier than the task was last open; a second pass changes nothing and writes nothing (2026-11-27)', async () => {
+    await bootWithScopedNote();
+    const id = A.byPath(NOTE)[0].id;
+    // The task is last known open at this edit, made in dayGLANCE.
+    A.patch(id, { notes: 'before noon' } as Task);
+    const openAt = Date.parse(A.all()[0].lastModified as string);
+    await A.writeback();
+    await s.plugin.transport.drain();
+    await s.settle();
+    await A.sync();
+    await s.advance(60_000);
+
+    // Ticked by hand, the way Obsidian's checkbox does it: no ✅ date, no [completion::].
+    await s.write(NOTE, s.text(NOTE)!.replace(`- [ ] ${LINE}`, `- [x] ${LINE}`));
+    await s.settle();
+    await A.sync();
+    const done = A.all().find((t) => t.id === id)!;
+    expect(done.completed).toBe(true);
+    expect(done.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
+    expect(Date.parse(done.completedAt as string)).toBeGreaterThanOrEqual(openAt);
+    expect(Date.parse(done.completedAt as string)).toBeLessThanOrEqual(Date.now());
+
+    // Idempotent: the line reported again changes nothing, and nothing goes to the vault.
+    const before = JSON.parse(JSON.stringify(done));
+    const writes = s.plugin.app.vault.writes;
+    await A.writeback();
+    await s.plugin.transport.drain();
+    await s.settle();
+    await A.sync();
+    expect(JSON.parse(JSON.stringify(A.all().find((t) => t.id === id)))).toEqual(before);
+    expect(s.plugin.app.vault.writes).toBe(writes);
+
+    // THE OR RULE, kept: unticking in Obsidian does not reopen the task, so it keeps its stamp.
+    await s.write(NOTE, s.text(NOTE)!.replace(`- [x] ${LINE}`, `- [ ] ${LINE}`));
+    await s.settle();
+    await A.sync();
+    expect(A.all().find((t) => t.id === id)).toMatchObject({ completed: true, completedAt: done.completedAt });
+  });
+
   it('12. THE POSTURE RULING (2026-09-06): a paired device with a STALE heartbeat neither scans nor writes; the stream still feeds it and its edits go out as intents', async () => {
     // A device's vault copy is only fresh while Obsidian runs (Obsidian
     // Sync does not run in the background on mobile), so a direct scan on a

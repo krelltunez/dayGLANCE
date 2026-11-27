@@ -53,7 +53,7 @@ import {
 } from '../obsidian.js';
 import { getBridgePairingMeta, bridgeRateLimited, bridgeVaultClientFor } from './obsidianBridgeStream.js';
 import { BRIDGE_COPIES_KEY, rememberBridgeCopies } from './bridgeFleet.js';
-import { resolveProjectRef } from './obsidianProjectNotes.js';
+import { resolveProjectRef, attachesOnImport } from './obsidianProjectNotes.js';
 import { getStoredDailyNotes } from './dailyNotesStore.js';
 import { observationPathReport, reportedNoteIndexKey } from './reportedNotePaths.js';
 
@@ -655,9 +655,10 @@ export function applyBridgeObservations(observations, {
       if (projectId) {
         // First import only (the merge stamps a fresh import with the epoch
         // lastModified); a task already known keeps whatever project the
-        // user gave it in the app.
+        // user gave it in the app. An open line in an ARCHIVED project's
+        // note imports standalone (attachesOnImport).
         for (const list of [allScheduled.slice(beforeScheduled), allInbox.slice(beforeInbox)]) {
-          for (const t of list) if (!t.projectId && t.lastModified === FRESH_IMPORT_TS) t.projectId = projectId;
+          for (const t of list) if (t.lastModified === FRESH_IMPORT_TS && attachesOnImport(projectId, t, projects)) t.projectId = projectId;
         }
       }
       continue;
