@@ -6123,6 +6123,7 @@ const DayPlanner = () => {
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks,
     setRecurringTasks,
+    projects,
     isVisibleForUser,
     pushUndo, moveToRecycleBin,
     showVoiceInput, setShowVoiceInput,
@@ -6147,7 +6148,8 @@ const DayPlanner = () => {
   // archive; tasks didn't). The stamp also lets an unarchive propagate instead of
   // being clobbered by a stale archived:true elsewhere.
   const archiveInboxTask = (id) => {
-    setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: true, lastModified: new Date().toISOString() } : t));
+    // Completed tasks only, as the row offers it: an open task is never archived.
+    setUnscheduledTasks(prev => prev.map(t => t.id === id && t.completed ? { ...t, archived: true, lastModified: new Date().toISOString() } : t));
   };
   const restoreArchivedInboxTask = (id) => {
     setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: false, lastModified: new Date().toISOString() } : t));

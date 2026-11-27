@@ -113,14 +113,34 @@ export function unarchiveOpenTasks(rows) {
 }
 
 /**
- * What a reopen writes besides `completed: false`: an explicit `archived:
- * false`. Explicit, not a deleted key, because both sync tiers carry
- * `archived: true` forward onto a winning copy that merely OMITS the field;
- * absent and false compare equal in the save pass, so it fabricates no stamp.
- * Pass whether the task is completed NOW (a toggle reopens only a completed
- * task).
+ * A task as a reopen leaves it. `before` is the row as it was, `after` the row
+ * the caller built (`completed: false` and its own fields); when `before` was
+ * not completed, `after` comes back untouched.
+ *
+ * A reopen writes an explicit `archived: false`. Explicit, not a deleted key,
+ * because both sync tiers carry `archived: true` forward onto a winning copy
+ * that merely OMITS the field; absent and false compare equal in the save
+ * pass, so it fabricates no stamp.
+ *
+ * A reopen also unlinks a task whose project is archived: an archived project
+ * takes no open tasks (archiving one detaches them, `archiveCascade.js`), and
+ * an open task left in one is hidden from every list. That is an ordinary edit
+ * the user made, so it is stamped and wins last-writer-wins on every device.
+ * Restoring the project reattaches the task (`planProjectStatusChange`).
+ *
+ * `projects` unknown (null) unlinks nothing.
  */
-export const reopenedFields = (wasCompleted = true) => (wasCompleted ? { archived: false } : {});
+export function reopenTask(before, after, projects = null, nowIso = new Date().toISOString()) {
+  if (!before?.completed || !after || after.completed) return after;
+  const next = { ...after, archived: false };
+  const projectId = next.projectId;
+  if (projectId && Array.isArray(projects)
+      && projects.some((p) => p && p.id === projectId && p.status === 'archived')) {
+    delete next.projectId;
+    next.lastModified = nowIso;
+  }
+  return next;
+}
 
 /**
  * The ingress repairs for a task-shaped list, in one call: the tombstone-keyed

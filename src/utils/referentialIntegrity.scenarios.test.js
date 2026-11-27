@@ -284,3 +284,43 @@ describe('open archived tasks across a sync cycle', () => {
     expect(B.state.unscheduledTasks[0]).toEqual(before[0]);
   });
 });
+
+describe('a reopen in an archived project across a sync cycle', () => {
+  beforeEach(() => { globalThis.localStorage = memoryStorage(); });
+  afterEach(() => {
+    delete globalThis.localStorage;
+    vi.restoreAllMocks();
+  });
+
+  it('reopen on A → push → apply on B: B shows the task in its Inbox, unlinked, at A\'s stamp', async () => {
+    const { applySetCompletion } = await import('./taskMutations.js');
+    const { filterInboxTasks, knownProjectIdsOf } = await import('./inboxFilter.js');
+    const { stampTimestamps } = await import('./stampTimestamps.js');
+    const project = P('p1', { status: 'archived', archiveRecord: { priorStatus: 'active', archivedAt: NOW, archivedTaskIds: ['u1'], detachedTaskIds: [] } });
+    const hidden = () => T('u1', { completed: true, completedAt: '2026-10-18T09:00:00-07:00', archived: true, projectId: 'p1' });
+    const A = device({ unscheduledTasks: [hidden()], projects: [project] });
+    const B = device({ unscheduledTasks: [hidden()], projects: [project] });
+    persist(A); persist(B);
+
+    const REOPEN = '2026-10-20T09:00:00.000Z';
+    const r = applySetCompletion(A.state, { taskId: 'u1', completed: false, nowIso: REOPEN });
+    A.setters.setUnscheduledTasks(r.unscheduledTasks);
+    persist(A);
+    const pushed = on(A, () => A.mount().buildSyncPayload()).data;
+    expect(pushed.unscheduledTasks[0]).not.toHaveProperty('projectId');
+    // Newer than B's copy, so it wins last-writer-wins whole on either tier.
+    expect(pushed.unscheduledTasks[0].lastModified > B.state.unscheduledTasks[0].lastModified).toBe(true);
+
+    const merged = { ...on(B, () => B.mount().buildSyncPayload()).data, unscheduledTasks: pushed.unscheduledTasks };
+    on(B, () => B.mount().applyEngineData(merged));
+
+    const [row] = B.state.unscheduledTasks;
+    expect(row).not.toHaveProperty('projectId');
+    expect(row).toMatchObject({ completed: false, archived: false, lastModified: REOPEN });
+    const known = knownProjectIdsOf(B.state.projects, { goalsProjectsEnabled: true });
+    expect(filterInboxTasks(B.state.unscheduledTasks, { goalsProjectsEnabled: true, knownProjectIds: known }).map(t => t.id)).toEqual(['u1']);
+    // B's save pass sees no edit of its own: it pushes A's stamp back, not a new one.
+    const [stamped] = stampTimestamps(B.state.unscheduledTasks, stored(B, 'day-planner-unscheduled'), '2026-10-21T00:00:00.000Z');
+    expect(stamped.lastModified).toBe(REOPEN);
+  });
+});

@@ -92,7 +92,12 @@ export function planProjectStatusChange(project, updates, taskRows = [], nowIso 
         if (t.projectId === projectId && t.archived === true && (!unhide || has(unhide, t.id))) {
           return { ...t, archived: false, lastModified: nowIso };
         }
-        if (!t.projectId && has(reattach, t.id)) return { ...t, projectId, lastModified: nowIso };
+        // Reattach what the archive detached, and a task it hid that was
+        // reopened since: a reopen in an archived project unlinks the task
+        // (`reopenTask` in referentialIntegrity.js), and it belonged here.
+        if (!t.projectId && (has(reattach, t.id) || (unhide && has(unhide, t.id)))) {
+          return { ...t, projectId, lastModified: nowIso };
+        }
         return t;
       }),
     };

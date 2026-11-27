@@ -40,7 +40,7 @@ import { isActiveProject } from './inboxProjectGroups.js';
 import { taskDefaultsOf, withTags, defaultSubtasks, defaultEnergy, baseDuration } from './projectTaskDefaults.js';
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { applyRecurringInstanceEdit } from './recurringInstanceEdit.js';
-import { reopenedFields } from './referentialIntegrity.js';
+import { reopenTask } from './referentialIntegrity.js';
 
 // Subtask ids for a created task's default checklist, derived from its id so
 // a replayed or doubly-applied create writes the same row.
@@ -1055,14 +1055,13 @@ export function applyUndoOps(state, ops, { nowIso }) {
         const scheduled = tasks.find((t) => t.id === op.taskId);
         const task = inInbox ?? scheduled;
         if (!task || task._native || !op.before) { skipped += 1; break; }
-        const next = {
+        // Undoing a completion is a reopen (utils/referentialIntegrity.js).
+        const next = reopenTask(task, {
           ...task,
           completed: !!op.before.completed,
           ...(op.before.completedAt !== undefined ? { completedAt: op.before.completedAt } : {}),
-          // Undoing a completion is a reopen: it clears a leftover archive.
-          ...(op.before.completed ? {} : reopenedFields()),
           lastModified: nowIso,
-        };
+        }, state.projects ?? null, nowIso);
         if (inInbox) unscheduled = unscheduled.map((t) => (t.id === op.taskId ? next : t));
         else tasks = tasks.map((t) => (t.id === op.taskId ? next : t));
         undone += 1;
@@ -1195,16 +1194,16 @@ export function applySetCompletion(state, { taskId, completed, transitionId, now
   // setting it is NEW: the marker regenerates from this stored value, so
   // every completion path must record it. Mirrors useTaskActions.toggleComplete.
   const completedAt = completed ? completionTimestamp() : null;
-  // A reopen clears a leftover archive (utils/referentialIntegrity.js).
-  const reopen = completed ? {} : reopenedFields();
+  // A reopen clears a leftover archive and leaves an archived project
+  // (utils/referentialIntegrity.js).
+  const reopen = (next) => reopenTask(task, next, state.projects ?? null, nowIso);
   if (inInbox) {
-    const next = {
+    const next = reopen({
       ...task,
       completed,
       completedAt,
-      ...reopen,
       ...(transitionId ? { transitionId } : {}),
-    };
+    });
     return {
       ok: true,
       replayed: false,
@@ -1213,7 +1212,7 @@ export function applySetCompletion(state, { taskId, completed, transitionId, now
       task: next,
     };
   }
-  const next = { ...task, completed, completedAt, ...reopen, ...(transitionId ? { transitionId } : {}) };
+  const next = reopen({ ...task, completed, completedAt, ...(transitionId ? { transitionId } : {}) });
   return {
     ok: true,
     replayed: false,

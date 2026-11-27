@@ -18,7 +18,7 @@ import { recordDeletedTaskTombstone } from '../utils/deletedTaskTombstones.js';
 import { removeTagFromTitle } from '../utils/tagManager.js';
 import { withOccurrenceSubtask } from '../utils/recurringSubtasks.js';
 import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
-import { reopenedFields } from '../utils/referentialIntegrity.js';
+import { reopenTask } from '../utils/referentialIntegrity.js';
 
 // Strip a specific tag (e.g. "#obsidian") from a title string, by the tag
 // manager's rule: the whole tag only, so `#obsidian/inbox` or `#obsidian-x`
@@ -560,7 +560,7 @@ export default function useTaskActions({
 
     if (fromInbox) {
       setUnscheduledTasks(prev => prev.map(task =>
-        task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? completionTimestamp() : null, ...reopenedFields(task.completed), transitionId: crypto.randomUUID() } : task
+        task.id === id ? reopenTask(task, { ...task, completed: !task.completed, completedAt: !task.completed ? completionTimestamp() : null, transitionId: crypto.randomUUID() }, projects) : task
       ));
     } else {
       const task = tasks.find(t => t.id === id);
@@ -588,7 +588,7 @@ export default function useTaskActions({
       // .test.js): the Obsidian completion marker regenerates from this
       // stored value, so the app must record what it intends to write.
       setTasks(prev => prev.map(task =>
-        task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? completionTimestamp() : null, ...reopenedFields(task.completed), transitionId: crypto.randomUUID() } : task
+        task.id === id ? reopenTask(task, { ...task, completed: !task.completed, completedAt: !task.completed ? completionTimestamp() : null, transitionId: crypto.randomUUID() }, projects) : task
       ));
     }
     if (taskToToggle && !taskToToggle.completed) {

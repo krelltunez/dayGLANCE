@@ -3,7 +3,8 @@
 // Archived bar). The helpers, the reopen paths and the Inbox filter that
 // reads the result.
 import { describe, it, expect } from 'vitest';
-import { unarchiveOpenTasks, repairTaskRows, reopenedFields } from './referentialIntegrity.js';
+import { unarchiveOpenTasks, repairTaskRows, reopenTask } from './referentialIntegrity.js';
+import { planProjectStatusChange } from './archiveCascade.js';
 import { applySetCompletion, applyUndoOps } from './taskMutations.js';
 import { filterInboxTasks, knownProjectIdsOf, hasMissingProject, inboxFromStorage } from './inboxFilter.js';
 import { stampTimestamps } from './stampTimestamps.js';
@@ -48,10 +49,18 @@ describe('unarchiveOpenTasks', () => {
 });
 
 describe('a reopen clears a leftover archive', () => {
-  it('reopenedFields: explicit false only when the task was completed', () => {
-    expect(reopenedFields(true)).toEqual({ archived: false });
-    expect(reopenedFields(false)).toEqual({});
-    expect(reopenedFields()).toEqual({ archived: false });
+  it('reopenTask: explicit false only on a reopen, and nothing else when the project is live', () => {
+    const done = task('a', { completed: true, archived: true, projectId: 'p1' });
+    const live = [{ id: 'p1', status: 'active' }];
+    expect(reopenTask(done, { ...done, completed: false }, live)).toEqual({ ...done, completed: false, archived: false });
+    const open = task('b');
+    const completing = { ...open, completed: true };
+    expect(reopenTask(open, completing, live)).toBe(completing);
+  });
+
+  it('reopenTask: unknown projects unlink nothing', () => {
+    const done = task('a', { completed: true, projectId: 'p1' });
+    expect(reopenTask(done, { ...done, completed: false }, null)).toMatchObject({ projectId: 'p1', lastModified: OLD });
   });
 
   it('MCP set_task_completion(false) on an auto-archived inbox task makes it visible in the Inbox again', () => {
@@ -76,6 +85,48 @@ describe('a reopen clears a leftover archive', () => {
     const state = { tasks: [], unscheduledTasks: [task('u1', { completed: true, completedAt: NOW, archived: true })], recurringTasks: [], recycleBin: [] };
     const r = applyUndoOps(state, [{ kind: 'restore_completion', taskId: 'u1', before: { completed: false, completedAt: null } }], { nowIso: NOW });
     expect(r.unscheduledTasks[0]).toMatchObject({ completed: false, archived: false });
+  });
+});
+
+describe('a reopen in an archived project unlinks the task', () => {
+  const archivedProject = {
+    id: 'p1', status: 'archived',
+    archiveRecord: { priorStatus: 'active', archivedAt: OLD, archivedTaskIds: ['u1'], detachedTaskIds: [] },
+  };
+  const hidden = task('u1', { completed: true, completedAt: '2026-10-30T09:00:00-07:00', archived: true, projectId: 'p1' });
+
+  it('reopenTask removes the key and stamps the edit', () => {
+    const r = reopenTask(hidden, { ...hidden, completed: false, completedAt: null }, [archivedProject], NOW);
+    expect(r).not.toHaveProperty('projectId');
+    expect(r).toMatchObject({ completed: false, archived: false, lastModified: NOW });
+  });
+
+  it('MCP set_task_completion(false): the task leaves the archived project and shows in the Inbox', () => {
+    const r = applySetCompletion({ tasks: [], unscheduledTasks: [hidden], projects: [archivedProject] },
+      { taskId: 'u1', completed: false, nowIso: NOW });
+    expect(r.task).not.toHaveProperty('projectId');
+    expect(r.task.lastModified).toBe(NOW);
+    const known = knownProjectIdsOf([archivedProject], { goalsProjectsEnabled: true });
+    expect(ids(filterInboxTasks(r.unscheduledTasks, { goalsProjectsEnabled: true, knownProjectIds: known }))).toEqual(['u1']);
+  });
+
+  it('undoing an MCP completion in an archived project unlinks it too', () => {
+    const state = { tasks: [], unscheduledTasks: [hidden], recurringTasks: [], recycleBin: [], projects: [archivedProject] };
+    const r = applyUndoOps(state, [{ kind: 'restore_completion', taskId: 'u1', before: { completed: false, completedAt: null } }], { nowIso: NOW });
+    expect(r.unscheduledTasks[0]).not.toHaveProperty('projectId');
+    expect(r.unscheduledTasks[0]).toMatchObject({ completed: false, archived: false });
+  });
+
+  it('restoring the project reattaches it', () => {
+    const reopened = reopenTask(hidden, { ...hidden, completed: false, completedAt: null }, [archivedProject], NOW);
+    const plan = planProjectStatusChange(archivedProject, { status: 'active' }, [reopened], '2026-11-28T00:00:00.000Z');
+    const [row] = plan.rowsUpdater([reopened]);
+    expect(row).toMatchObject({ projectId: 'p1', archived: false, lastModified: '2026-11-28T00:00:00.000Z' });
+  });
+
+  it('a project that is merely completed keeps its reopened task', () => {
+    const r = reopenTask(hidden, { ...hidden, completed: false }, [{ ...archivedProject, status: 'completed' }], NOW);
+    expect(r.projectId).toBe('p1');
   });
 });
 
