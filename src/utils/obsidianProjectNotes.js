@@ -119,6 +119,25 @@ function byTitle(name, projects) {
 }
 
 /**
+ * Whether a task line imported fresh from a linked project's note takes that
+ * project (ruling H). Not an OPEN task into an ARCHIVED project: archiving
+ * moves a project's open work out (utils/archiveCascade.js), and an open task
+ * attached to an archived project is hidden from the Inbox and from every
+ * project list (2026-11-27: three tasks in an archived project's note). The
+ * task imports standalone and its line stays where the user wrote it, since
+ * placement does not route anything out of an archived project's note
+ * (archivedNotePathsOf). A completed line is history and still takes the
+ * project, so the archive lists it. Decided once, at first import: a known
+ * task keeps whatever project it has, so the rule is idempotent across
+ * merges and writes nothing to the vault.
+ */
+export function attachesOnImport(projectId, task, projects) {
+  if (!projectId || !task || task.projectId) return false;
+  const project = (projects || []).find((p) => p && String(p.id) === String(projectId));
+  return !(project && project.status === 'archived' && !task.completed);
+}
+
+/**
  * path → project id for every project whose note is present (ruling H: a
  * scoped task line inside a linked note imports with that project set).
  */

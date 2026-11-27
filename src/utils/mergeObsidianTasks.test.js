@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mergeObsidianTasks, preserveObsidianAppFields } from './mergeObsidianTasks.js';
+import { mergeObsidianTasks, preserveObsidianAppFields, vaultCompletedAt } from './mergeObsidianTasks.js';
+import { completionTimestamp } from './taskUtils.js';
 
 // The App uses this to carry app-only fields the markdown can't reproduce.
 const preserve = (old) => ({
@@ -240,5 +241,43 @@ describe('mergeObsidianTasks — a task the scan moves between lists', () => {
     const scanned = obs('obsidian-dg-xxxx0001', { obsidianLegacyId: 'obsidian-2026-09-01-abc', date: '2026-09-10', startTime: '00:00' });
     const [merged] = mergeObsidianTasks([], [scanned], new Set(['obsidian-dg-xxxx0001']), preserveObsidianAppFields, {}, {}, [legacy]);
     expect(merged.projectId).toBe('p1');
+  });
+});
+
+// A completion the VAULT made (2026-11-27): a box ticked by hand without the
+// Tasks plugin's done date imported with completedAt null. vaultCompletedAt
+// dates it, never earlier than the task was last open.
+describe('vaultCompletedAt, through preserveObsidianAppFields', () => {
+  const OPEN_AT = '2026-11-27T17:00:00.000Z';
+  const NOW = Date.parse('2026-11-27T18:00:00.000Z');
+  const old = obs('t1', { completed: false, completedAt: null, lastModified: OPEN_AT });
+  const stamp = (iso) => completionTimestamp(new Date(iso));
+
+  it('dated by the note mtime when the line has no marker', () => {
+    const out = preserveObsidianAppFields(old, obs('t1', { completed: true }), '2026-11-27T17:42:58.910Z', NOW);
+    expect(out.completedAt).toBe(stamp('2026-11-27T17:42:58.910Z'));
+  });
+
+  it('never earlier than the last open state: a stale mtime is raised to lastModified', () => {
+    expect(vaultCompletedAt(old, { completed: true }, '2026-11-20T09:00:00.000Z', NOW)).toBe(stamp(OPEN_AT));
+  });
+
+  it('no mtime: the merge time', () => {
+    expect(vaultCompletedAt(old, { completed: true }, undefined, NOW)).toBe(stamp('2026-11-27T18:00:00.000Z'));
+  });
+
+  it('a marker stands unless it predates the last open state', () => {
+    expect(vaultCompletedAt(old, { completedAt: '2026-11-27' }, undefined, NOW)).toBe('2026-11-27');
+    expect(vaultCompletedAt(old, { completedAt: '2026-11-01' }, undefined, NOW)).toBe(stamp('2026-11-27T18:00:00.000Z'));
+    const timed = stamp('2026-11-27T17:30:00.000Z');
+    expect(vaultCompletedAt(old, { completedAt: timed }, undefined, NOW)).toBe(timed);
+  });
+
+  it('the app\'s value still wins while the completion state is the app\'s', () => {
+    const done = obs('t1', { completed: true, completedAt: '2026-11-27T10:00:00-07:00', lastModified: OPEN_AT });
+    expect(preserveObsidianAppFields(done, obs('t1', { completed: true }), '2026-11-27T17:42:58.910Z', NOW).completedAt)
+      .toBe('2026-11-27T10:00:00-07:00');
+    // An explicit null from an app reopen still wins over the line's stale state.
+    expect(preserveObsidianAppFields(old, obs('t1', { completed: false }), undefined, NOW).completedAt).toBeNull();
   });
 });
