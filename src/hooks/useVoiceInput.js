@@ -13,6 +13,7 @@ import { normalizeVoiceParseResult } from '../utils/voiceParseResult.js';
 import { voiceUsesAI, voiceTranscribesWithAI } from '../utils/voiceAI.js';
 import { speechRecognitionLocale } from '../utils/localeFormatting.js';
 import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
+import { reopenTask } from '../utils/referentialIntegrity.js';
 
 /**
  * Voice input pipeline — extracted from App.jsx (see "App.jsx — Ongoing
@@ -34,6 +35,7 @@ export default function useVoiceInput({
   tasks, setTasks,
   unscheduledTasks, setUnscheduledTasks,
   setRecurringTasks,
+  projects = null,
   isVisibleForUser,
   pushUndo, moveToRecycleBin,
   showVoiceInput, setShowVoiceInput,
@@ -570,7 +572,7 @@ export default function useVoiceInput({
           }
           case 'uncomplete': {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
-            setter(prev => prev.map(t => t.id === id ? { ...t, completed: false, completedAt: null, lastModified: new Date().toISOString(), transitionId: crypto.randomUUID() } : t));
+            setter(prev => prev.map(t => t.id === id ? reopenTask(t, { ...t, completed: false, completedAt: null, lastModified: new Date().toISOString(), transitionId: crypto.randomUUID() }, projects) : t));
             break;
           }
           case 'changePriority': {
@@ -605,7 +607,7 @@ export default function useVoiceInput({
     // Keyed on the parsed voice results; colors and the moveToRecycleBin/pushUndo
     // helpers + setShowVoiceInput are read when changes are applied.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceParsedTasks, voiceParsedEdits]);
+  }, [voiceParsedTasks, voiceParsedEdits, projects]);
 
   // Voice input keyboard shortcuts (SPACE to hold-record, T for typing, ENTER to parse/accept)
   // "Can we turn speech into text at all?" — any of: AI transcription (needs

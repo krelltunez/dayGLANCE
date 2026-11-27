@@ -66,4 +66,19 @@ describe('InboxTaskRow', () => {
     expect(latest).toHaveBeenCalledWith('u1', true);
     expect(first).not.toHaveBeenCalled();
   });
+
+  it('a task whose project is missing shows the badge, and Unlink calls the action with the task id', () => {
+    const unlink = vi.fn();
+    const actions = { current: { unlinkMissingProject: unlink } };
+    const { root } = mount(base(actions, { task: { ...TASK, projectId: 'gone' }, projectMissing: true }));
+    const badge = root.root.findByProps({ 'data-testid': 'missing-project-badge' });
+    expect(badge.props.title).toContain("doesn't have");
+    act(() => { badge.findByType('button').props.onClick({ stopPropagation() {} }); });
+    expect(unlink).toHaveBeenCalledWith('u1');
+  });
+
+  it('no badge when the project is not missing', () => {
+    const { root } = mount(base({ current: {} }));
+    expect(root.root.findAllByProps({ 'data-testid': 'missing-project-badge' })).toHaveLength(0);
+  });
 });

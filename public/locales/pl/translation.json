@@ -2238,7 +2238,10 @@
       "title": "Sortuj według",
       "priorityHint": "Najpierw najwyższy priorytet",
       "deadlineHint": "Najpierw najbliższy termin; zadania bez terminu potem, według priorytetu"
-    }
+    },
+    "projectMissing": "Nie znaleziono projektu",
+    "projectMissingHint": "To zadanie wskazuje projekt, którego nie ma na tym urządzeniu. Odłącz, aby stało się samodzielnym zadaniem w skrzynce.",
+    "unlinkProject": "Odłącz"
   },
   "glance": {
     "allDoneMessage": "{{time}}, wszystko zrobione!",

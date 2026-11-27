@@ -2143,7 +2143,10 @@
       "title": "Sortieren nach",
       "priorityHint": "Höchste Priorität zuerst",
       "deadlineHint": "Nächste Frist zuerst; Aufgaben ohne Frist danach, nach Priorität"
-    }
+    },
+    "projectMissing": "Projekt nicht gefunden",
+    "projectMissingHint": "Diese Aufgabe verweist auf ein Projekt, das auf diesem Gerät fehlt. „Lösen“ macht sie zu einer eigenständigen Inbox-Aufgabe.",
+    "unlinkProject": "Lösen"
   },
   "glance": {
     "allDoneMessage": "{{time}}, alles erledigt!",

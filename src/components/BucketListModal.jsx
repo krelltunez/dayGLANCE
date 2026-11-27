@@ -11,6 +11,7 @@ import useBackClose from '../hooks/useBackClose.js';
 import { autoSizeTextarea } from '../utils/autoSizeTextarea.js';
 import { keyboardSheet } from '../utils/keyboardInset.js';
 import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
+import { reopenTask } from '../utils/referentialIntegrity.js';
 
 // The phone sheet sits on the soft keyboard rather than under it (PLANNER pattern).
 const BUCKET_SHEET = keyboardSheet('92dvh');
@@ -45,7 +46,7 @@ const BucketListModal = () => {
     bucketConfig, updateBucketConfig,
     setShowBucketList, setTaskContextMenu,
     pushUndo, setUndoToast,
-    colors,
+    colors, projects,
   } = useDayPlannerCtx();
   const { isVisibleForUser, multiUserEnabled, meUserSyncId } = useFeaturesCtx();
   const { t } = useTranslation();
@@ -100,7 +101,7 @@ const BucketListModal = () => {
 
   const toggleComplete = (task) => {
     setUnscheduledTasks(prev => prev.map(t => t.id === task.id
-      ? { ...t, completed: !t.completed, completedAt: !t.completed ? stamp() : undefined, lastModified: stamp() }
+      ? reopenTask(t, { ...t, completed: !t.completed, completedAt: !t.completed ? stamp() : undefined, lastModified: stamp() }, projects)
       : t));
   };
 

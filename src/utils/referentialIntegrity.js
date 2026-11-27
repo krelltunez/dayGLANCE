@@ -84,6 +84,74 @@ export function stripProjectRefs(rows, deletedProjectIds = null) {
 }
 
 /**
+ * An open task is never archived. Every writer of `archived: true` acts on a
+ * COMPLETED task only (the Inbox auto-archive, the Archive button, the
+ * project-archive cascade), and the Archived bar draws its rows as done work.
+ * The state arises only from a reopen that left the flag behind (reopen paths
+ * did not clear it before 2026-11-27), or from a sync carry of `archived:
+ * true` onto a copy reopened elsewhere. Such a task is hidden from the Inbox
+ * and from its project while it is live work.
+ *
+ * The repair writes an explicit `archived: false` (both merges honour an
+ * explicit false and carry only an ABSENT value) and is UNSTAMPED, like the
+ * project-ref strip: it is a deterministic function of the row, so every
+ * device makes the same repair and a last-writer-wins tie keeps each side's
+ * copy instead of flipping. Callers run it before the storage write-back so
+ * the save pass sees no difference and fabricates no `lastModified`.
+ *
+ * @param {Array} rows tasks, unscheduled tasks or bin rows
+ */
+export function unarchiveOpenTasks(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+  let changed = false;
+  const next = rows.map((row) => {
+    if (!row || row.archived !== true || row.completed) return row;
+    changed = true;
+    return { ...row, archived: false };
+  });
+  return changed ? next : rows;
+}
+
+/**
+ * A task as a reopen leaves it. `before` is the row as it was, `after` the row
+ * the caller built (`completed: false` and its own fields); when `before` was
+ * not completed, `after` comes back untouched.
+ *
+ * A reopen writes an explicit `archived: false`. Explicit, not a deleted key,
+ * because both sync tiers carry `archived: true` forward onto a winning copy
+ * that merely OMITS the field; absent and false compare equal in the save
+ * pass, so it fabricates no stamp.
+ *
+ * A reopen also unlinks a task whose project is archived: an archived project
+ * takes no open tasks (archiving one detaches them, `archiveCascade.js`), and
+ * an open task left in one is hidden from every list. That is an ordinary edit
+ * the user made, so it is stamped and wins last-writer-wins on every device.
+ * Restoring the project reattaches the task (`planProjectStatusChange`).
+ *
+ * `projects` unknown (null) unlinks nothing.
+ */
+export function reopenTask(before, after, projects = null, nowIso = new Date().toISOString()) {
+  if (!before?.completed || !after || after.completed) return after;
+  const next = { ...after, archived: false };
+  const projectId = next.projectId;
+  if (projectId && Array.isArray(projects)
+      && projects.some((p) => p && p.id === projectId && p.status === 'archived')) {
+    delete next.projectId;
+    next.lastModified = nowIso;
+  }
+  return next;
+}
+
+/**
+ * The ingress repairs for a task-shaped list, in one call: the tombstone-keyed
+ * project strip, then the open-archived repair. Same array identity when
+ * neither changes anything.
+ */
+export function repairTaskRows(rows, deletedProjectIds = null) {
+  return unarchiveOpenTasks(stripProjectRefs(rows, deletedProjectIds));
+}
+
+/**
  * Remove the `goalId` of a tombstoned goal from every project, so the project
  * becomes standalone instead of belonging to neither list.
  *

@@ -2145,7 +2145,10 @@
       "title": "Ordina per",
       "priorityHint": "Prima la priorità più alta",
       "deadlineHint": "Prima la scadenza più vicina; le attività senza scadenza dopo, per priorità"
-    }
+    },
+    "projectMissing": "Progetto non trovato",
+    "projectMissingHint": "Questa attività fa riferimento a un progetto assente su questo dispositivo. Scollega la rende un'attività autonoma della posta in arrivo.",
+    "unlinkProject": "Scollega"
   },
   "glance": {
     "allDoneMessage": "{{time}}, tutto fatto!",

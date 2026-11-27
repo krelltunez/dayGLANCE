@@ -2143,7 +2143,10 @@
       "title": "並べ替え",
       "priorityHint": "優先度の高い順",
       "deadlineHint": "期限の近い順。期限のないタスクはその後ろに優先度順で並びます"
-    }
+    },
+    "projectMissing": "プロジェクトが見つかりません",
+    "projectMissingHint": "このタスクは、この端末にないプロジェクトを参照しています。「リンク解除」で受信トレイの単独タスクになります。",
+    "unlinkProject": "リンク解除"
   },
   "glance": {
     "allDoneMessage": "{{time}}、すべて完了です",
