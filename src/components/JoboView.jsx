@@ -10,7 +10,6 @@ import useJoboDay from '../hooks/useJoboDay.js';
 import useJoboPreference from '../hooks/useJoboPreference.js';
 import useJoboRefocus from '../hooks/useJoboRefocus.js';
 import RefocusTimelineToast from './RefocusTimelineToast.jsx';
-import useMinWidth from '../hooks/useMinWidth.js';
 import useTimelineZoom from '../hooks/useTimelineZoom.js';
 import { SCROLLING_HOUR_PX } from '../utils/timelineZoom.js';
 import JoboNotesSidebar from './jobo/JoboNotesSidebar.jsx';
@@ -68,7 +67,9 @@ export default function JoboView() {
   // The notes sidebar, on wide screens only: the Daily Note, and the notes
   // of the task last clicked on either side (or picked with a Do card's
   // Notes button, which then opens here instead of below the card).
-  const wide = useMinWidth(1600);
+  // Wide means the calendar's three-column width, which hiding the app's side
+  // panel reaches on a laptop (utils/desktopColumns.js), not the window's.
+  const wide = !!ctx.canShowViewCycler;
   const [notesPreferred, toggleNotesSidebar] = useJoboPreference('notes-sidebar');
   const sidebar = wide && notesPreferred;
   const [selectedTaskId, setSelectedTaskId] = useState(null);

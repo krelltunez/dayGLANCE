@@ -1,6 +1,8 @@
 import React from 'react';
 
-export const SIDE_PANEL_WIDTH = 340;
+import { SIDE_PANEL_WIDTH } from '../utils/desktopColumns.js';
+
+export { SIDE_PANEL_WIDTH };
 
 // The slot a desktop side panel sits in, which closes to nothing (#2407).
 //
@@ -14,13 +16,24 @@ export const SIDE_PANEL_WIDTH = 340;
 //
 // Expanded, the slot adds nothing but its width: no overflow rule, so the
 // panel's popovers may still reach past its edge.
-export default function SidePanelFrame({ collapsed = false, children }) {
+//
+// Overlaid (`overlay`), the slot leaves the row and floats over the start of
+// what follows it, at the same width: the calendar keeps the whole window's
+// layout on a laptop where the view on screen needs it (utils/desktopColumns.js).
+// It sits above the timeline's own layers (z-30) and below its popovers (z-50).
+const OVERLAY_STYLE = {
+  position: 'absolute', top: 0, bottom: 0, left: 0, zIndex: 40,
+  width: SIDE_PANEL_WIDTH, boxShadow: '4px 0 16px rgba(0, 0, 0, 0.18)',
+};
+
+export default function SidePanelFrame({ collapsed = false, overlay = false, children }) {
   return (
     <div
-      data-side-panel-frame={collapsed ? 'collapsed' : 'open'}
+      data-side-panel-frame={collapsed ? 'collapsed' : overlay ? 'overlay' : 'open'}
       className="flex-shrink-0"
       style={collapsed
         ? { width: 0, height: '100%', overflow: 'hidden', visibility: 'hidden' }
+        : overlay ? OVERLAY_STYLE
         : { width: SIDE_PANEL_WIDTH, height: '100%' }}
       aria-hidden={collapsed || undefined}
       inert={collapsed ? '' : undefined}

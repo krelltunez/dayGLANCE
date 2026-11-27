@@ -132,7 +132,8 @@ import { useSettingsLink } from './components/settings/settingsLink.js';
 import MobileNewTaskModal from './components/MobileNewTaskModal.jsx';
 import ProjectPlanner from './components/projects/ProjectPlanner.jsx';
 import DesktopNewTaskModal from './components/DesktopNewTaskModal.jsx';
-import useVisibleDays from './hooks/useVisibleDays.js';
+import useWindowColumns from './hooks/useWindowColumns.js';
+import { desktopPanelLayout } from './utils/desktopColumns.js';
 import useSidePanelCollapse from './hooks/useSidePanelCollapse.js';
 import useDeviceType from './hooks/useDeviceType.js';
 import useIsLandscape from './hooks/useIsLandscape.js';
@@ -231,6 +232,7 @@ import useTimelineScroll from './hooks/useTimelineScroll.js';
 import RefocusTimelineToast from './components/RefocusTimelineToast.jsx';
 import useModalClose from './hooks/useModalClose.js';
 import useFullscreenEscape from './hooks/useFullscreenEscape.js';
+import useSidePanelOverlayEscape from './hooks/useSidePanelOverlayEscape.js';
 import useMobileInteractions from './hooks/useMobileInteractions.js';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts.js';
 import { DayPlannerContext } from './context/DayPlannerContext.jsx';
@@ -353,7 +355,7 @@ const DayPlanner = () => {
     try { localStorage.removeItem('day-planner-reviewer-unlock'); } catch { /* storage unavailable */ }
     location.reload();
   };
-  const _visibleDays = useVisibleDays();
+  const windowCols = useWindowColumns();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
 
@@ -412,14 +414,12 @@ const DayPlanner = () => {
   // The desktop side panel can be hidden (#2407). Picking one of its tabs, by
   // a shortcut, a jump to the Inbox or anything else, is asking to see it, so
   // every path that sets the tab opens the panel first.
-  const { sidePanelCollapsible, sidePanelCollapsed, toggleSidePanel, expandSidePanel } =
+  const { sidePanelCollapsible, sidePanelCollapsed, toggleSidePanel, expandSidePanel, collapseSidePanel } =
     useSidePanelCollapse({ enabled: !isMobile && !isTablet });
   const setTabletActiveTab = useCallback((tab) => {
     expandSidePanel();
     setTabletActiveTabState(tab);
   }, [expandSidePanel]);
-  // Override visible days: tablet uses orientation (static panel always present), mobile always 1, desktop uses width-based hook
-  const visibleDays = isTablet ? (isLandscape ? 2 : 1) : isMobile ? 1 : _visibleDays;
   // Views turned off on this device (settings, "Views on this device"). Per
   // device by nature, like the default-view keys beside it: a hidden view
   // leaves the switchers, the shortcuts and the default pickers here only.
@@ -464,6 +464,20 @@ const DayPlanner = () => {
     const home = homeView(DESKTOP_VIEW_MODES, hiddenViews.desktop);
     try { return resolveStoredView(def ? JSON.parse(def) : null, allowed, home); } catch { return home; }
   });
+  // The desktop calendar's columns follow the room it has, not the window:
+  // hiding the side panel gives a laptop the wide layout (utils/desktopColumns.js).
+  // With the panel open on such a window, a view only the wide layout shows
+  // (DAY, WEEK, MONTH's docked day) keeps it and the panel floats over the
+  // calendar instead. The header spans the window whatever the panel does, so
+  // it keeps the window's own count (headerDays), as before.
+  const { columns: _visibleDays, panelMode: sidePanelMode } = desktopPanelLayout(
+    windowCols, sidePanelCollapsed, hiddenViews.desktop.includes(viewMode) ? null : viewMode,
+  );
+  const headerDays = windowCols.open;
+  // Floating over the calendar, the panel closes on Escape like any overlay.
+  useSidePanelOverlayEscape({ active: sidePanelMode === 'overlay', close: collapseSidePanel });
+  // Override visible days: tablet uses orientation (static panel always present), mobile always 1, desktop the layout above
+  const visibleDays = isTablet ? (isLandscape ? 2 : 1) : isMobile ? 1 : _visibleDays;
   // Only expose the cycler (and honour viewMode) when the 3-day breakpoint is active
   const canShowViewCycler = !isTablet && !isMobile && _visibleDays === 3;
   // Narrow desktop (1-2 columns) and tablet landscape: DAY/WEEK don't fit,
@@ -7044,7 +7058,7 @@ const DayPlanner = () => {
   const ctx = {
     // ── Device & layout ──────────────────────────────────────────────────────
     isPhone, isMobile, isTablet, isLandscape,
-    visibleDays, visibleDates,
+    visibleDays, visibleDates, headerDays,
     viewMode, setViewMode, canShowViewCycler, schedOnlyCycler, effectiveViewMode,
     monthViewActive, openMonthDaySheetRef,
     monthSheetRequest, setMonthSheetRequest,
@@ -7109,7 +7123,7 @@ const DayPlanner = () => {
 
     // ── Layout / navigation ───────────────────────────────────────────────────
     tabletActiveTab, setTabletActiveTab,
-    sidePanelCollapsible, sidePanelCollapsed, toggleSidePanel, expandSidePanel,
+    sidePanelCollapsible, sidePanelCollapsed, sidePanelMode, toggleSidePanel, expandSidePanel,
     mobileActiveTab, setMobileActiveTab,
     mobileViewMode, setMobileViewMode, tabletListView, tabletJoboView,
     mobileDefaultView, setMobileDefaultView,

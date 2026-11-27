@@ -17,7 +17,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const DesktopHeader = () => {
   const {
-    visibleDays, visibleDates,
+    headerDays, visibleDates,
     effectiveViewMode, dayViewColumns, dayViewRollingPaused,
     weekViewDates,
     selectedDate,
@@ -130,10 +130,11 @@ const DesktopHeader = () => {
                 </div>
               </div>
 
-              {/* Forecast — proportional to visible day columns */}
-              {visibleDays >= 2 && weather.forecast && weather.forecast.length > 0 && (
+              {/* Forecast — proportional to the window's day columns with the side
+                  panel open (the header spans the window either way) */}
+              {headerDays >= 2 && weather.forecast && weather.forecast.length > 0 && (
                 <div className="hidden min-[1230px]:flex items-center gap-1.5 flex-shrink-0">
-                  {weather.forecast.slice(0, visibleDays === 3 ? 5 : 3).map((day, index) => (
+                  {weather.forecast.slice(0, headerDays === 3 ? 5 : 3).map((day, index) => (
                     <div key={index} className={`px-2 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg text-center`}>
                       <div className={`text-[10px] font-semibold ${textSecondary}`}>{day.day}</div>
                       <div className="text-base">{day.icon}</div>
@@ -149,7 +150,7 @@ const DesktopHeader = () => {
           )}
 
           {/* Rotating Daily Content - 1 item at a time (3-col only to avoid header overlap) */}
-          {dailyContentEnabled && visibleDays >= 3 && (() => {
+          {dailyContentEnabled && headerDays >= 3 && (() => {
             const contentItems = [
               { key: 'dadJoke', icon: '😄', label: 'Dad Joke', content: dailyContent.dadJoke },
               { key: 'funFact', icon: '💡', label: 'Fun Fact', content: dailyContent.funFact },

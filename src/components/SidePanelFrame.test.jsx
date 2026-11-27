@@ -4,8 +4,8 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import SidePanelFrame, { SIDE_PANEL_WIDTH } from './SidePanelFrame.jsx';
 
-const render = (collapsed) => renderToStaticMarkup(
-  <SidePanelFrame collapsed={collapsed}><div data-panel style={{ width: '340px' }}>Inbox</div></SidePanelFrame>,
+const render = (collapsed, overlay = false) => renderToStaticMarkup(
+  <SidePanelFrame collapsed={collapsed} overlay={overlay}><div data-panel style={{ width: '340px' }}>Inbox</div></SidePanelFrame>,
 );
 
 describe('SidePanelFrame (#2407)', () => {
@@ -28,6 +28,18 @@ describe('SidePanelFrame (#2407)', () => {
     expect(html).toContain('inert=""');
   });
 
+  it('overlaid, it leaves the row and floats over the calendar at its own width', () => {
+    const html = render(false, true);
+    expect(html).toContain('data-side-panel-frame="overlay"');
+    expect(html).toMatch(/style="position:absolute;top:0;bottom:0;left:0;z-index:40;width:340px;/);
+    expect(html).not.toContain('inert');
+    expect(html).not.toContain('aria-hidden');
+  });
+
+  it('collapsed wins over overlay', () => {
+    expect(render(true, true)).toContain('data-side-panel-frame="collapsed"');
+  });
+
   it('keeps the panel mounted and at its own width either way', () => {
     for (const collapsed of [false, true]) {
       expect(render(collapsed)).toContain('<div data-panel="true" style="width:340px">Inbox</div>');
@@ -43,7 +55,7 @@ describe('where the frame is used', () => {
     const layout = read('./DesktopLayout.jsx');
     expect(layout.match(/<SidePanelFrame /g)).toHaveLength(1);
     const desktop = layout.slice(layout.indexOf('{/* Desktop side panel'), layout.indexOf('{/* Calendar area'));
-    expect(desktop).toContain('<SidePanelFrame collapsed={sidePanelCollapsed}>');
+    expect(desktop).toContain("<SidePanelFrame collapsed={sidePanelCollapsed} overlay={sidePanelMode === 'overlay'}>");
     const tablet = layout.slice(layout.indexOf('{/* Tablet static side panel */}'), layout.indexOf('{/* Desktop side panel'));
     expect(tablet).not.toContain('SidePanelFrame');
   });

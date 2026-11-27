@@ -40,11 +40,14 @@ export default function useSidePanelCollapse({ enabled }) {
   // For anything that points at the panel (a shortcut that picks one of its
   // tabs, a jump to the Inbox): what it shows has to be on screen.
   const expandSidePanel = useCallback(() => set(false), [set]);
+  // Escape on the panel floating over the calendar (useSidePanelOverlayEscape).
+  const collapseSidePanel = useCallback(() => { if (enabled) set(true); }, [enabled, set]);
 
   return {
     sidePanelCollapsible: !!enabled,
     sidePanelCollapsed: !!enabled && stored,
     toggleSidePanel,
     expandSidePanel,
+    collapseSidePanel,
   };
 }

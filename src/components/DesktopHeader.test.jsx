@@ -45,7 +45,7 @@ beforeEach(() => {
   const selectedDate = new Date(2026, 8, 22);
   fixture.planner = {
     selectedDate, viewedMonth: selectedDate,
-    visibleDays: 3, visibleDates: [selectedDate],
+    headerDays: 3, visibleDates: [selectedDate],
     effectiveViewMode: 'multi', dayViewColumns: [], weekViewDates: [],
     darkMode: false, showMonthView: false, monthViewActive: false,
     weatherEnabled: true, weatherTempUnit: 'celsius',
