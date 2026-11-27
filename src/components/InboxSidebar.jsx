@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { notBucketed } from '../utils/bucketList.js';
 import { aiFeatureOn } from '../ai.js';
 import TouchInboxTaskRow from './TouchInboxTaskRow.jsx';
+import { hasMissingProject } from '../utils/inboxFilter.js';
 
 const InboxSidebar = ({ variant = 'desktop' }) => {
   const {
@@ -41,7 +42,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     handleEditInputChange, handleEditKeyDown,
     applySuggestionForEdit,
     cyclePriority,
-    archiveInboxTask,
+    archiveInboxTask, unlinkMissingProject, knownProjectIds,
     sendTaskToBucket,
     openMobileEditTask,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
@@ -76,7 +77,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     startEditingTask, setProjectFilter, setInboxProjectFilter, setInboxPriorityFilter,
     setHideCompletedInbox, setHideProjectTasksInbox, setHideStandaloneTasksInbox,
     longPressTriggeredRef, longPressTimerRef, setExpandedNotesTaskId, setShowDeadlinePicker,
-    openMobileEditTask, sendTaskToBucket, archiveInboxTask, cyclePriority,
+    openMobileEditTask, sendTaskToBucket, archiveInboxTask, unlinkMissingProject, cyclePriority,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle, generateAISubtasks,
     loadWikiNote, saveWikiNote, openInObsidian,
   };
@@ -106,7 +107,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     handleMobileTaskTouchStart, handleMobileTaskTouchMove, handleMobileTaskTouchEnd,
     setProjectFilter, setInboxProjectFilter,
     longPressTriggeredRef, longPressTimerRef, setExpandedNotesTaskId, setShowDeadlinePicker,
-    sendTaskToBucket, archiveInboxTask, cyclePriority,
+    sendTaskToBucket, archiveInboxTask, unlinkMissingProject, cyclePriority,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle, generateAISubtasks,
     loadWikiNote, saveWikiNote, openInObsidian,
   };
@@ -190,6 +191,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
           pendingPriority={pendingPriorities[task.id]}
           project={goalsProjectsEnabled && task.projectId ? projectsById.get(task.projectId) || null : null}
           projectFilterActive={!!task.projectId && projectFilter === task.projectId}
+          projectMissing={hasMissingProject(task, knownProjectIds)}
           darkMode={darkMode}
           aiConfig={aiConfig}
           aiSubtasksLoadingForTask={expandedNotesTaskId === task.id ? aiSubtasksLoadingForTask : null}
@@ -284,6 +286,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
           pendingPriority={pendingPriorities[task.id]}
           project={goalsProjectsEnabled && task.projectId ? touchProjectsById.get(task.projectId) || null : null}
           projectFilterActive={!!task.projectId && projectFilter === task.projectId}
+          projectMissing={hasMissingProject(task, knownProjectIds)}
           darkMode={darkMode}
           aiConfig={aiConfig}
           aiSubtasksLoadingForTask={expandedNotesTaskId === task.id ? aiSubtasksLoadingForTask : null}

@@ -2143,7 +2143,10 @@
       "title": "Ordenar por",
       "priorityHint": "Prioridade mais alta primeiro",
       "deadlineHint": "Prazo mais próximo primeiro; tarefas sem prazo depois, por prioridade"
-    }
+    },
+    "projectMissing": "Projeto não encontrado",
+    "projectMissingHint": "Esta tarefa aponta para um projeto que este dispositivo não tem. Desassociar torna-a uma tarefa independente da caixa de entrada.",
+    "unlinkProject": "Desassociar"
   },
   "glance": {
     "allDoneMessage": "{{time}}, tudo concluído!",

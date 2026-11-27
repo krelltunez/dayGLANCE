@@ -2,7 +2,7 @@ import { useMemo, useCallback } from 'react';
 import { dateToString, extractTags } from '../utils/taskUtils.js';
 import { notBucketed } from '../utils/bucketList.js';
 import { liveHiddenProjectIds, makeCalendarFilter, passesTagFilter } from '../utils/calendarFilter.js';
-import { liveInboxProjectFilter as liveProjectFilterOf, liveInboxTagFilter as liveTagFilterOf, filterInboxTasks } from '../utils/inboxFilter.js';
+import { liveInboxProjectFilter as liveProjectFilterOf, liveInboxTagFilter as liveTagFilterOf, filterInboxTasks, knownProjectIdsOf } from '../utils/inboxFilter.js';
 
 export default function useComputedViews({
   tasks,
@@ -21,6 +21,7 @@ export default function useComputedViews({
   projects,
   goalsProjectsEnabled,
   isVisibleForUser,
+  dataLoaded = true,
 }) {
   // Tasks for the currently selected date
   const todayTasks = useMemo(
@@ -94,15 +95,22 @@ export default function useComputedViews({
     () => liveTagFilterOf(inboxTagFilter, filterableTags),
     [inboxTagFilter, filterableTags],
   );
+  // The projects a task may be judged missing from (display only; null while
+  // that judgement is unsafe, see utils/inboxFilter.js knownProjectIdsOf).
+  const knownProjectIds = useMemo(
+    () => knownProjectIdsOf(projects, { goalsProjectsEnabled, loaded: dataLoaded }),
+    [projects, goalsProjectsEnabled, dataLoaded]
+  );
+
   const filteredUnscheduledTasks = useMemo(
     () => filterInboxTasks(unscheduledTasks, {
       inboxPriorityFilter, hideCompletedInbox, hideProjectTasksInbox, hideStandaloneTasksInbox,
       liveProjectFilter: liveInboxProjectFilter, liveTagFilter: liveInboxTagFilter,
-      goalsProjectsEnabled, isVisibleForUser, inboxSort,
+      goalsProjectsEnabled, isVisibleForUser, inboxSort, knownProjectIds,
     }),
     [unscheduledTasks, inboxPriorityFilter, hideCompletedInbox, hideProjectTasksInbox,
      hideStandaloneTasksInbox, liveInboxTagFilter, liveInboxProjectFilter, goalsProjectsEnabled,
-     isVisibleForUser, inboxSort]
+     isVisibleForUser, inboxSort, knownProjectIds]
   );
 
   // Today's tasks filtered by tag selection
@@ -125,5 +133,6 @@ export default function useComputedViews({
     // target no longer exists matches nothing and must not light it up.
     liveInboxTagFilter,
     liveInboxProjectFilter,
+    knownProjectIds,
   };
 }

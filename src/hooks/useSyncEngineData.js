@@ -22,7 +22,7 @@ import { tombstoneCutoff, pruneCompletedTaskUids } from '@glance-apps/dayglance-
 import { keepImportedTask } from '../sync/payloadExclusions.js';
 import { dropResurrectedTasks } from '../utils/dropResurrectedTasks.js';
 import { preserveStickyFields } from '../utils/preserveStickyFields.js';
-import { stripProjectRefs, stripGoalRefs, resolveDeletedIds } from '../utils/referentialIntegrity.js';
+import { stripProjectRefs, stripGoalRefs, resolveDeletedIds, repairTaskRows } from '../utils/referentialIntegrity.js';
 import { rescueUnsyncedTasks } from '../utils/rescueUnsyncedTasks.js';
 import { readRetiredTaskIds, applyTaskRetirements, RETIRED_TASK_IDS_STORAGE_KEY } from '../utils/retiredTaskIds.js';
 import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from '../utils/obsidianDeletions.js';
@@ -394,10 +394,15 @@ export default function useSyncEngineData(deps) {
       data.deletedGoalIds,
       localTombstones('day-planner-deleted-goal-ids'),
     );
-    if (normalizedTasks) normalizedTasks = stripProjectRefs(normalizedTasks, deletedProjectIds);
-    if (normalizedUnsched) normalizedUnsched = stripProjectRefs(normalizedUnsched, deletedProjectIds);
+    // The open-archived repair (unarchiveOpenTasks) rides with the strip on the
+    // same unstamped terms. It runs AFTER preserveStickyFields above, which
+    // carries this device's `archived: true` onto a copy reopened elsewhere
+    // that omits the key; and again on the setState output below, for the
+    // device-local rows the rescue re-adds.
+    if (normalizedTasks) normalizedTasks = repairTaskRows(normalizedTasks, deletedProjectIds);
+    if (normalizedUnsched) normalizedUnsched = repairTaskRows(normalizedUnsched, deletedProjectIds);
     const recycleBinForApply = Array.isArray(data.recycleBin)
-      ? stripProjectRefs(data.recycleBin, deletedProjectIds)
+      ? repairTaskRows(data.recycleBin, deletedProjectIds)
       : null;
     const recurringForApply = Array.isArray(data.recurringTasks)
       ? stripProjectRefs(data.recurringTasks, deletedProjectIds)
@@ -672,10 +677,10 @@ export default function useSyncEngineData(deps) {
     // re-add a device-local row (`_native`, imported, intent) the merge never
     // carried: the invariant is that no state list may reference a tombstoned
     // project, not just the rows the payload happened to contain.
-    if (normalizedTasks) setTasks(prev => stripProjectRefs(applyTaskRetirements(
+    if (normalizedTasks) setTasks(prev => repairTaskRows(applyTaskRetirements(
       rescueUnsyncedTasks(preserveStickyFields(normalizedTasks, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones, retiredLiveIds, rescueOpts),
       retiredRecord, retiredLiveIds), deletedProjectIds));
-    if (normalizedUnsched) setUnscheduledTasks(prev => stripProjectRefs(applyTaskRetirements(
+    if (normalizedUnsched) setUnscheduledTasks(prev => repairTaskRows(applyTaskRetirements(
       rescueUnsyncedTasks(preserveStickyFields(normalizedUnsched, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones, retiredLiveIds, rescueOpts),
       retiredRecord, retiredLiveIds), deletedProjectIds));
     if (data.unscheduledOrderTimestamp) {

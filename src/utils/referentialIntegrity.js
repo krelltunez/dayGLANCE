@@ -84,6 +84,54 @@ export function stripProjectRefs(rows, deletedProjectIds = null) {
 }
 
 /**
+ * An open task is never archived. Every writer of `archived: true` acts on a
+ * COMPLETED task only (the Inbox auto-archive, the Archive button, the
+ * project-archive cascade), and the Archived bar draws its rows as done work.
+ * The state arises only from a reopen that left the flag behind (reopen paths
+ * did not clear it before 2026-11-27), or from a sync carry of `archived:
+ * true` onto a copy reopened elsewhere. Such a task is hidden from the Inbox
+ * and from its project while it is live work.
+ *
+ * The repair writes an explicit `archived: false` (both merges honour an
+ * explicit false and carry only an ABSENT value) and is UNSTAMPED, like the
+ * project-ref strip: it is a deterministic function of the row, so every
+ * device makes the same repair and a last-writer-wins tie keeps each side's
+ * copy instead of flipping. Callers run it before the storage write-back so
+ * the save pass sees no difference and fabricates no `lastModified`.
+ *
+ * @param {Array} rows tasks, unscheduled tasks or bin rows
+ */
+export function unarchiveOpenTasks(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+  let changed = false;
+  const next = rows.map((row) => {
+    if (!row || row.archived !== true || row.completed) return row;
+    changed = true;
+    return { ...row, archived: false };
+  });
+  return changed ? next : rows;
+}
+
+/**
+ * What a reopen writes besides `completed: false`: an explicit `archived:
+ * false`. Explicit, not a deleted key, because both sync tiers carry
+ * `archived: true` forward onto a winning copy that merely OMITS the field;
+ * absent and false compare equal in the save pass, so it fabricates no stamp.
+ * Pass whether the task is completed NOW (a toggle reopens only a completed
+ * task).
+ */
+export const reopenedFields = (wasCompleted = true) => (wasCompleted ? { archived: false } : {});
+
+/**
+ * The ingress repairs for a task-shaped list, in one call: the tombstone-keyed
+ * project strip, then the open-archived repair. Same array identity when
+ * neither changes anything.
+ */
+export function repairTaskRows(rows, deletedProjectIds = null) {
+  return unarchiveOpenTasks(stripProjectRefs(rows, deletedProjectIds));
+}
+
+/**
  * Remove the `goalId` of a tombstoned goal from every project, so the project
  * becomes standalone instead of belonging to neither list.
  *

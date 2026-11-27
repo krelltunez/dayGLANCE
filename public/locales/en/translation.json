@@ -2143,7 +2143,10 @@
       "title": "Sort by",
       "priorityHint": "Highest priority first",
       "deadlineHint": "Soonest deadline first; tasks without a deadline after, by priority"
-    }
+    },
+    "projectMissing": "Project not found",
+    "projectMissingHint": "This task names a project this device doesn't have. Unlink makes it a standalone Inbox task.",
+    "unlinkProject": "Unlink"
   },
   "glance": {
     "allDoneMessage": "{{time}}, all done!",

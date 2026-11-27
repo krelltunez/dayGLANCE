@@ -229,3 +229,58 @@ describe('referential integrity across a sync cycle (#2137)', () => {
     expect(stored(B, 'day-planner-deleted-project-ids')).toEqual({});
   });
 });
+
+// An open task is never archived (utils/referentialIntegrity.js,
+// unarchiveOpenTasks). The path that matters is the apply: a peer reopens a
+// task whose copy never carried `archived` (an older build, or a copy from
+// before the archive), the merge picks it, and preserveStickyFields carries
+// this device's `archived: true` onto it. Before the repair the task was
+// open and hidden from the Inbox and its project alike.
+describe('open archived tasks across a sync cycle', () => {
+  beforeEach(() => { globalThis.localStorage = memoryStorage(); });
+  afterEach(() => {
+    delete globalThis.localStorage;
+    vi.restoreAllMocks();
+  });
+
+  const LATER = '2026-11-27T18:13:00.000Z';
+
+  it('a reopen made elsewhere, carried onto a local archived copy, lands open and visible, unstamped', async () => {
+    const { filterInboxTasks } = await import('./inboxFilter.js');
+    const { stampTimestamps } = await import('./stampTimestamps.js');
+    const B = device({ unscheduledTasks: [T('u1', { completed: true, completedAt: '2026-11-01', archived: true })] });
+    persist(B);
+    // The peer's reopened copy: newer, open, and no `archived` key at all.
+    const reopened = T('u1', { completed: false, completedAt: null, lastModified: LATER });
+    const merged = { ...on(B, () => B.mount().buildSyncPayload()).data, unscheduledTasks: [reopened] };
+
+    on(B, () => B.mount().applyEngineData(merged));
+
+    const [row] = B.state.unscheduledTasks;
+    expect(row).toMatchObject({ completed: false, archived: false, lastModified: LATER });
+    expect(filterInboxTasks(B.state.unscheduledTasks).map(t => t.id)).toEqual(['u1']);
+    // The save pass against what the apply stored: no edit, so no fabricated stamp.
+    const [stamped] = stampTimestamps(B.state.unscheduledTasks, stored(B, 'day-planner-unscheduled'), '2026-11-28T00:00:00.000Z');
+    expect(stamped.lastModified).toBe(LATER);
+  });
+
+  it('an old device\'s archived open copy at the same stamp is repaired on apply and pushed back as explicit false', () => {
+    const B = device({ unscheduledTasks: [T('u1')] });
+    persist(B);
+    const stale = T('u1', { archived: true });
+    const merged = { ...on(B, () => B.mount().buildSyncPayload()).data, unscheduledTasks: [stale] };
+
+    on(B, () => B.mount().applyEngineData(merged));
+    expect(B.state.unscheduledTasks[0]).toMatchObject({ archived: false, lastModified: stale.lastModified });
+    expect(stored(B, 'day-planner-unscheduled')[0].archived).toBe(false);
+
+    // What B pushes next: the explicit false (which both tiers honour) at the
+    // ORIGINAL stamp, so an old device keeps its own copy on the tie rather
+    // than flipping, and a second apply is a no-op.
+    const next = on(B, () => B.mount().buildSyncPayload()).data;
+    expect(next.unscheduledTasks[0]).toMatchObject({ archived: false, lastModified: stale.lastModified });
+    const before = B.state.unscheduledTasks;
+    on(B, () => B.mount().applyEngineData({ ...next }));
+    expect(B.state.unscheduledTasks[0]).toEqual(before[0]);
+  });
+});

@@ -6,6 +6,7 @@ import { dateToString, extractWikilinks, formatDeadlineDate } from '../utils/tas
 import { formatTaskDuration } from '../utils/formatDuration.js';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
+import MissingProjectBadge from './MissingProjectBadge.jsx';
 
 /**
  * One task in the touch Inbox: the tablet's and the phone's (#2143). The same
@@ -20,7 +21,7 @@ import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
  */
 function TouchInboxTaskRow({
   task, actions, inlineNotes = false,
-  notesOpen, deadlinePickerOpen, pendingPriority, project, projectFilterActive,
+  notesOpen, deadlinePickerOpen, pendingPriority, project, projectFilterActive, projectMissing = false,
   darkMode, aiConfig, aiSubtasksLoadingForTask,
 }) {
   const { t } = useTranslation();
@@ -93,6 +94,7 @@ function TouchInboxTaskRow({
                       {formatDeadlineDate(task.deadline)}
                     </span>
                   )}
+                  {projectMissing && <MissingProjectBadge onUnlink={() => call('unlinkMissingProject')(task.id)} />}
                   {project && (() => {
                     const proj = project;
                     return (

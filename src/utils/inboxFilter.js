@@ -87,10 +87,27 @@ const deadlineOf = (task) => (typeof task?.deadline === 'string' ? task.deadline
  * When goals/projects are on, project tasks live on their project card unless
  * the user opts in; if the feature is off, that exclusion is lifted.
  */
+/**
+ * The ids of the projects this device holds, for judging a task's project as
+ * MISSING, or null when that judgement is unsafe: Goals & Projects off, data
+ * not loaded yet, or no projects at all (a fresh device whose project list has
+ * not arrived). Display only: a missing project hides nothing and writes
+ * nothing; the only write is the user's own Unlink (utils/referentialIntegrity.js
+ * keeps the rule that absence from a list is never evidence of deletion).
+ */
+export function knownProjectIdsOf(projects, { goalsProjectsEnabled = false, loaded = true } = {}) {
+  if (!goalsProjectsEnabled || !loaded || !Array.isArray(projects) || projects.length === 0) return null;
+  return new Set(projects.filter(Boolean).map((p) => String(p.id)));
+}
+
+/** True when the task names a project this device does not hold (see knownProjectIdsOf). */
+export const hasMissingProject = (task, knownProjectIds) =>
+  !!(knownProjectIds && task?.projectId && !knownProjectIds.has(String(task.projectId)));
+
 export function filterInboxTasks(unscheduledTasks = [], {
   inboxPriorityFilter = 0, hideCompletedInbox = false, hideProjectTasksInbox = true, hideStandaloneTasksInbox = false,
   liveProjectFilter = [], liveTagFilter = [], goalsProjectsEnabled = false, isVisibleForUser = () => true,
-  inboxSort = INBOX_SORT_PRIORITY,
+  inboxSort = INBOX_SORT_PRIORITY, knownProjectIds = null,
 } = {}) {
   const byDeadline = inboxSortOf(inboxSort) === INBOX_SORT_DEADLINE;
   return unscheduledTasks
@@ -101,10 +118,14 @@ export function filterInboxTasks(unscheduledTasks = [], {
     .filter((task) => isVisibleForUser(task))
     .filter((task) => {
       if (!goalsProjectsEnabled) return true;
+      // A task whose project this device does not hold has no project card to
+      // live on, so the Inbox shows it as standalone (with a badge and an
+      // Unlink action) instead of hiding it everywhere.
+      const projectId = hasMissingProject(task, knownProjectIds) ? null : task.projectId;
       // Specific projects selected: only their tasks.
-      if (liveProjectFilter.length > 0) return task.projectId && liveProjectFilter.includes(task.projectId);
-      if (hideProjectTasksInbox && task.projectId) return false;
-      if (hideStandaloneTasksInbox && !task.projectId) return false;
+      if (liveProjectFilter.length > 0) return projectId && liveProjectFilter.includes(projectId);
+      if (hideProjectTasksInbox && projectId) return false;
+      if (hideStandaloneTasksInbox && !projectId) return false;
       return true;
     })
     .filter((task) => inboxPriorityFilter === 0 || (task.priority || 0) >= inboxPriorityFilter)
@@ -146,5 +167,6 @@ export function inboxFromStorage({ tasks = [], unscheduledTasks = [], recurringT
     liveProjectFilter: liveInboxProjectFilter(prefs.inboxProjectFilter, projects),
     liveTagFilter: liveInboxTagFilter(prefs.inboxTagFilter, filterableTags),
     goalsProjectsEnabled, isVisibleForUser,
+    knownProjectIds: knownProjectIdsOf(projects, { goalsProjectsEnabled }),
   });
 }

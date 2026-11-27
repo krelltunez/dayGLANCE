@@ -60,6 +60,7 @@ import { glanceFabStagger, glanceFabVisibilityClass } from '../utils/glanceFabs.
 import TouchInboxTaskRow from './TouchInboxTaskRow.jsx';
 import useIncrementalList from '../hooks/useIncrementalList.js';
 import { keyboardOverTabLayout, keyboardSheet } from '../utils/keyboardInset.js';
+import { hasMissingProject } from '../utils/inboxFilter.js';
 
 // The task notes and subtasks sheet sits on the soft keyboard rather than under it.
 const NOTES_SHEET = keyboardSheet('60vh');
@@ -273,7 +274,7 @@ const MobileLayout = () => {
     pushUndo, performUndo, performRedo,
     confirmEmptyBin, emptyRecycleBin,
     hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter, setInboxProjectFilter,
-    archiveInboxTask,
+    archiveInboxTask, unlinkMissingProject, knownProjectIds,
     sendTaskToBucket,
   } = useDayPlannerCtx();
   const { t, i18n } = useTranslation();
@@ -487,7 +488,7 @@ const MobileLayout = () => {
     handleMobileTaskTouchStart, handleMobileTaskTouchMove, handleMobileTaskTouchEnd,
     setProjectFilter, setInboxProjectFilter,
     longPressTriggeredRef, longPressTimerRef, setExpandedNotesTaskId, setShowDeadlinePicker,
-    sendTaskToBucket, archiveInboxTask, cyclePriority,
+    sendTaskToBucket, archiveInboxTask, unlinkMissingProject, cyclePriority,
   };
   const touchProjectsById = new Map((projects || []).map(p => [p.id, p]));
   // The Inbox renders a part at a time (useIncrementalList, #2143).
@@ -861,6 +862,7 @@ const MobileLayout = () => {
                         pendingPriority={pendingPriorities[task.id]}
                         project={goalsProjectsEnabled && task.projectId ? touchProjectsById.get(task.projectId) || null : null}
                         projectFilterActive={!!task.projectId && projectFilter === task.projectId}
+                        projectMissing={hasMissingProject(task, knownProjectIds)}
                         darkMode={darkMode}
                       />
                     ))

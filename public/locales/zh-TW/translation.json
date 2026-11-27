@@ -2137,7 +2137,10 @@
       "title": "排序方式",
       "priorityHint": "優先順序最高的優先",
       "deadlineHint": "期限最近的優先；沒有期限的排在後面，依優先順序排列"
-    }
+    },
+    "projectMissing": "找不到專案",
+    "projectMissingHint": "此任務指向本裝置上沒有的專案。取消連結後，它會成為收件匣中的獨立任務。",
+    "unlinkProject": "取消連結"
   },
   "glance": {
     "allDoneMessage": "{{time}}，全部完成！",

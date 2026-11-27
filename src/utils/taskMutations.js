@@ -40,6 +40,7 @@ import { isActiveProject } from './inboxProjectGroups.js';
 import { taskDefaultsOf, withTags, defaultSubtasks, defaultEnergy, baseDuration } from './projectTaskDefaults.js';
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { applyRecurringInstanceEdit } from './recurringInstanceEdit.js';
+import { reopenedFields } from './referentialIntegrity.js';
 
 // Subtask ids for a created task's default checklist, derived from its id so
 // a replayed or doubly-applied create writes the same row.
@@ -1058,6 +1059,8 @@ export function applyUndoOps(state, ops, { nowIso }) {
           ...task,
           completed: !!op.before.completed,
           ...(op.before.completedAt !== undefined ? { completedAt: op.before.completedAt } : {}),
+          // Undoing a completion is a reopen: it clears a leftover archive.
+          ...(op.before.completed ? {} : reopenedFields()),
           lastModified: nowIso,
         };
         if (inInbox) unscheduled = unscheduled.map((t) => (t.id === op.taskId ? next : t));
@@ -1192,11 +1195,14 @@ export function applySetCompletion(state, { taskId, completed, transitionId, now
   // setting it is NEW: the marker regenerates from this stored value, so
   // every completion path must record it. Mirrors useTaskActions.toggleComplete.
   const completedAt = completed ? completionTimestamp() : null;
+  // A reopen clears a leftover archive (utils/referentialIntegrity.js).
+  const reopen = completed ? {} : reopenedFields();
   if (inInbox) {
     const next = {
       ...task,
       completed,
       completedAt,
+      ...reopen,
       ...(transitionId ? { transitionId } : {}),
     };
     return {
@@ -1207,7 +1213,7 @@ export function applySetCompletion(state, { taskId, completed, transitionId, now
       task: next,
     };
   }
-  const next = { ...task, completed, completedAt, ...(transitionId ? { transitionId } : {}) };
+  const next = { ...task, completed, completedAt, ...reopen, ...(transitionId ? { transitionId } : {}) };
   return {
     ok: true,
     replayed: false,

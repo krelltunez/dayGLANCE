@@ -2143,7 +2143,10 @@
       "title": "Trier par",
       "priorityHint": "Priorité la plus élevée d’abord",
       "deadlineHint": "Échéance la plus proche d’abord ; les tâches sans échéance ensuite, par priorité"
-    }
+    },
+    "projectMissing": "Projet introuvable",
+    "projectMissingHint": "Cette tâche désigne un projet absent de cet appareil. Dissocier en fait une tâche indépendante de la boîte de réception.",
+    "unlinkProject": "Dissocier"
   },
   "glance": {
     "allDoneMessage": "{{time}}, tout est fait !",

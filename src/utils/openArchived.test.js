@@ -1,0 +1,114 @@
+// An open task is never archived (2026-11-27 field report: two open Inbox
+// tasks carried `archived: true` and were visible nowhere but the collapsed
+// Archived bar). The helpers, the reopen paths and the Inbox filter that
+// reads the result.
+import { describe, it, expect } from 'vitest';
+import { unarchiveOpenTasks, repairTaskRows, reopenedFields } from './referentialIntegrity.js';
+import { applySetCompletion, applyUndoOps } from './taskMutations.js';
+import { filterInboxTasks, knownProjectIdsOf, hasMissingProject, inboxFromStorage } from './inboxFilter.js';
+import { stampTimestamps } from './stampTimestamps.js';
+
+const NOW = '2026-11-27T18:00:00.000Z';
+const OLD = '2026-11-01T00:00:00.000Z';
+const task = (id, extra = {}) => ({ id, title: id, notes: '', subtasks: [], completed: false, lastModified: OLD, ...extra });
+const ids = (list) => list.map((t) => t.id);
+
+describe('unarchiveOpenTasks', () => {
+  it('clears archived on an open task with an explicit false, unstamped', () => {
+    const [row] = unarchiveOpenTasks([task('a', { archived: true })]);
+    expect(row.archived).toBe(false);
+    expect(row.lastModified).toBe(OLD);
+  });
+
+  it('leaves completed archived tasks, unarchived tasks and holes alone, keeping the array identity', () => {
+    const rows = [task('done', { completed: true, archived: true }), task('open'), task('f', { archived: false }), null];
+    expect(unarchiveOpenTasks(rows)).toBe(rows);
+  });
+
+  it('is idempotent', () => {
+    const once = unarchiveOpenTasks([task('a', { archived: true })]);
+    expect(unarchiveOpenTasks(once)).toBe(once);
+  });
+
+  it('repairTaskRows composes it with the tombstone strip', () => {
+    const [row] = repairTaskRows([task('a', { archived: true, projectId: 'gone' })], { gone: NOW });
+    expect(row).not.toHaveProperty('projectId');
+    expect(row.archived).toBe(false);
+  });
+
+  it('the save pass reads the repair as no edit: storage written after the repair, nothing re-stamps', () => {
+    const repaired = unarchiveOpenTasks([task('a', { archived: true })]);
+    // useDataPersistence writes the repaired list back before the save pass compares.
+    const [stamped] = stampTimestamps(repaired, repaired, NOW);
+    expect(stamped.lastModified).toBe(OLD);
+    // And a stored copy that never had the key compares equal to the explicit false.
+    const [fromAbsent] = stampTimestamps(repaired, [task('a')], NOW);
+    expect(fromAbsent.lastModified).toBe(OLD);
+  });
+});
+
+describe('a reopen clears a leftover archive', () => {
+  it('reopenedFields: explicit false only when the task was completed', () => {
+    expect(reopenedFields(true)).toEqual({ archived: false });
+    expect(reopenedFields(false)).toEqual({});
+    expect(reopenedFields()).toEqual({ archived: false });
+  });
+
+  it('MCP set_task_completion(false) on an auto-archived inbox task makes it visible in the Inbox again', () => {
+    const archived = task('u1', { completed: true, completedAt: '2026-11-01T09:00:00-07:00', archived: true });
+    const r = applySetCompletion({ tasks: [], unscheduledTasks: [archived] }, { taskId: 'u1', completed: false, nowIso: NOW });
+    expect(r.task).toMatchObject({ completed: false, completedAt: null, archived: false });
+    expect(ids(filterInboxTasks(r.unscheduledTasks))).toEqual(['u1']);
+  });
+
+  it('MCP set_task_completion(false) on a scheduled task writes the same explicit false', () => {
+    const r = applySetCompletion({ tasks: [task('b1', { date: '2026-11-27', completed: true, archived: true })], unscheduledTasks: [] },
+      { taskId: 'b1', completed: false, nowIso: NOW });
+    expect(r.task.archived).toBe(false);
+  });
+
+  it('completing does not touch archived', () => {
+    const r = applySetCompletion({ tasks: [], unscheduledTasks: [task('u1')] }, { taskId: 'u1', completed: true, nowIso: NOW });
+    expect(r.task).not.toHaveProperty('archived');
+  });
+
+  it('undoing an MCP completion of an archived task reopens it unarchived', () => {
+    const state = { tasks: [], unscheduledTasks: [task('u1', { completed: true, completedAt: NOW, archived: true })], recurringTasks: [], recycleBin: [] };
+    const r = applyUndoOps(state, [{ kind: 'restore_completion', taskId: 'u1', before: { completed: false, completedAt: null } }], { nowIso: NOW });
+    expect(r.unscheduledTasks[0]).toMatchObject({ completed: false, archived: false });
+  });
+});
+
+describe('a task whose project this device does not hold', () => {
+  const projects = [{ id: 'p1', title: 'Live' }];
+  const known = knownProjectIdsOf(projects, { goalsProjectsEnabled: true });
+
+  it('shows in the Inbox as standalone with the default filters', () => {
+    const list = [task('orphan', { projectId: 'gone' }), task('live', { projectId: 'p1' }), task('plain')];
+    const shown = filterInboxTasks(list, { goalsProjectsEnabled: true, knownProjectIds: known });
+    expect(ids(shown)).toEqual(['orphan', 'plain']);
+    expect(hasMissingProject(list[0], known)).toBe(true);
+    expect(hasMissingProject(list[1], known)).toBe(false);
+  });
+
+  it('is judged missing only when the judgement is safe: not before data loads, not with no projects, not with the feature off', () => {
+    expect(knownProjectIdsOf(projects, { goalsProjectsEnabled: true, loaded: false })).toBeNull();
+    expect(knownProjectIdsOf([], { goalsProjectsEnabled: true })).toBeNull();
+    expect(knownProjectIdsOf(projects, { goalsProjectsEnabled: false })).toBeNull();
+    const list = [task('t', { projectId: 'p-not-yet-synced' })];
+    // A fresh device with no projects yet hides the task as a project task, as before.
+    expect(filterInboxTasks(list, { goalsProjectsEnabled: true, knownProjectIds: knownProjectIdsOf([], { goalsProjectsEnabled: true }) })).toEqual([]);
+  });
+
+  it('a project filter never matches it, and "hide standalone" hides it', () => {
+    const list = [task('orphan', { projectId: 'gone' })];
+    expect(filterInboxTasks(list, { goalsProjectsEnabled: true, knownProjectIds: known, liveProjectFilter: ['p1'] })).toEqual([]);
+    expect(filterInboxTasks(list, { goalsProjectsEnabled: true, knownProjectIds: known, hideStandaloneTasksInbox: true })).toEqual([]);
+  });
+
+  it('the stored-state chain (launcher count) counts it the same way', () => {
+    const storage = { getItem: () => null };
+    const list = [task('orphan', { projectId: 'gone' })];
+    expect(ids(inboxFromStorage({ unscheduledTasks: list, projects, goalsProjectsEnabled: true, storage }))).toEqual(['orphan']);
+  });
+});

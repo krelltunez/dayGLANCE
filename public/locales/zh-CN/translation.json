@@ -2137,7 +2137,10 @@
       "title": "排序方式",
       "priorityHint": "优先级最高的在前",
       "deadlineHint": "截止日期最近的在前；没有截止日期的任务排在后面，按优先级排列"
-    }
+    },
+    "projectMissing": "未找到项目",
+    "projectMissingHint": "此任务指向本设备上没有的项目。取消关联后，它将成为收件箱中的独立任务。",
+    "unlinkProject": "取消关联"
   },
   "glance": {
     "allDoneMessage": "{{time}}，都完成了！",

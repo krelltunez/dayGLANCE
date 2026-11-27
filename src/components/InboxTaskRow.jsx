@@ -7,6 +7,7 @@ import { formatTaskDuration } from '../utils/formatDuration.js';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import TaskTitleRenameField from './TaskTitleRenameField.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
+import MissingProjectBadge from './MissingProjectBadge.jsx';
 
 /**
  * One task in the desktop Inbox (#2143). Memoized, and it reads no app
@@ -25,7 +26,7 @@ import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 function InboxTaskRow({
   task, actions,
   isEditing,
-  notesOpen, deadlinePickerOpen, pendingPriority, project, projectFilterActive,
+  notesOpen, deadlinePickerOpen, pendingPriority, project, projectFilterActive, projectMissing = false,
   darkMode,
   aiConfig, aiSubtasksLoadingForTask,
 }) {
@@ -102,6 +103,7 @@ function InboxTaskRow({
                     {formatDeadlineDate(task.deadline)}
                   </span>
                 )}
+                {projectMissing && <MissingProjectBadge onUnlink={() => call('unlinkMissingProject')(task.id)} />}
                 {project && (() => {
                   const proj = project;
                   return (

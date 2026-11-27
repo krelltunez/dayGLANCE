@@ -31,7 +31,7 @@ import { FRAME_SETS_KEY } from '../utils/storedSlices.js';
 import { loadDailyNotes } from '../utils/dailyNotesStore.js';
 import { mergeDailyNotes } from '@glance-apps/sync';
 import { writeItem, getWriteFailures } from '../utils/storageWrites.js';
-import { stripProjectRefs, stripGoalRefs } from '../utils/referentialIntegrity.js';
+import { stripProjectRefs, stripGoalRefs, repairTaskRows } from '../utils/referentialIntegrity.js';
 
 // What the save pass last wrote, per key (#2140). Every change used to
 // re-serialize every bucket, re-parse and re-stamp all five task-shaped arrays
@@ -171,8 +171,9 @@ export default function useDataPersistence({
       // step with state and cannot read the repair as a user edit (which would
       // re-stamp lastModified). Unstamped on purpose: every device derives the
       // same repair from the same tombstone, so a tie in last-writer-wins
-      // converges instead of flipping.
-      return stripProjectRefs(parsed, deletedProjectIds);
+      // converges instead of flipping. The open-archived repair rides along on
+      // the same terms (utils/referentialIntegrity.js, unarchiveOpenTasks).
+      return repairTaskRows(parsed, deletedProjectIds);
     };
 
     // Parse existing data and normalize defaults so localStorage and React
@@ -219,7 +220,7 @@ export default function useDataPersistence({
       const recycleBinData = localStorage.getItem('day-planner-recycle-bin');
       if (!recycleBinData) return;
       const parsedBin = JSON.parse(recycleBinData);
-      const prunedBin = stripProjectRefs(parsedBin, deletedProjectIds);
+      const prunedBin = repairTaskRows(parsedBin, deletedProjectIds);
       if (prunedBin !== parsedBin) writeBack('day-planner-recycle-bin', JSON.stringify(prunedBin));
       setRecycleBin(prunedBin);
     });

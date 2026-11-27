@@ -800,6 +800,48 @@ describe('loadData drops references to deleted projects and goals (#2137)', () =
   });
 });
 
+// An open task is never archived (utils/referentialIntegrity.js,
+// unarchiveOpenTasks): the boot pass repairs a leftover flag from a reopen,
+// unstamped, and writes the repair back before state so the save pass sees
+// no edit.
+describe('loadData repairs open tasks left archived', () => {
+  let store;
+  let setItem;
+  beforeEach(() => {
+    store = {
+      'day-planner-tasks': JSON.stringify([{ id: 't1', completed: false, archived: true, lastModified: 'old' }]),
+      'day-planner-unscheduled': JSON.stringify([
+        { id: 'u1', completed: false, archived: true, lastModified: 'old' },
+        { id: 'u2', completed: true, archived: true, lastModified: 'old' },
+      ]),
+      'day-planner-recycle-bin': JSON.stringify([{ id: 'b1', completed: false, archived: true, deletedAt: 'x' }]),
+    };
+    setItem = vi.fn((key, value) => { store[key] = value; });
+    globalThis.localStorage = { getItem: vi.fn((k) => store[k] ?? null), setItem, removeItem: vi.fn() };
+  });
+  afterEach(() => {
+    delete globalThis.localStorage;
+    delete globalThis.window;
+  });
+
+  it('clears archived on open rows only, keeps their stamps, and persists the repair', async () => {
+    const loadHook = await loadHookAs('main');
+    const { props, setters } = makeProps();
+    await loadHook(props).loadData();
+
+    const tasks = setters.setTasks.mock.calls[0][0]([]);
+    expect(tasks[0]).toMatchObject({ archived: false, lastModified: 'old' });
+    const inbox = setters.setUnscheduledTasks.mock.calls[0][0];
+    expect(inbox.find(t => t.id === 'u1')).toMatchObject({ archived: false, lastModified: 'old' });
+    expect(inbox.find(t => t.id === 'u2').archived).toBe(true);
+    expect(setters.setRecycleBin.mock.calls[0][0][0].archived).toBe(false);
+
+    const written = Object.fromEntries(setItem.mock.calls);
+    expect(JSON.parse(written['day-planner-unscheduled']).find(t => t.id === 'u1').archived).toBe(false);
+    expect(JSON.parse(written['day-planner-recycle-bin'])[0].archived).toBe(false);
+  });
+});
+
 // #2135: the persist pass stamps `createdAt` on a task this device created,
 // and on nothing else (utils/createdAt.js has the rules).
 describe('saveData stamps createdAt on tasks created on this device', () => {

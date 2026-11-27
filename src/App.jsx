@@ -2025,6 +2025,7 @@ const DayPlanner = () => {
     filteredTodayTasks,
     liveInboxTagFilter,
     liveInboxProjectFilter,
+    knownProjectIds,
   } = useComputedViews({
     tasks,
     unscheduledTasks,
@@ -2042,6 +2043,7 @@ const DayPlanner = () => {
     projects,
     goalsProjectsEnabled,
     isVisibleForUser,
+    dataLoaded,
   });
   const { taskWidths, setTaskRef, getConflictingTasks, calculateConflictPosition, wouldExceedMaxColumns } = useTaskDerived({
     tasks,
@@ -6150,6 +6152,17 @@ const DayPlanner = () => {
   const restoreArchivedInboxTask = (id) => {
     setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: false, lastModified: new Date().toISOString() } : t));
   };
+  // The missing-project badge's Unlink (components/MissingProjectBadge.jsx): the
+  // user's own edit, so it stamps and wins last-writer-wins. Never automatic: a
+  // project absent from this device's list is not evidence it was deleted
+  // (utils/referentialIntegrity.js).
+  const unlinkMissingProject = (id) => {
+    setUnscheduledTasks(prev => prev.map(t => {
+      if (t.id !== id || !t.projectId) return t;
+      const { projectId: _missing, ...rest } = t;
+      return { ...rest, lastModified: new Date().toISOString() };
+    }));
+  };
 
   // Demote an Inbox task to the Bucket List (first list). Strips deadline and
   // priority — the Bucket is deliberately pressure-free — so this goes through
@@ -7332,7 +7345,7 @@ const DayPlanner = () => {
 
     // ── Functions – task CRUD ─────────────────────────────────────────────────
     addTask, toggleComplete,
-    archiveInboxTask, restoreArchivedInboxTask,
+    archiveInboxTask, restoreArchivedInboxTask, unlinkMissingProject, knownProjectIds,
     deleteRecurringInstance, updateRecurrencePattern,
     updateRecurrenceEndCondition, updateRecurringTemplate,
     moveToRecycleBin, moveToInbox, undeleteTask,

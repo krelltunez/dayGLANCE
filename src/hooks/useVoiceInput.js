@@ -13,6 +13,7 @@ import { normalizeVoiceParseResult } from '../utils/voiceParseResult.js';
 import { voiceUsesAI, voiceTranscribesWithAI } from '../utils/voiceAI.js';
 import { speechRecognitionLocale } from '../utils/localeFormatting.js';
 import { readDefaultTaskDuration } from '../utils/defaultTaskDuration.js';
+import { reopenedFields } from '../utils/referentialIntegrity.js';
 
 /**
  * Voice input pipeline — extracted from App.jsx (see "App.jsx — Ongoing
@@ -570,7 +571,7 @@ export default function useVoiceInput({
           }
           case 'uncomplete': {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
-            setter(prev => prev.map(t => t.id === id ? { ...t, completed: false, completedAt: null, lastModified: new Date().toISOString(), transitionId: crypto.randomUUID() } : t));
+            setter(prev => prev.map(t => t.id === id ? { ...t, completed: false, completedAt: null, ...reopenedFields(), lastModified: new Date().toISOString(), transitionId: crypto.randomUUID() } : t));
             break;
           }
           case 'changePriority': {

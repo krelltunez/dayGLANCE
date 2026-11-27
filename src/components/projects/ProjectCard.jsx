@@ -30,6 +30,7 @@ import { formatLocalizedDate } from '../../utils/localeFormatting.js';
 import { projectTaskFields } from '../../utils/projectTaskDefaults.js';
 import { hyperGlanceRuns, isOnHold } from '../../utils/projectStatus.js';
 import { readDefaultTaskDuration } from '../../utils/defaultTaskDuration.js';
+import { reopenedFields } from '../../utils/referentialIntegrity.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
 
@@ -128,12 +129,12 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
       // completedAt matches toggleComplete's stamp (local-offset ISO) so the
       // completion log carries a wall-clock time; the old shape stamped
       // nothing here and a bare date below, which logged time-less entries.
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, completedAt: !t.completed ? completionTimestamp() : null } : t));
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, completedAt: !t.completed ? completionTimestamp() : null, ...reopenedFields(t.completed) } : t));
       return;
     }
     // Unscheduled: toggle + reorder within project
     setUnscheduledTasks(prev => {
-      const updated = prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, completedAt: !t.completed ? completionTimestamp() : null } : t);
+      const updated = prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, completedAt: !t.completed ? completionTimestamp() : null, ...reopenedFields(t.completed) } : t);
       const nowComplete = updated.find(t => t.id === taskId)?.completed;
       const others = updated.filter(t => !(t.projectId === project.id && t.id === taskId));
       const moved = updated.find(t => t.id === taskId);
