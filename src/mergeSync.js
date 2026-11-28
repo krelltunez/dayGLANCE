@@ -8,7 +8,7 @@ import { mergeDeferrals } from './utils/deferrals.js';
 import { mergePlanTrail, sameTrail } from './utils/planTrail.js';
 import { sameOccurrenceEdits, withMergedExceptions, sameSubtaskCompletions, withMergedSubtaskCompletions } from '@glance-apps/dayglance-vault';
 import { earlierCreatedAt } from './utils/createdAt.js';
-import { carriedCompletedAt } from '@glance-apps/dayglance-vault';
+import { carriedCompletedAt, carriedObsidianTitle } from '@glance-apps/dayglance-vault';
 import {
   TOMBSTONE_BUNDLE_KEYS,
   tombstoneCutoff,
@@ -531,6 +531,19 @@ export const mergeSyncData = (local, remote, retentionDays) => {
           own().completedAt = stamp;
           if (l && l.completedAt !== stamp) result.localChanged = true;
           if (r && r.completedAt !== stamp) result.remoteChanged = true;
+        }
+      }
+      // An Obsidian task's title (packages/dayglance-vault/src/obsidianTitle.js):
+      // a winner holding a damaged vault line's text keeps the clean text of a
+      // copy on either side, and the side that held the damaged text gets the
+      // clean one written back.
+      {
+        const carried = carriedObsidianTitle(item, l, r);
+        for (const field of ['title', 'obsidianRawTitle']) {
+          if (carried[field] === item[field]) continue;
+          own()[field] = carried[field];
+          if (l && l[field] !== carried[field]) result.localChanged = true;
+          if (r && r[field] !== carried[field]) result.remoteChanged = true;
         }
       }
       // `clientId` (intents/launcherWrites.js), the launcher's id for the write

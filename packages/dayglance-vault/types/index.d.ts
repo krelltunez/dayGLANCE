@@ -167,6 +167,13 @@ export function sameTrail(a: unknown, b: unknown): boolean;
 export function earlierCreatedAt(a: string | null | undefined, b: string | null | undefined): string | undefined;
 /** The completedAt a merged copy carries: the winner's, or a done other copy's when the done winner has none. */
 export function carriedCompletedAt(winner: { completed?: boolean; completedAt?: string | null } | null | undefined, ...others: Array<{ completed?: boolean; completedAt?: string | null } | null | undefined>): string | null | undefined;
+/** A title with our `^dg-` block marker left inside it (a damaged vault line). */
+export function carriesStrayBlockToken(text: unknown): boolean;
+/** The title fields a merged Obsidian copy carries: the winner's, or another copy's clean one for a field the winner holds damaged. */
+export function carriedObsidianTitle(
+  winner: { importSource?: string; title?: string; obsidianRawTitle?: string } | null | undefined,
+  ...others: Array<{ importSource?: string; title?: string; obsidianRawTitle?: string } | null | undefined>
+): { title: string | undefined; obsidianRawTitle: string | undefined };
 export interface Retirement { retiredAt: string; successor: string }
 export function mergeRetiredTaskIds(local?: Record<string, Retirement>, remote?: Record<string, Retirement>): Record<string, Retirement>;
 export function pruneRetiredTaskIds(

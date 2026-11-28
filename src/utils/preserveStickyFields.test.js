@@ -191,3 +191,16 @@ describe('preserveStickyFields — completedAt (packages/dayglance-vault/src/com
     expect(preserveStickyFields([{ id: 'a', completed: true, completedAt: 'X' }], [{ id: 'a', completed: true, completedAt: STAMP }])[0].completedAt).toBe('X');
   });
 });
+
+describe('preserveStickyFields — an Obsidian title (packages/dayglance-vault/src/obsidianTitle.js)', () => {
+  const vault = (raw) => ({ id: 'a', importSource: 'obsidian', title: `${raw} #obsidian`, obsidianRawTitle: raw });
+
+  it('an incoming copy holding a damaged line\'s text keeps the clean title this device holds', () => {
+    const [out] = preserveStickyFields([vault('Five ^dg-abcd1234 extra')], [vault('Five')]);
+    expect(out).toMatchObject({ title: 'Five #obsidian', obsidianRawTitle: 'Five' });
+  });
+
+  it('an incoming clean retitle is kept', () => {
+    expect(preserveStickyFields([vault('Six')], [vault('Five')])[0].obsidianRawTitle).toBe('Six');
+  });
+});
