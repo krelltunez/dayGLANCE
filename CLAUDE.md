@@ -238,7 +238,8 @@ How dayGLANCE's data maps to GLANCEvault rows and how a pulled row merges in
 host apply rows with one copy. So do the rules both tiers share: tombstone
 retention, the day-window map, recurring exceptions, and the merges of
 `deferrals`, `planTrail`, `createdAt`, `retiredTaskIds`, habit logs, routine
-completions, `completedDates` and the JOBO pick. The app modules they came
+completions, `completedDates` and the JOBO pick, and the carries of
+`completedAt` and of an Obsidian task's clean title over a damaged one. The app modules they came
 from (`mergeSync.js`, `jobo/core.js`, `utils/deferrals.js`, `planTrail.js`,
 `createdAt.js`, `retiredTaskIds.js`) import them back: change a rule in the
 package, never beside it. The package stays pure (no storage, React or browser

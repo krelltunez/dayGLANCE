@@ -15,6 +15,7 @@ export { mergeDeferrals } from './deferrals.js';
 export { TRAIL_CAP, mergePlanTrail, sameTrail } from './planTrail.js';
 export { earlierCreatedAt } from './createdAt.js';
 export { carriedCompletedAt } from './completedAt.js';
+export { carriedObsidianTitle, carriesStrayBlockToken } from './obsidianTitle.js';
 export { mergeRetiredTaskIds, pruneRetiredTaskIds } from './retiredTaskIds.js';
 export { pickJoboRecord } from './jobo.js';
 export {

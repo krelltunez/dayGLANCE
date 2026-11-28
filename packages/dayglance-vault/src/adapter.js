@@ -38,6 +38,7 @@ import { withMergedExceptions, withMergedSubtaskCompletions } from './recurringE
 import { mergePlanTrail, sameTrail } from './planTrail.js';
 import { earlierCreatedAt } from './createdAt.js';
 import { carriedCompletedAt } from './completedAt.js';
+import { carriedObsidianTitle } from './obsidianTitle.js';
 import { TOMBSTONE_BUNDLE_KEYS, tombstoneCutoff, pruneCompletedTaskUids } from './tombstoneRetention.js';
 import { mergeRetiredTaskIds } from './retiredTaskIds.js';
 import { mergeDayWindowMaps } from './dayWindowSync.js';
@@ -438,6 +439,14 @@ function upsertCollection(data, kind, value) {
     {
       const stamp = carriedCompletedAt(merged, local);
       if (merged && stamp !== merged.completedAt) merged = { ...merged, completedAt: stamp };
+    }
+    // An Obsidian task's title (obsidianTitle.js): a winner holding the text
+    // of a damaged vault line keeps the clean text of the local copy, so a
+    // device without the damaged-line guard cannot spread it.
+    if (merged) {
+      const { title, obsidianRawTitle } = carriedObsidianTitle(merged, local);
+      if (title !== merged.title) merged = { ...merged, title };
+      if (obsidianRawTitle !== merged.obsidianRawTitle) merged = { ...merged, obsidianRawTitle };
     }
     // `clientId` (intents/launcherWrites.js) likewise: write-once at creation,
     // never cleared, so absent on the winner means that device never had it.

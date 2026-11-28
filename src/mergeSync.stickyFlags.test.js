@@ -113,3 +113,37 @@ describe('the completedAt carry', () => {
     expect(result.data.unscheduledTasks[0]).toMatchObject({ completed: false, completedAt: null });
   });
 });
+
+// An Obsidian task's title (packages/dayglance-vault/src/obsidianTitle.js): a
+// damaged vault line's text never replaces a clean title.
+describe('the Obsidian title carry', () => {
+  const CLEAN = 'ZZ tick test five';
+  const DAMAGED = 'ZZ tick test five ^dg-abcd1234 extra';
+  const vault = (raw, lastModified) => ({ ...base, importSource: 'obsidian', obsidianBlockId: 'brm75m7z', title: `${raw} #obsidian`, obsidianRawTitle: raw, lastModified });
+
+  it('flags the REMOTE when its newer damaged copy won', () => {
+    const local = { unscheduledTasks: [vault(CLEAN, OLD)] };
+    const remote = { unscheduledTasks: [vault(DAMAGED, NEW)] };
+    const remoteBefore = freeze(remote);
+    const result = mergeSyncData(local, remote, 90);
+    expect(result.data.unscheduledTasks[0]).toMatchObject({ title: `${CLEAN} #obsidian`, obsidianRawTitle: CLEAN, lastModified: NEW });
+    expect(result.remoteChanged).toBe(true);
+    expect(remote).toEqual(remoteBefore);
+  });
+
+  it('flags the LOCAL side when its newer damaged copy won', () => {
+    const local = { unscheduledTasks: [vault(DAMAGED, NEW)] };
+    const remote = { unscheduledTasks: [vault(CLEAN, OLD)] };
+    const localBefore = freeze(local);
+    const result = mergeSyncData(local, remote, 90);
+    expect(result.data.unscheduledTasks[0]).toMatchObject({ title: `${CLEAN} #obsidian`, obsidianRawTitle: CLEAN });
+    expect(result.localChanged).toBe(true);
+    expect(local).toEqual(localBefore);
+  });
+
+  it('a newer clean retitle wins as before', () => {
+    const local = { unscheduledTasks: [vault(CLEAN, OLD)] };
+    const remote = { unscheduledTasks: [vault('ZZ tick test six', NEW)] };
+    expect(mergeSyncData(local, remote, 90).data.unscheduledTasks[0].obsidianRawTitle).toBe('ZZ tick test six');
+  });
+});

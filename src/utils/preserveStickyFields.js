@@ -37,7 +37,7 @@
 import { mergeDeferrals } from './deferrals.js';
 import { mergePlanTrail, sameTrail } from './planTrail.js';
 import { earlierCreatedAt } from './createdAt.js';
-import { carriedCompletedAt } from '@glance-apps/dayglance-vault';
+import { carriedCompletedAt, carriedObsidianTitle } from '@glance-apps/dayglance-vault';
 
 export const STICKY_FIELDS = ['archived', 'originalPlan', 'starredDate', 'clientId'];
 //
@@ -78,6 +78,12 @@ export function preserveStickyFields(incoming, existing) {
     // carried onto it.
     const stamp = carriedCompletedAt(out, prev);
     if (stamp !== out.completedAt) out = { ...out, completedAt: stamp };
+    // An Obsidian task's title (packages/dayglance-vault/src/obsidianTitle.js):
+    // an incoming copy holding a damaged vault line's text keeps the clean text
+    // this device holds.
+    const carried = carriedObsidianTitle(out, prev);
+    if (carried.title !== out.title) out = { ...out, title: carried.title };
+    if (carried.obsidianRawTitle !== out.obsidianRawTitle) out = { ...out, obsidianRawTitle: carried.obsidianRawTitle };
     return out;
   });
 }

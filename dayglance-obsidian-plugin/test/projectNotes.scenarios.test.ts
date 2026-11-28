@@ -955,6 +955,48 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     expect(A.all().filter((t) => String(t.title).includes('^dg-'))).toEqual([]);
   });
 
+  it('21c. A DAMAGED TITLE FROM AN OLDER DEVICE (2026-11-28 device test): a device without the damaged-line guard takes the line\'s text and stamps it; its newer copy arrives through sync and the clean title survives it, and later passes', async () => {
+    await bootLinked();
+    await s.write(NOTE, s.text(NOTE)!.replace('## Tasks\n', '## Tasks\n- [ ] ZZ tick test five\n'));
+    await s.settle();
+    await A.sync();
+    await A.writeback();
+    await s.plugin.transport.drain();
+    await s.settle();
+    await A.sync();
+    const id = A.all().find((t) => t.title.startsWith('ZZ tick test five'))!.id;
+    const token = String(id).slice('obsidian-dg-'.length);
+    await s.advance(60_000);
+
+    // Text typed into the middle of the line: this device keeps the title.
+    await s.write(NOTE, s.text(NOTE)!.replace(`- [ ] ZZ tick test five ^dg-${token}`, `- [x] ZZ tick test five ^dg-abcd1234 extra ^dg-${token}`));
+    await s.settle();
+    await A.sync();
+    const here = A.all().find((t) => t.id === id)!;
+    expect(here).toMatchObject({ title: 'ZZ tick test five #obsidian', obsidianRawTitle: 'ZZ tick test five', completed: true });
+
+    // The older device took the line's text and stamped it as an edit: its
+    // copy is newer and wins the pull, the vault tier's apply and then the
+    // app's apply step, as useSyncEngineData runs them.
+    await s.advance(3_000);
+    const older: Row = { ...here, title: 'ZZ tick test five ^dg-abcd1234 extra #obsidian', obsidianRawTitle: 'ZZ tick test five ^dg-abcd1234 extra', lastModified: new Date().toISOString() };
+    const data = { unscheduledTasks: JSON.parse(JSON.stringify(A.state.inbox)) };
+    const repush = applyRemoteEntity(data, { entityId: makeEntityId('unscheduledTasks', id), _kind: 'unscheduledTasks', value: older });
+    expect(repush).toEqual([makeEntityId('unscheduledTasks', id)]);
+    const applied = preserveStickyFields(data.unscheduledTasks, A.state.inbox);
+    A.state.inbox.splice(0, A.state.inbox.length, ...applied);
+    expect(A.all().find((t) => t.id === id)).toMatchObject({ title: 'ZZ tick test five #obsidian', obsidianRawTitle: 'ZZ tick test five', lastModified: older.lastModified });
+
+    // The bridge sees the line again: nothing changes, nothing is written.
+    const writes = s.plugin.app.vault.writes;
+    await A.writeback();
+    await s.plugin.transport.drain();
+    await s.settle();
+    await A.sync();
+    expect(A.all().find((t) => t.id === id)).toMatchObject({ title: 'ZZ tick test five #obsidian', obsidianRawTitle: 'ZZ tick test five' });
+    expect(s.plugin.app.vault.writes).toBe(writes);
+  });
+
   it('22. THE NOTES BOX AT CREATION (owner ruling 2026-10-03): the box rides the create intent into the description slot; the record empties on enqueue; the journal holds the text', async () => {
     const project = { id: 'p1', title: 'House', status: 'active', description: 'Dry roof by spring.' };
     await boot({ projects: [project] });

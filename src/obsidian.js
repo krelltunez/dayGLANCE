@@ -12,6 +12,7 @@
  * (makeElectronVaultHandle) that the rest of this module drives unchanged.
  */
 
+import { carriesStrayBlockToken } from '@glance-apps/dayglance-vault';
 import { makeElectronVaultHandle } from './obsidianElectronHandle.js';
 import {
   validateVaultNameSegment,
@@ -1121,9 +1122,9 @@ export function buildExistingObsidianTaskContext(existingTasks, existingInbox) {
  * test). The app and the plugin already refuse to stamp or rewrite such a
  * line; the merge below also refuses to take its title.
  */
-export function carriesStrayBlockToken(rawTitle) {
-  return typeof rawTitle === 'string' && rawTitle.includes('^dg-');
-}
+// The rule itself lives in the vault package, where both sync tiers use it too
+// (packages/dayglance-vault/src/obsidianTitle.js).
+export { carriesStrayBlockToken };
 
 /** The note a parsed task's line is in: a scoped note's path, or a daily note's date. */
 const lineNoteKey = (task) => task?.obsidianNotePath || task?.obsidianFileDate || null;
