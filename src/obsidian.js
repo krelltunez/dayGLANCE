@@ -1153,9 +1153,16 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
     if (key && out.damagedNotes) out.damagedNotes.add(key);
     return true;
   };
+  // A task with no stored line text (no observation of its line yet) keeps
+  // its title too, and gets no line text from this report: the damaged text
+  // would otherwise become the base every later report is compared with.
   const keepTitleOf = (task, existing) => {
-    if (existing.obsidianRawTitle === undefined) return false;
-    task.obsidianRawTitle = existing.obsidianRawTitle;
+    if (existing.obsidianRawTitle !== undefined) {
+      task.obsidianRawTitle = existing.obsidianRawTitle;
+      return true;
+    }
+    if (existing.title === undefined) return false;
+    delete task.obsidianRawTitle;
     return true;
   };
   for (const task of parsed.scheduledTasks) {
