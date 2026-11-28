@@ -1214,7 +1214,9 @@ export default function useObsidianSync({
           if (applied) {
             const allMtimes = applied.noteMtimes
               ?? { ...noteMtimesFromDailyNotes(applied.dailyNotes), ...noteMtimesFromScopedNotes(applied.scopedNotes) };
-            const gate = applyLateObservationGate(applied.dailyNotes, allMtimes, undefined, applied.scopedNotes);
+            // A note read with a damaged line is applied but does not move the
+            // gate's memory (utils/lateObservationGate.js).
+            const gate = applyLateObservationGate(applied.dailyNotes, allMtimes, undefined, applied.scopedNotes, new Set(applied.damagedNotes || []));
             applied.dailyNotes = gate.dailyNotes;
             applied.scopedNotes = gate.scopedNotes;
             applied.noteMtimes = gate.noteMtimes;
@@ -1584,7 +1586,7 @@ export default function useObsidianSync({
       // own copy can lag an observation it already applied (Obsidian Sync
       // behind); an older mtime is stale evidence here too, one rule for
       // both paths.
-      const scanGate = applyLateObservationGate(result.dailyNotes, scannedNoteMtimesAll);
+      const scanGate = applyLateObservationGate(result.dailyNotes, scannedNoteMtimesAll, undefined, null, new Set(result.damagedNotes || []));
       setDailyNotes(prev => mergeObsidianDailyNotes(prev, scanGate.dailyNotes, tombstones));
       // The tasks parsed from a skipped note are stale too (2026-09-17):
       // they leave the merge and the snapshot, and their ids leave the
